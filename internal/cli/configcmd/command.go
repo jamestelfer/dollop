@@ -66,7 +66,9 @@ func newGetCommand(cfgPath string) *cli.Command {
 			if err != nil {
 				return cli.Exit(err.Error(), 1)
 			}
-			fmt.Fprintln(cmd.Root().Writer, val)
+			if _, err := fmt.Fprintln(cmd.Root().Writer, val); err != nil {
+				return cli.Exit(fmt.Sprintf("write output: %v", err), 1)
+			}
 			return nil
 		},
 	}
@@ -77,12 +79,17 @@ func newListCommand(cfgPath string) *cli.Command {
 		Name:  "list",
 		Usage: "print all config keys and values",
 		Action: func(_ context.Context, cmd *cli.Command) error {
+			if cmd.Args().Len() != 0 {
+				return cli.Exit("usage: config list", 1)
+			}
 			cfg, err := config.LoadFrom(cfgPath)
 			if err != nil {
 				return cli.Exit(fmt.Sprintf("load config: %v", err), 1)
 			}
 			for _, pair := range cfg.List() {
-				fmt.Fprintf(cmd.Root().Writer, "%s = %s\n", pair[0], pair[1])
+				if _, err := fmt.Fprintf(cmd.Root().Writer, "%s = %s\n", pair[0], pair[1]); err != nil {
+					return cli.Exit(fmt.Sprintf("write output: %v", err), 1)
+				}
 			}
 			return nil
 		},
@@ -112,7 +119,9 @@ func newAuthCommand(kr config.KeyringStore) *cli.Command {
 			}
 
 			if err := kr.Set(config.ServiceName, key, value); err != nil {
-				fmt.Fprintf(cmd.Root().ErrWriter, "keyring error: %v\n", err)
+				if _, werr := fmt.Fprintf(cmd.Root().ErrWriter, "keyring error: %v\n", err); werr != nil {
+					return cli.Exit(fmt.Sprintf("write keyring error: %v", werr), 1)
+				}
 				return cli.Exit("failed to store credential in keyring", 1)
 			}
 			return nil
