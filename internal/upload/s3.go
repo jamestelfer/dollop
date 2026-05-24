@@ -1,0 +1,38 @@
+package upload
+
+import (
+	"context"
+	"fmt"
+	"io"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+)
+
+// S3Uploader implements Uploader against Cloudflare R2 via the S3-compatible API.
+type S3Uploader struct {
+	client *s3.Client
+}
+
+// NewS3Uploader returns an Uploader pointed at the R2 endpoint for accountID.
+func NewS3Uploader(accountID, accessKey, secretKey string) (*S3Uploader, error) {
+	endpoint := fmt.Sprintf("https://%s.r2.cloudflarestorage.com", accountID)
+	client := s3.New(s3.Options{
+		BaseEndpoint: aws.String(endpoint),
+		Region:       "auto",
+		Credentials:  credentials.NewStaticCredentialsProvider(accessKey, secretKey, ""),
+		UsePathStyle: true,
+	})
+	return &S3Uploader{client: client}, nil
+}
+
+func (u *S3Uploader) PutObject(ctx context.Context, bucket, key, contentType string, body io.Reader) error {
+	_, err := u.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(bucket),
+		Key:         aws.String(key),
+		ContentType: aws.String(contentType),
+		Body:        body,
+	})
+	return err
+}

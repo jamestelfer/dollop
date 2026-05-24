@@ -10,13 +10,13 @@
 ## §1 General
 
 - [x] 1.1 CLI named `dollop` (`cmd/dollop/main.go`)
-- [x] 1.2 Subcommand skeleton: `config` registered; `create` and `update` not yet started
-- [ ] 1.3 All progress/diagnostic output to stderr (not yet exercised — no uploads yet)
-- [ ] 1.4 Only final URL to stdout (not yet exercised)
-- [ ] 1.5 Content-Type inferred from extension via `mime.TypeByExtension`
-- [ ] 1.6 Fallback to `application/octet-stream`
-- [ ] 1.7 Sequential file uploads
-- [ ] 1.8 TLS for R2 S3-compatible API connections
+- [x] 1.2 Subcommands: `config` and `create` registered; `update` not yet started
+- [x] 1.3 All progress/diagnostic output to stderr — `internal/upload/upload.go`, `createcmd`
+- [x] 1.4 Only final URL to stdout — `internal/cli/createcmd/command.go`, tested
+- [x] 1.5 Content-Type inferred from extension via `mime.TypeByExtension` — `internal/upload/mime.go`
+- [x] 1.6 Fallback to `application/octet-stream` — `internal/upload/mime.go`, tested
+- [x] 1.7 Sequential file uploads — `internal/upload/upload.go` (sequential WalkDir)
+- [x] 1.8 TLS for R2 S3-compatible API — `internal/upload/s3.go` (https endpoint)
 
 ## §2 Configuration
 
@@ -32,16 +32,16 @@
 
 ## §3 Create
 
-- [ ] 3.1 `--days` flag (values: 1, 7, 14; default: 1)
-- [ ] 3.2 `--keep` flag
-- [ ] 3.3 Ephemeral prefix `dollop/<days>/<nanoid>/`
-- [ ] 3.4 Permanent prefix `keep/<petname>/`
-- [ ] 3.5 Single file upload under prefix with original filename
-- [ ] 3.6 Directory upload with recursive walk, preserving relative paths
-- [ ] 3.7 `Content-Type` header set per file on upload
-- [ ] 3.8 Object key printed to stderr after each upload
-- [ ] 3.9 Final URL printed to stdout: `<base_url>/<prefix>/`
-- [ ] 3.10 Upload failure → error to stderr, non-zero exit
+- [x] 3.1 `--days` flag (values: 1, 7, or 14; default: 1) — `internal/cli/createcmd/command.go`
+- [x] 3.2 `--keep` flag — `internal/cli/createcmd/command.go`
+- [x] 3.3 Ephemeral prefix `dollop/<days>/<nanoid>/` — `internal/upload/prefix.go`, tested
+- [x] 3.4 Permanent prefix `keep/<petname>/` — `internal/upload/prefix.go`, tested
+- [x] 3.5 Single file upload under prefix with original filename — `internal/upload/upload.go`, tested
+- [x] 3.6 Directory upload with recursive walk, preserving relative paths — `internal/upload/upload.go`, tested
+- [x] 3.7 `Content-Type` header set per file on upload — `internal/upload/mime.go`, tested
+- [x] 3.8 Object key printed to stderr after each upload — `internal/upload/upload.go`, tested
+- [x] 3.9 Final URL printed to stdout: `<base_url>/<prefix>/` — `internal/upload/prefix.go`, tested
+- [x] 3.10 Upload failure → error to stderr, non-zero exit — `internal/cli/createcmd/command.go`, tested
 
 ## §4 Update
 
@@ -66,10 +66,11 @@
 | `gopkg.in/yaml.v3` | Config file serialisation |
 | `github.com/zalando/go-keyring` | OS keyring for R2 credentials |
 
-## Dependencies Pending
+## Dependencies Added (continued)
 
 | Package | Purpose |
 |---|---|
-| `github.com/aws/aws-sdk-go-v2` | R2 S3-compatible uploads |
+| `github.com/aws/aws-sdk-go-v2/service/s3` | R2 S3-compatible uploads |
 | `github.com/matoous/go-nanoid/v2` | Ephemeral upload IDs |
 | `github.com/dustinkirkland/golang-petname` | Permanent upload names |
+| `github.com/stretchr/testify` | Test assertions |
