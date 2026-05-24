@@ -12,7 +12,7 @@ test *args:
 # Build the binary
 build *args:
     mkdir -p dist
-    mise exec -- env CGO_ENABLED=0 go build -trimpath -o dist/ ./cmd/imds-broker/... {{args}}
+    mise exec -- env CGO_ENABLED=0 go build -trimpath -o dist/ ./cmd/dollop/... {{args}}
 
 # Run linter
 #lint:
