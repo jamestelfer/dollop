@@ -30,7 +30,10 @@ func (f *fakeUploader) PutObject(_ context.Context, bucket, key, contentType str
 	if f.err != nil {
 		return f.err
 	}
-	data, _ := io.ReadAll(body)
+	data, err := io.ReadAll(body)
+	if err != nil {
+		return err
+	}
 	f.calls = append(f.calls, putCall{bucket, key, contentType, data})
 	return nil
 }
