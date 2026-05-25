@@ -12,4 +12,5 @@ fi
 
 mise trust
 mise install
+mise reshim
 just build || true
