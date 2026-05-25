@@ -2,6 +2,7 @@ package upload
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 )
 
@@ -19,7 +20,7 @@ func PermanentPrefix(name string) string {
 // If baseURL has no scheme, https:// is prepended.
 func PublicURL(baseURL, prefix string) string {
 	base := strings.TrimRight(baseURL, "/")
-	if !strings.HasPrefix(base, "https://") && !strings.HasPrefix(base, "http://") {
+	if u, err := url.Parse(base); err != nil || u.Scheme == "" {
 		base = "https://" + base
 	}
 	return base + "/" + prefix + "/"
