@@ -28,4 +28,6 @@ func TestContentType_HTMLPreservesCharset(t *testing.T) {
 func TestContentType_MarkdownServesAsPlainText(t *testing.T) {
 	assert.Equal(t, "text/plain; charset=utf-8", upload.ContentType("README.md"))
 	assert.Equal(t, "text/plain; charset=utf-8", upload.ContentType("README.markdown"))
+	assert.Equal(t, "text/plain; charset=utf-8", upload.ContentType("README.MD"))
+	assert.Equal(t, "text/plain; charset=utf-8", upload.ContentType("README.MarkDown"))
 }

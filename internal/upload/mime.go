@@ -3,12 +3,13 @@ package upload
 import (
 	"mime"
 	"path/filepath"
+	"strings"
 )
 
 // ContentType returns the MIME type for filename based on its extension.
 // Falls back to application/octet-stream for unknown extensions.
 func ContentType(filename string) string {
-	ext := filepath.Ext(filename)
+	ext := strings.ToLower(filepath.Ext(filename))
 	if ext == "" {
 		return "application/octet-stream"
 	}
