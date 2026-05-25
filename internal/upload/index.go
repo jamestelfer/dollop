@@ -1,0 +1,78 @@
+package upload
+
+import (
+	"bytes"
+	"html/template"
+)
+
+var indexTmpl = template.Must(template.New("index").Parse(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Index</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  max-width: 720px;
+  margin: 3rem auto;
+  padding: 0 1.5rem;
+  color: #111827;
+  background: #f9fafb;
+}
+h1 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+li + li {
+  border-top: 1px solid #f3f4f6;
+}
+a {
+  display: block;
+  padding: 0.65rem 1rem;
+  color: #2563eb;
+  text-decoration: none;
+  font-size: 0.9375rem;
+}
+a:hover {
+  background: #eff6ff;
+  text-decoration: underline;
+}
+</style>
+</head>
+<body>
+<h1>Files</h1>
+<ul>
+{{- range .Files}}
+<li><a href="{{.}}">{{.}}</a></li>
+{{- end}}
+</ul>
+</body>
+</html>
+`))
+
+type indexData struct {
+	Files []string
+}
+
+func generateIndexHTML(files []string) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := indexTmpl.Execute(&buf, indexData{Files: files}); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}

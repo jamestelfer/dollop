@@ -1,6 +1,7 @@
 package upload
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -10,15 +11,73 @@ import (
 
 // UploadFiles uploads localPath (file or directory) to bucket under prefix.
 // Each completed key is written to stderr. Files are uploaded sequentially.
-func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath string, stderr io.Writer) error {
+// If generateIndex is true and no index.html is present in the upload, a
+// generated index page is uploaded first; if index.html already exists a
+// warning is written to stderr and generation is skipped.
+func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath string, generateIndex bool, stderr io.Writer) error {
 	info, err := os.Stat(localPath)
 	if err != nil {
 		return err
 	}
+
+	if generateIndex {
+		relPaths, hasIndex, err := collectRelativePaths(localPath, info.IsDir())
+		if err != nil {
+			return fmt.Errorf("scan files: %w", err)
+		}
+		if hasIndex {
+			fmt.Fprintln(stderr, "warning: index.html already present, skipping index generation") //nolint:errcheck
+		} else {
+			if err := uploadGeneratedIndex(ctx, up, bucket, prefix, relPaths, stderr); err != nil {
+				return err
+			}
+		}
+	}
+
 	if info.IsDir() {
 		return uploadDir(ctx, up, bucket, prefix, localPath, stderr)
 	}
 	return uploadFile(ctx, up, bucket, prefix+"/"+filepath.Base(localPath), localPath, stderr)
+}
+
+func collectRelativePaths(localPath string, isDir bool) ([]string, bool, error) {
+	if !isDir {
+		name := filepath.Base(localPath)
+		return []string{name}, name == "index.html", nil
+	}
+	var paths []string
+	hasIndex := false
+	err := filepath.WalkDir(localPath, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		rel, err := filepath.Rel(localPath, path)
+		if err != nil {
+			return err
+		}
+		rel = filepath.ToSlash(rel)
+		paths = append(paths, rel)
+		if rel == "index.html" {
+			hasIndex = true
+		}
+		return nil
+	})
+	return paths, hasIndex, err
+}
+
+func uploadGeneratedIndex(ctx context.Context, up Uploader, bucket, prefix string, files []string, stderr io.Writer) error {
+	html, err := generateIndexHTML(files)
+	if err != nil {
+		return fmt.Errorf("generate index: %w", err)
+	}
+	key := prefix + "/index.html"
+	fmt.Fprintf(stderr, "uploading [index.html] %s...", HumanSize(int64(len(html)))) //nolint:errcheck
+	if err := up.PutObject(ctx, bucket, key, "text/html; charset=utf-8", bytes.NewReader(html)); err != nil {
+		fmt.Fprintln(stderr, "failed") //nolint:errcheck
+		return fmt.Errorf("upload %s: %w", key, err)
+	}
+	fmt.Fprintln(stderr, "done") //nolint:errcheck
+	return nil
 }
 
 func uploadDir(ctx context.Context, up Uploader, bucket, prefix, dir string, stderr io.Writer) error {

@@ -45,7 +45,7 @@ func TestUploadFiles_SingleFile(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	err := upload.UploadFiles(context.Background(), up, "my-bucket", "dollop/1/abc", path, &stderr)
+	err := upload.UploadFiles(context.Background(), up, "my-bucket", "dollop/1/abc", path, false, &stderr)
 	require.NoError(t, err)
 
 	require.Len(t, up.calls, 1)
@@ -65,7 +65,7 @@ func TestUploadFiles_Directory(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	err := upload.UploadFiles(context.Background(), up, "bucket", "keep/friendly-cat", dir, &stderr)
+	err := upload.UploadFiles(context.Background(), up, "bucket", "keep/friendly-cat", dir, false, &stderr)
 	require.NoError(t, err)
 
 	require.Len(t, up.calls, 2)
@@ -86,10 +86,72 @@ func TestUploadFiles_UploaderError(t *testing.T) {
 
 	up := &fakeUploader{err: assert.AnError}
 	var stderr bytes.Buffer
-	err := upload.UploadFiles(context.Background(), up, "b", "p", filepath.Join(dir, "file.bin"), &stderr)
+	err := upload.UploadFiles(context.Background(), up, "b", "p", filepath.Join(dir, "file.bin"), false, &stderr)
 	assert.Error(t, err)
 	assert.Contains(t, stderr.String(), "uploading [file.bin]")
 	assert.Contains(t, stderr.String(), "...failed")
+}
+
+func TestUploadFiles_Index_GeneratesAndUploads(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "report.pdf"), []byte("pdf"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("notes"), 0600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr)
+	require.NoError(t, err)
+
+	keys := make([]string, len(up.calls))
+	for i, c := range up.calls {
+		keys[i] = c.key
+	}
+	assert.Contains(t, keys, "flash/1/abc/index.html")
+
+	// index.html is uploaded with the right content type
+	var indexCall *putCall
+	for i := range up.calls {
+		if up.calls[i].key == "flash/1/abc/index.html" {
+			indexCall = &up.calls[i]
+			break
+		}
+	}
+	require.NotNil(t, indexCall)
+	assert.Contains(t, indexCall.contentType, "text/html")
+	assert.Contains(t, string(indexCall.body), "notes.txt")
+	assert.Contains(t, string(indexCall.body), "report.pdf")
+
+	assert.NotContains(t, stderr.String(), "warning")
+}
+
+func TestUploadFiles_Index_SkipsIfExists(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("<h1>mine</h1>"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "data.csv"), []byte("a,b"), 0600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/xyz", dir, true, &stderr)
+	require.NoError(t, err)
+
+	// only the two real files, no generated index
+	require.Len(t, up.calls, 2)
+	assert.Contains(t, stderr.String(), "warning")
+	assert.Contains(t, stderr.String(), "index.html")
+}
+
+func TestUploadFiles_Index_SingleFile_IsIndex(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "index.html")
+	require.NoError(t, os.WriteFile(path, []byte("<h1>hi</h1>"), 0600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/xyz", path, true, &stderr)
+	require.NoError(t, err)
+
+	require.Len(t, up.calls, 1) // only the file itself, no generated index
+	assert.Contains(t, stderr.String(), "warning")
 }
 
 func TestHumanSize(t *testing.T) {

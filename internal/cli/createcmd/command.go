@@ -40,6 +40,12 @@ are mutually exclusive.
 
   dollop create --keep notes.txt
   dollop create --keep project/`,
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:  "index",
+				Usage: "generate and upload an index.html listing all uploaded files (skipped with a warning if index.html already exists)",
+			},
+		},
 		MutuallyExclusiveFlags: []cli.MutuallyExclusiveFlags{
 			{
 				Flags: [][]cli.Flag{
@@ -66,6 +72,7 @@ are mutually exclusive.
 
 			days := cmd.Int("days")
 			keep := cmd.Bool("keep")
+			genIndex := cmd.Bool("index")
 			localPath := cmd.Args().Get(0)
 
 			var prefix string
@@ -84,7 +91,7 @@ are mutually exclusive.
 				prefix = upload.EphemeralPrefix(days, id)
 			}
 
-			if err := upload.UploadFiles(ctx, uploader, bucket, prefix, localPath, cmd.Root().ErrWriter); err != nil {
+			if err := upload.UploadFiles(ctx, uploader, bucket, prefix, localPath, genIndex, cmd.Root().ErrWriter); err != nil {
 				fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err) //nolint:errcheck
 				return cli.Exit("upload failed", 1)
 			}
