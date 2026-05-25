@@ -30,7 +30,7 @@ internal/upload/                uploader interface, S3 client, MIME detection, p
 
 - Dependencies are injected into commands (uploader, keyring, path functions) — keep it that way for testability.
 - Credentials never go in the config file; only in the OS keyring (`config auth <key> <value>`).
-- Prefix shapes: ephemeral `dollop/<days>/<nanoid>/`, permanent `keep/<petname>/`.
+- Prefix shapes: ephemeral `flash/<days>/<nanoid>/`, permanent `keep/<petname>/`.
 - `cli.Exit(msg, code)` for user-facing errors; `fmt.Errorf("context: %w", err)` for propagated errors.
 - Check errors from `fmt.Fprintln`/`fmt.Fprintf` when the write is the command's primary output; writes to stderr for progress/diagnostics do not need error checks.
 

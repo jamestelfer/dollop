@@ -4,7 +4,7 @@ Uploads files and directories to unique, expiring paths in a Cloudflare R2 bucke
 
 Two upload modes:
 
-- **Ephemeral** (default): objects are stored under `dollop/<days>/<id>/` and deleted by R2 lifecycle rules after 1, 7, or 14 days.
+- **Ephemeral** (default): objects are stored under `flash/<days>/<id>/` and deleted by R2 lifecycle rules after 1, 7, or 14 days.
 - **Permanent**: objects are stored under `keep/<name>/` and are not subject to expiry.
 
 ## Installation
@@ -55,7 +55,7 @@ dollop create --keep    <path>   # permanent
 On success, dollop prints the public URL of the upload:
 
 ```
-https://cdn.example.com/dollop/7/v8p2xkqj3m/
+https://cdn.example.com/flash/7/v8p2xkqj3m/
 ```
 
 ## Cloudflare R2 setup
@@ -78,8 +78,8 @@ Ephemeral uploads are expired by R2 object lifecycle rules. Three rules are requ
 
 | Prefix filter | Expiration |
 |---|---|
-| `dollop/1/` | 1 day |
-| `dollop/7/` | 7 days |
-| `dollop/14/` | 14 days |
+| `flash/1/` | 1 day |
+| `flash/7/` | 7 days |
+| `flash/14/` | 14 days |
 
 Objects under `keep/` are not covered by any lifecycle rule and are retained indefinitely.
