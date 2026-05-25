@@ -3,6 +3,7 @@ package configcmd
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/jamestelfer/dollop/internal/config"
 	"github.com/urfave/cli/v3"
@@ -107,14 +108,7 @@ func newAuthCommand(kr config.KeyringStore) *cli.Command {
 			}
 			key, value := cmd.Args().Get(0), cmd.Args().Get(1)
 
-			valid := false
-			for _, k := range config.AllowedKeyringKeys {
-				if k == key {
-					valid = true
-					break
-				}
-			}
-			if !valid {
+			if !slices.Contains(config.AllowedKeyringKeys, key) {
 				return cli.Exit(fmt.Sprintf("unknown keyring key %q", key), 1)
 			}
 
