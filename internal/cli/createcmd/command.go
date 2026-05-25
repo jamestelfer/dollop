@@ -61,7 +61,7 @@ are mutually exclusive.
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if cmd.Args().Len() != 1 {
-				return cli.Exit("usage: create [--days N] [--keep] <path>", 1)
+				return cli.Exit("usage: create [--days N | --keep] <path>", 1)
 			}
 
 			days := cmd.Int("days")
