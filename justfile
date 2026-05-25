@@ -1,5 +1,5 @@
 # Run all checks before committing
-verify: fmt build test
+verify: fmt build lint test
 
 # Format all Go source files
 fmt:
@@ -15,5 +15,5 @@ build *args:
     mise exec -- env CGO_ENABLED=0 go build -trimpath -o dist/ ./cmd/dollop/... {{args}}
 
 # Run linter
-#lint:
-#    mise exec -- golangci-lint run ./...
+lint:
+    mise exec -- golangci-lint run ./...
