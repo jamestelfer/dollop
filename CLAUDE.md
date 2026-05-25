@@ -9,7 +9,7 @@ This project uses **Go 1.26**, which was released after the AI knowledge cutoff.
 ## Build and test
 
 ```
-just verify    # fmt + build + test (run before committing)
+just verify    # fmt + build + lint + test (run before committing)
 just build     # produces dist/dollop
 just test      # go test ./...
 just fmt       # gofmt -w .

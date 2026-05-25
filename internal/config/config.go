@@ -84,7 +84,7 @@ func (c Config) Require(key string) (string, error) {
 // LoadFrom reads a Config from path. Returns a zero Config if the file does
 // not exist.
 func LoadFrom(path string) (Config, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec
 	if errors.Is(err, os.ErrNotExist) {
 		return Config{}, nil
 	}
@@ -100,14 +100,14 @@ func LoadFrom(path string) (Config, error) {
 
 // SaveTo writes cfg as YAML to path, creating parent directories as needed.
 func SaveTo(path string, cfg Config) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0600)
+	return os.WriteFile(path, data, 0o600)
 }
 
 // Load reads the config file from the default XDG path.

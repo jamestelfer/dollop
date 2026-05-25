@@ -39,16 +39,16 @@ func uploadDir(ctx context.Context, up Uploader, bucket, prefix, dir string, std
 }
 
 func uploadFile(ctx context.Context, up Uploader, bucket, key, localPath string, stderr io.Writer) error {
-	f, err := os.Open(localPath)
+	f, err := os.Open(localPath) //nolint:gosec
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	ct := ContentType(localPath)
 	if err := up.PutObject(ctx, bucket, key, ct, f); err != nil {
 		return fmt.Errorf("upload %s: %w", key, err)
 	}
-	fmt.Fprintln(stderr, key)
+	fmt.Fprintln(stderr, key) //nolint:errcheck
 	return nil
 }

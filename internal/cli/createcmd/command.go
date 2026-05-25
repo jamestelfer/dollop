@@ -39,7 +39,7 @@ func New(
 				return cli.Exit("usage: create [--days N] [--keep] <path>", 1)
 			}
 
-			days := int(cmd.Int("days"))
+			days := cmd.Int("days")
 			keep := cmd.Bool("keep")
 			localPath := cmd.Args().Get(0)
 
@@ -60,11 +60,13 @@ func New(
 			}
 
 			if err := upload.UploadFiles(ctx, uploader, bucket, prefix, localPath, cmd.Root().ErrWriter); err != nil {
-				fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err)
+				fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err) //nolint:errcheck
 				return cli.Exit("upload failed", 1)
 			}
 
-			fmt.Fprintln(cmd.Root().Writer, upload.PublicURL(baseURL, prefix))
+			if _, err := fmt.Fprintln(cmd.Root().Writer, upload.PublicURL(baseURL, prefix)); err != nil {
+				return cli.Exit(fmt.Sprintf("write output: %v", err), 1)
+			}
 			return nil
 		},
 	}

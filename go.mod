@@ -1,6 +1,6 @@
 module github.com/jamestelfer/dollop
 
-go 1.24.7
+go 1.26.0
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.41.7
