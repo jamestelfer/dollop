@@ -111,30 +111,66 @@ The end-to-end flow once both phases are live:
 
 ---
 
-## Phase 3 — Nix vendorHash automation (future, separate)
+## Phase 3 — Nix vendorHash automation
 
-The `vendorHash` in `flake.nix` must match the exact Go module dependency state of the released version. It is semantically tied to the release, not to individual feature PRs.
+The `vendorHash` in `flake.nix` must match the Go module dependency state of the released version exactly. It is semantically tied to the release, not to individual feature PRs, so it belongs in the release preparation step alongside the version bump and CHANGELOG.
 
-### Planned approach
+### How it fits into the workflow
 
-Add steps to the `release-please.yml` workflow that run after the release-please action, conditional on a release PR having been created or updated:
+The release-please action runs first and creates or updates the release PR branch. Phase 3 adds conditional steps immediately after in the same `release-please.yml` job. When `prs_created == 'true'`, the steps check out the release PR branch, compute the correct hash, and push a commit back to it. The release PR then contains version bump, CHANGELOG, and the correct `vendorHash` — all before you merge it.
 
-1. Check out the release PR branch (branch name is available from release-please action outputs)
-2. Install Nix via `DeterminateSystems/nix-installer-action`
-3. Compute the correct `vendorHash` by attempting a build with a known-bad hash and parsing the correct value from Nix's error output
-4. Patch `flake.nix` with the correct hash
-5. Commit and push back to the release PR branch
+**No loop risk**: the workflow triggers only on `push: branches: [main]`. The vendorHash commit pushes to the release PR branch (not `main`), so it cannot retrigger the workflow.
 
-The commit must be attributed to the workflow bot and the workflow must filter on author to avoid triggering itself in a loop.
+### Conditional execution
 
-### Manual prerequisites (when implementing)
+The release-please action outputs:
+- `prs_created` — `'true'` if a release PR was created or updated
+- `pr` — JSON object; `headBranchName` field contains the release PR branch name
 
-- [ ] Confirm Nix installation works in the GitHub Actions runner environment
-- [ ] Decide whether to use `DeterminateSystems/nix-installer-action` or an alternative
+Steps run under `if: steps.release-please.outputs.prs_created == 'true'`. The branch is accessed via `fromJson(steps.release-please.outputs.pr).headBranchName`.
+
+### vendorHash computation approach
+
+Nix reports the correct hash when a build fails due to a hash mismatch. The steps exploit this:
+
+1. Patch `flake.nix`: replace the existing `vendorHash` value with a known-wrong SRI hash (`sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=`)
+2. Run `nix build .#dollop`; capture stderr
+3. Parse the correct hash from the `got:` line in the error output
+4. If the correct hash differs from what was in the file before step 1, patch `flake.nix` with the correct value and commit; otherwise no-op
+
+The commit is attributed to `github-actions[bot]` and the message is a `chore:` so it does not affect the release version.
+
+### Files
+
+| File | Action |
+|---|---|
+| `.github/workflows/release-please.yml` | Add conditional Nix steps after release-please action |
+
+No new files. The additional steps extend the existing workflow job.
+
+### New workflow steps (outline)
+
+```
+- checkout release PR branch (ref: headBranchName from pr output)
+- DeterminateSystems/nix-installer-action
+- shell: capture original hash; set fake hash; nix build; parse got: line;
+          if changed: write correct hash, git commit, git push
+```
+
+The checkout step uses `persist-credentials: true` (the default) so the push succeeds with `GITHUB_TOKEN`. No additional secrets are required — `contents: write` is already on the job from Phase 2.
+
+### Manual steps
+
+- [ ] **Set initial vendorHash in `flake.nix`** before merging Phase 2: run `nix build` locally with a fake hash and copy the value from Nix's error output — OR — push a draft with `sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=` and let Phase 3 automation correct it on the first release PR
+
+### Manual verification after Phase 3
+
+- [ ] Merge a `feat:` PR to `main` and confirm the release PR branch receives a second commit from `github-actions[bot]` updating `vendorHash`
+- [ ] Confirm `nix build` succeeds locally (or in CI) against the release PR branch
 
 ---
 
 ## Notes
 
 - `flake.lock` will be pinned to the nixpkgs revision from imds-broker initially; run `nix flake update` in dollop to refresh it when needed
-- The `vendorHash` in `flake.nix` must be manually computed and set correctly before Phase 3 is implemented; Nix will report the correct value on a failed build attempt
+- Individual feature PRs do not touch `flake.nix` — all flake updates (version and hash) are automated at release time
