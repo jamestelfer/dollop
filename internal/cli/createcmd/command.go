@@ -21,17 +21,33 @@ func New(
 ) cli.Command {
 	return cli.Command{
 		Name:      "create",
-		Usage:     "upload a file or directory to a new R2 path",
+		Usage:     "publish a file or directory as a shareable browser link",
 		ArgsUsage: "<path>",
+		Description: `Publishes a local file or directory and prints the shareable URL to
+stdout. The link is immediately accessible in a browser. Upload progress
+is written to stderr.
+
+By default, links expire after 1 day. Use --days to extend the window;
+allowed values are 1, 7, and 14.
+
+  dollop create report.pdf               # link expires in 1 day
+  dollop create --days 7 archive.zip     # link expires in 7 days
+  dollop create --days 14 backup/        # directory; link expires in 14 days
+
+Use --keep when the link should never expire. The URL will contain a
+memorable two-word petname instead of a random ID.
+
+  dollop create --keep notes.txt
+  dollop create --keep project/`,
 		Flags: []cli.Flag{
 			&cli.IntFlag{
 				Name:  "days",
-				Usage: "expiry in days (1, 7, or 14)",
+				Usage: "number of days before the link expires; allowed values: 1, 7, 14 (ignored with --keep)",
 				Value: 1,
 			},
 			&cli.BoolFlag{
 				Name:  "keep",
-				Usage: "upload to a permanent path",
+				Usage: "publish to a permanent link with a memorable petname (no expiry)",
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
