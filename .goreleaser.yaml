@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+builds:
+  - id: release
+    binary: dollop
+    main: ./cmd/dollop
+    flags:
+      - "-trimpath"
+    ldflags: "-w -X main.version={{.Version}}"
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+checksum:
+  name_template: "checksums.txt"
+
+archives:
+  - id: archives
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+changelog:
+  use: github-native
+  sort: asc
+
+release:
+  prerelease: auto
+
+homebrew_casks:
+  - name: dollop
+    directory: Casks
+    homepage: "https://github.com/jamestelfer/dollop"
+    description: "Upload files and directories to unique, expiring paths in Cloudflare R2"
+    url:
+      verified: "github.com/jamestelfer/dollop"
+    repository:
+      owner: jamestelfer
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_GITHUB_TOKEN }}"
+    binaries:
+      - dollop
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/dollop"]
+          end
