@@ -12,3 +12,4 @@ fi
 
 mise trust
 mise install
+just build || true
