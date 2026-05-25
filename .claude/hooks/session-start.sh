@@ -6,5 +6,9 @@ if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
   exit 0
 fi
 
+if [ -n "${GH_RELEASE_DOWNLOAD:-}" ]; then
+  export GITHUB_TOKEN="${GH_RELEASE_DOWNLOAD}"
+fi
+
 mise trust
-GITHUB_TOKEN="$(gh auth token)" mise install
+mise install
