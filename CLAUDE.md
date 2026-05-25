@@ -26,6 +26,19 @@ internal/cli/createcmd/         create subcommand: generates prefix, calls uploa
 internal/upload/                uploader interface, S3 client, MIME detection, prefix logic
 ```
 
+## Commits and PR titles
+
+Use Conventional Commits for all commit messages and PR titles — release-please reads these to determine version bumps and generate the CHANGELOG.
+
+| Type | When to use | Version bump |
+|---|---|---|
+| `feat: <description>` | new user-visible feature | minor |
+| `fix: <description>` | bug fix | patch |
+| `feat!:` or `BREAKING CHANGE:` in body | breaking change | major |
+| `chore:`, `docs:`, `refactor:`, `test:` | maintenance, no behaviour change | none |
+
+PR titles follow the same format — the squash-merge commit message is taken from the PR title.
+
 ## Key conventions
 
 - Dependencies are injected into commands (uploader, keyring, path functions) — keep it that way for testability.

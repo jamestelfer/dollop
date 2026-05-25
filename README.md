@@ -9,11 +9,52 @@ Two upload modes:
 
 ## Installation
 
+<details>
+<summary><strong>Homebrew (macOS)</strong></summary>
+
+```sh
+brew install jamestelfer/tap/dollop
 ```
+
+</details>
+
+<details>
+<summary><strong>mise</strong></summary>
+
+[mise](https://mise.jdx.dev/) installs directly from GitHub Releases via the [github backend](https://mise.jdx.dev/dev-tools/backends/github.html):
+
+```sh
+mise use -g github:jamestelfer/dollop
+```
+
+</details>
+
+<details>
+<summary><strong>Nix</strong></summary>
+
+```sh
+nix profile install github:jamestelfer/dollop
+```
+
+</details>
+
+<details>
+<summary><strong>Manual download</strong></summary>
+
+Pre-built binaries for Linux, macOS, and Windows (amd64/arm64) are on the [releases page](https://github.com/jamestelfer/dollop/releases). Download the archive for your OS and architecture, extract, and place the binary on your `PATH`.
+
+</details>
+
+<details>
+<summary><strong>Build from source</strong></summary>
+
+```sh
 just build        # produces dist/dollop
 ```
 
 Add `dist/dollop` to your `$PATH`, or install wherever suits.
+
+</details>
 
 ## Configuration
 
