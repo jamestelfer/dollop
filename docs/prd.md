@@ -6,7 +6,7 @@ Sharing files and directories temporarily or permanently from the command line r
 
 ## Solution
 
-`dollop` is a Go CLI that uploads files and directories to a Cloudflare R2 bucket served via a public custom domain. Uploads are either ephemeral (under a `dollop/<days>/<nanoid>/` prefix with R2 lifecycle-based expiry) or permanent (under `keep/<petname>/` with no expiry). The tool outputs a single URL to stdout so it composes cleanly with other shell tools.
+`dollop` is a Go CLI that uploads files and directories to a Cloudflare R2 bucket served via a public custom domain. Uploads are either ephemeral (under a `flash/<days>/<nanoid>/` prefix with R2 lifecycle-based expiry) or permanent (under `keep/<petname>/` with no expiry). The tool outputs a single URL to stdout so it composes cleanly with other shell tools.
 
 ## Requirements
 
@@ -37,7 +37,7 @@ Sharing files and directories temporarily or permanently from the command line r
 
 3.1. The `create` subcommand shall accept a `--days` flag with allowed values of `1`, `7`, or `14`, defaulting to `1`.
 3.2. The `create` subcommand shall accept a `--keep` flag that designates the upload as permanent.
-3.3. When `--keep` is not set, the `create` subcommand shall generate a nanoid and place the upload under the key prefix `dollop/<days>/<nanoid>/`.
+3.3. When `--keep` is not set, the `create` subcommand shall generate a nanoid and place the upload under the key prefix `flash/<days>/<nanoid>/`.
 3.4. When `--keep` is set, the `create` subcommand shall generate a petname and place the upload under the key prefix `keep/<petname>/`.
 3.5. When the target is a single file, the CLI shall upload that file under the prefix with its original filename.
 3.6. When the target is a directory, the CLI shall recursively walk the directory tree and upload every file, preserving relative paths under the prefix.
@@ -58,7 +58,7 @@ Sharing files and directories temporarily or permanently from the command line r
 
 ### 5. R2 Lifecycle Rules (Infrastructure, not enforced by CLI)
 
-5.1. The R2 bucket shall have three prefix-scoped lifecycle rules: delete objects under `dollop/1/` after 1 day, `dollop/7/` after 7 days, and `dollop/14/` after 14 days.
+5.1. The R2 bucket shall have three prefix-scoped lifecycle rules: delete objects under `flash/1/` after 1 day, `flash/7/` after 7 days, and `flash/14/` after 14 days.
 5.2. The R2 bucket shall have no lifecycle rule on the `keep/` prefix.
 
 ## Implementation Decisions
@@ -72,7 +72,7 @@ Sharing files and directories temporarily or permanently from the command line r
 - **XDG config path**: resolved via a helper function that reads `$XDG_CONFIG_HOME`, not a library dependency.
 - **Content-Type on CopyObject self-copy**: preserved via `MetadataDirective: COPY`; `Last-Modified` is reset by R2 automatically, which is the intended behaviour for resetting the lifecycle clock.
 - **URL construction**: `<base_url>/<prefix>/` where `base_url` is the user-configured public custom domain attached to the R2 bucket (e.g. `https://drop.example.com`).
-- **Update prefix resolution**: the `update` subcommand accepts either a full URL (from which the prefix is extracted by stripping `base_url`) or a bare prefix path (e.g. `dollop/7/<nanoid>`).
+- **Update prefix resolution**: the `update` subcommand accepts either a full URL (from which the prefix is extracted by stripping `base_url`) or a bare prefix path (e.g. `flash/7/<nanoid>`).
 - **Static site support**: correct `Content-Type` on each object (e.g. `text/html`, `text/css`) means R2 serves the files correctly for browser consumption without a Worker.
 
 ## Testing Decisions
@@ -99,7 +99,7 @@ Sharing files and directories temporarily or permanently from the command line r
 ## Further Notes
 
 - The URL composability requirement (stdout-only URL) enables patterns like `open "$(dollop create file.zip)"` and `curl "$(dollop create --days 7 dir/)"`.
-- The `dollop/n/nanoid` path structure encodes expiry in the prefix, making lifecycle rules trivial and avoiding any per-object metadata dependency for expiry.
+- The `flash/n/nanoid` path structure encodes expiry in the prefix, making lifecycle rules trivial and avoiding any per-object metadata dependency for expiry.
 - `keep` paths use petnames rather than nanoids to be memorable and speakable — suitable for links shared verbally or in documentation.
 - The `update` touch behaviour (self-copy on untouched objects) ensures the entire prefix has a consistent `Last-Modified` date after an update, avoiding variance in expiry across a directory upload.
 - Static site hosting is a first-class use case: a directory containing `index.html`, CSS, and assets can be uploaded and served directly from R2 via the public custom domain without a Worker, provided `Content-Type` is correctly set on each object.

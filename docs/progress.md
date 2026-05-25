@@ -34,7 +34,7 @@
 
 - [x] 3.1 `--days` flag (values: 1, 7, or 14; default: 1) — `internal/cli/createcmd/command.go`
 - [x] 3.2 `--keep` flag — `internal/cli/createcmd/command.go`
-- [x] 3.3 Ephemeral prefix `dollop/<days>/<nanoid>/` — `internal/upload/prefix.go`, tested
+- [x] 3.3 Ephemeral prefix `flash/<days>/<nanoid>/` — `internal/upload/prefix.go`, tested
 - [x] 3.4 Permanent prefix `keep/<petname>/` — `internal/upload/prefix.go`, tested
 - [x] 3.5 Single file upload under prefix with original filename — `internal/upload/upload.go`, tested
 - [x] 3.6 Directory upload with recursive walk, preserving relative paths — `internal/upload/upload.go`, tested
@@ -55,7 +55,7 @@
 
 ## §5 R2 Lifecycle Rules
 
-- [ ] 5.1 Bucket lifecycle rules for `dollop/1/`, `dollop/7/`, `dollop/14/` (infrastructure, out of CLI scope)
+- [ ] 5.1 Bucket lifecycle rules for `flash/1/`, `flash/7/`, `flash/14/` (infrastructure, out of CLI scope)
 - [ ] 5.2 No lifecycle rule on `keep/` prefix (infrastructure, out of CLI scope)
 
 ## Dependencies Added
