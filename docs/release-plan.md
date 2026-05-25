@@ -66,7 +66,6 @@ The end-to-end flow once both phases are live:
 
 ### Manual prerequisites
 
-- [ ] **Set Actions workflow permissions**: Settings → Actions → General → Workflow permissions → select "Read and write permissions" (required so the GITHUB_TOKEN can create PRs and tags)
 - [ ] **Configure squash-only merges**: Settings → General → Pull Requests section:
   - Uncheck "Allow merge commits"
   - Uncheck "Allow rebase merging"
