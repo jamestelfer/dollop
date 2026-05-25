@@ -104,6 +104,19 @@ func TestConfigSet_ValidKey(t *testing.T) {
 	}
 }
 
+func TestConfigSet_PrintsFilePath(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	stdout, _, code := run(t, cfgPath, newFakeKeyring(), "config", "set", "bucket", "my-bucket")
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d", code)
+	}
+	if !strings.Contains(stdout, cfgPath) {
+		t.Errorf("expected config file path %q in output, got: %q", cfgPath, stdout)
+	}
+}
+
 func TestConfigSet_InvalidKey(t *testing.T) {
 	dir := t.TempDir()
 	_, _, code := run(t, filepath.Join(dir, "c.yaml"), newFakeKeyring(), "config", "set", "unknown", "val")

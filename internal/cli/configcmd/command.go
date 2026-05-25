@@ -61,6 +61,9 @@ Example:
 			if err := config.SaveTo(cfgPath, cfg); err != nil {
 				return cli.Exit(fmt.Sprintf("save config: %v", err), 1)
 			}
+			if _, err := fmt.Fprintf(cmd.Root().Writer, "saved: %s\n", cfgPath); err != nil {
+				return cli.Exit(fmt.Sprintf("write output: %v", err), 1)
+			}
 			return nil
 		},
 	}
