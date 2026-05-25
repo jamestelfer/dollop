@@ -24,3 +24,8 @@ func TestContentType_HTMLPreservesCharset(t *testing.T) {
 	ct := upload.ContentType("index.html")
 	assert.Contains(t, ct, "text/html")
 }
+
+func TestContentType_MarkdownServesAsPlainText(t *testing.T) {
+	assert.Equal(t, "text/plain; charset=utf-8", upload.ContentType("README.md"))
+	assert.Equal(t, "text/plain; charset=utf-8", upload.ContentType("README.markdown"))
+}

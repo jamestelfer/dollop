@@ -12,6 +12,11 @@ func ContentType(filename string) string {
 	if ext == "" {
 		return "application/octet-stream"
 	}
+	// text/markdown is not rendered by browsers; use text/plain so content is
+	// displayed inline rather than downloaded.
+	if ext == ".md" || ext == ".markdown" {
+		return "text/plain; charset=utf-8"
+	}
 	ct := mime.TypeByExtension(ext)
 	if ct == "" {
 		return "application/octet-stream"
