@@ -55,9 +55,10 @@ func run(ctx context.Context, args []string) error {
 
 	app := &cli.Command{
 		Name:  "dollop",
-		Usage: "upload files and directories to a unique, expiring R2 path",
-		Description: `dollop uploads local files or directories to a Cloudflare R2 bucket at a
-unique path and prints the public URL to stdout.
+		Usage: "publish files as shareable, expiring browser links",
+		Description: `dollop publishes local files or directories as browser-accessible links.
+Each 'create' prints a unique URL you can share; the link expires after a
+configurable number of days (default: 1). Use --keep for a permanent link.
 
 First-time setup (run once):
   dollop config set bucket      <bucket-name>
@@ -67,9 +68,9 @@ First-time setup (run once):
   dollop config auth r2-secret  <r2-secret-access-key>
 
 Quick start:
-  dollop create photo.jpg              # upload a file, expires in 1 day
-  dollop create --days 7 archive.zip   # upload a file, expires in 7 days
-  dollop create --keep project/        # upload a directory permanently`,
+  dollop create photo.jpg              # share a file; link expires in 1 day
+  dollop create --days 7 archive.zip   # share a file; link expires in 7 days
+  dollop create --keep project/        # share a directory with a permanent link`,
 		Commands: []*cli.Command{&cfgCmd, &createCmd},
 	}
 	return app.Run(ctx, args)
