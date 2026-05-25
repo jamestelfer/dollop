@@ -13,4 +13,7 @@ fi
 mise trust
 mise install
 mise reshim
+
+mise activate bash --shims >> "$CLAUDE_ENV_FILE"
+
 just build || true
