@@ -15,6 +15,15 @@ func New(kr config.KeyringStore, cfgPath string) cli.Command {
 	return cli.Command{
 		Name:  "config",
 		Usage: "manage dollop configuration",
+		Description: `Configuration is split into two stores:
+
+  File     (~/.config/dollop/config.yaml): non-sensitive settings such as
+           bucket name and base URL. Use 'config set' and 'config get'.
+
+  Keyring  (OS keyring): R2 credentials stored securely and never written
+           to disk. Use 'config auth'.
+
+Run 'dollop config <command> --help' for details on each subcommand.`,
 		Commands: []*cli.Command{
 			newSetCommand(cfgPath),
 			newGetCommand(cfgPath),
@@ -27,8 +36,16 @@ func New(kr config.KeyringStore, cfgPath string) cli.Command {
 func newSetCommand(cfgPath string) *cli.Command {
 	return &cli.Command{
 		Name:      "set",
-		Usage:     "set a config key to a value",
+		Usage:     "set a config key",
 		ArgsUsage: "<key> <value>",
+		Description: `Writes a setting to the config file. Valid keys:
+
+  bucket      R2 bucket name (e.g. my-uploads)
+  account_id  Cloudflare account ID (from dash.cloudflare.com → right sidebar)
+  base_url    public base URL for the bucket (e.g. https://files.example.com)
+
+Example:
+  dollop config set base_url https://files.example.com`,
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			if cmd.Args().Len() != 2 {
 				return cli.Exit("usage: config set <key> <value>", 1)
@@ -54,6 +71,10 @@ func newGetCommand(cfgPath string) *cli.Command {
 		Name:      "get",
 		Usage:     "print the value of a config key",
 		ArgsUsage: "<key>",
+		Description: `Valid keys: bucket, account_id, base_url
+
+Example:
+  dollop config get bucket`,
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			if cmd.Args().Len() != 1 {
 				return cli.Exit("usage: config get <key>", 1)
@@ -78,7 +99,7 @@ func newGetCommand(cfgPath string) *cli.Command {
 func newListCommand(cfgPath string) *cli.Command {
 	return &cli.Command{
 		Name:  "list",
-		Usage: "print all config keys and values",
+		Usage: "print all file config keys and values",
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			if cmd.Args().Len() != 0 {
 				return cli.Exit("usage: config list", 1)
@@ -100,8 +121,18 @@ func newListCommand(cfgPath string) *cli.Command {
 func newAuthCommand(kr config.KeyringStore) *cli.Command {
 	return &cli.Command{
 		Name:      "auth",
-		Usage:     "store a credential in the OS keyring",
+		Usage:     "store an R2 credential in the OS keyring",
 		ArgsUsage: "<key> <value>",
+		Description: `Stores an R2 credential securely in the OS keyring under the "dollop"
+service. Credentials are never written to the config file.
+
+Valid keys:
+  r2-key     R2 Access Key ID (Cloudflare: R2 → Manage R2 API Tokens)
+  r2-secret  R2 Secret Access Key (issued alongside the access key)
+
+Example:
+  dollop config auth r2-key     CAFEF00DCAFEF00D...
+  dollop config auth r2-secret  abc123secretkey...`,
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			if cmd.Args().Len() != 2 {
 				return cli.Exit("usage: config auth <key> <value>", 1)

@@ -21,17 +21,34 @@ func New(
 ) cli.Command {
 	return cli.Command{
 		Name:      "create",
-		Usage:     "upload a file or directory to a new R2 path",
+		Usage:     "upload a file or directory to a unique R2 path",
 		ArgsUsage: "<path>",
+		Description: `Uploads a local file or directory to a newly-generated path in the
+configured R2 bucket and prints the public URL to stdout. Upload progress
+is written to stderr.
+
+Ephemeral mode (default): a random ID is embedded in the path and
+Cloudflare R2 lifecycle rules delete the objects after the given number
+of days. Allowed values for --days are 1, 7, and 14.
+
+  dollop create report.pdf               # expires in 1 day
+  dollop create --days 7 archive.zip     # expires in 7 days
+  dollop create --days 14 backup/        # directory upload, expires in 14 days
+
+Permanent mode (--keep): the path uses a two-word petname and objects are
+never deleted automatically.
+
+  dollop create --keep project/
+  dollop create --keep notes.txt`,
 		Flags: []cli.Flag{
 			&cli.IntFlag{
 				Name:  "days",
-				Usage: "expiry in days (1, 7, or 14)",
+				Usage: "R2 lifecycle expiry in days; allowed values: 1, 7, 14 (ignored with --keep)",
 				Value: 1,
 			},
 			&cli.BoolFlag{
 				Name:  "keep",
-				Usage: "upload to a permanent path",
+				Usage: "create a permanent path with a memorable petname (no expiry)",
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

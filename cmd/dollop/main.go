@@ -6,11 +6,11 @@ import (
 	"os"
 
 	petname "github.com/dustinkirkland/golang-petname"
-	nanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/jamestelfer/dollop/internal/cli/configcmd"
 	"github.com/jamestelfer/dollop/internal/cli/createcmd"
 	"github.com/jamestelfer/dollop/internal/config"
 	"github.com/jamestelfer/dollop/internal/upload"
+	nanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/urfave/cli/v3"
 )
 
@@ -54,8 +54,22 @@ func run(ctx context.Context, args []string) error {
 	)
 
 	app := &cli.Command{
-		Name:     "dollop",
-		Usage:    "upload files and directories to a unique, expiring R2 path",
+		Name:  "dollop",
+		Usage: "upload files and directories to a unique, expiring R2 path",
+		Description: `dollop uploads local files or directories to a Cloudflare R2 bucket at a
+unique path and prints the public URL to stdout.
+
+First-time setup (run once):
+  dollop config set bucket      <bucket-name>
+  dollop config set account_id  <cloudflare-account-id>
+  dollop config set base_url    <https://your-bucket-public-url>
+  dollop config auth r2-key     <r2-access-key-id>
+  dollop config auth r2-secret  <r2-secret-access-key>
+
+Quick start:
+  dollop create photo.jpg              # upload a file, expires in 1 day
+  dollop create --days 7 archive.zip   # upload a file, expires in 7 days
+  dollop create --keep project/        # upload a directory permanently`,
 		Commands: []*cli.Command{&cfgCmd, &createCmd},
 	}
 	return app.Run(ctx, args)
