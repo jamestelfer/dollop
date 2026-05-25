@@ -104,6 +104,19 @@ func TestConfigSet_ValidKey(t *testing.T) {
 	}
 }
 
+func TestConfigSet_PrintsFilePath(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	stdout, _, code := run(t, cfgPath, newFakeKeyring(), "config", "set", "bucket", "my-bucket")
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d", code)
+	}
+	if !strings.Contains(stdout, cfgPath) {
+		t.Errorf("expected config file path %q in output, got: %q", cfgPath, stdout)
+	}
+}
+
 func TestConfigSet_InvalidKey(t *testing.T) {
 	dir := t.TempDir()
 	_, _, code := run(t, filepath.Join(dir, "c.yaml"), newFakeKeyring(), "config", "set", "unknown", "val")
@@ -153,13 +166,13 @@ func TestConfigList(t *testing.T) {
 	cfgPath := filepath.Join(dir, "config.yaml")
 
 	run(t, cfgPath, newFakeKeyring(), "config", "set", "bucket", "bkt")     //nolint
-	run(t, cfgPath, newFakeKeyring(), "config", "set", "account_id", "acc") //nolint
+	run(t, cfgPath, newFakeKeyring(), "config", "set", "account-id", "acc") //nolint
 
 	out, _, code := run(t, cfgPath, newFakeKeyring(), "config", "list")
 	if code != 0 {
 		t.Fatalf("expected exit 0, got %d", code)
 	}
-	for _, want := range []string{"bucket", "account_id", "base_url"} {
+	for _, want := range []string{"bucket", "account-id", "base-url"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("expected key %q in list output, got:\n%s", want, out)
 		}

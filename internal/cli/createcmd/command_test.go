@@ -97,6 +97,15 @@ func TestCreate_Keep(t *testing.T) {
 	assert.Contains(t, stdout, "keep/happy-cat/")
 }
 
+func TestCreate_KeepAndDaysMutuallyExclusive(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f.txt")
+	require.NoError(t, os.WriteFile(path, []byte("x"), 0600))
+
+	_, _, code := runCreate(t, &fakeUploader{}, "create", "--keep", "--days", "7", path)
+	assert.NotEqual(t, 0, code, "--keep and --days together should be rejected")
+}
+
 func TestCreate_InvalidDays(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "f.txt")

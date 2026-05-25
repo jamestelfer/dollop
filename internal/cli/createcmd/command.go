@@ -35,24 +35,33 @@ allowed values are 1, 7, and 14.
   dollop create --days 14 backup/        # directory; link expires in 14 days
 
 Use --keep when the link should never expire. The URL will contain a
-memorable two-word petname instead of a random ID.
+memorable two-word petname instead of a random ID. --keep and --days
+are mutually exclusive.
 
   dollop create --keep notes.txt
   dollop create --keep project/`,
-		Flags: []cli.Flag{
-			&cli.IntFlag{
-				Name:  "days",
-				Usage: "number of days before the link expires; allowed values: 1, 7, 14 (ignored with --keep)",
-				Value: 1,
-			},
-			&cli.BoolFlag{
-				Name:  "keep",
-				Usage: "publish to a permanent link with a memorable petname (no expiry)",
+		MutuallyExclusiveFlags: []cli.MutuallyExclusiveFlags{
+			{
+				Flags: [][]cli.Flag{
+					{
+						&cli.IntFlag{
+							Name:  "days",
+							Usage: "number of days before the link expires; allowed values: 1, 7, 14",
+							Value: 1,
+						},
+					},
+					{
+						&cli.BoolFlag{
+							Name:  "keep",
+							Usage: "publish to a permanent link with a memorable petname (no expiry)",
+						},
+					},
+				},
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if cmd.Args().Len() != 1 {
-				return cli.Exit("usage: create [--days N] [--keep] <path>", 1)
+				return cli.Exit("usage: create [--days N | --keep] <path>", 1)
 			}
 
 			days := cmd.Int("days")

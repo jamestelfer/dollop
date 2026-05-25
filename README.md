@@ -64,8 +64,8 @@ Set config values:
 
 ```
 dollop config set bucket      <bucket-name>
-dollop config set account_id  <cloudflare-account-id>
-dollop config set base_url    <public-base-url>
+dollop config set account-id  <cloudflare-account-id>
+dollop config set base-url    <public-base-url>
 ```
 
 Store R2 credentials in the keyring:
@@ -79,7 +79,7 @@ Review current config (credentials are not shown):
 
 ```
 dollop config list
-dollop config get base_url
+dollop config get base-url
 ```
 
 ## Usage
@@ -88,7 +88,7 @@ dollop config get base_url
 dollop create <path>              # ephemeral, expires in 1 day
 dollop create --days 7  <path>   # ephemeral, expires in 7 days
 dollop create --days 14 <path>   # ephemeral, expires in 14 days
-dollop create --keep    <path>   # permanent
+dollop create --keep    <path>   # permanent (mutually exclusive with --days)
 ```
 
 `<path>` can be a single file or a directory. Directories are walked recursively; the key structure mirrors the source tree under the generated prefix.
@@ -103,11 +103,11 @@ https://cdn.example.com/flash/7/v8p2xkqj3m/
 
 ### Bucket
 
-A single R2 bucket is required. The bucket name is stored in `account_id` / `bucket` config.
+A single R2 bucket is required. The bucket name is stored in the `bucket` config key, and the Cloudflare account ID in `account-id`.
 
 ### Public access
 
-The bucket must have public read access enabled, either via its R2.dev subdomain or a custom domain. The resulting base URL (e.g. `https://pub-abc123.r2.dev` or `https://cdn.example.com`) is the `base_url` config value.
+The bucket must have public read access enabled, either via its R2.dev subdomain or a custom domain. The resulting base URL (e.g. `https://pub-abc123.r2.dev` or `https://cdn.example.com`) is the `base-url` config value.
 
 ### API credentials
 
