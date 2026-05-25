@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/jamestelfer/dollop/compare/v1.0.0...v1.0.1) (2026-05-25)
+
+
+### Bug Fixes
+
+* serve markdown files as text/plain for browser rendering ([#16](https://github.com/jamestelfer/dollop/issues/16)) ([f86ab2b](https://github.com/jamestelfer/dollop/commit/f86ab2be4d27a6d6a7c214ec100f42493d973cdb))
+
 ## 1.0.0 (2026-05-25)
 
 Initial release of `dollop` — a CLI for uploading files and directories to a
