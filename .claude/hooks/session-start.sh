@@ -13,4 +13,9 @@ fi
 mise trust
 mise install
 mise reshim
+
+if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
+  printf 'export PATH="%s/.local/share/mise/shims:$PATH"\n' "$HOME" >> "$CLAUDE_ENV_FILE"
+fi
+
 just build || true
