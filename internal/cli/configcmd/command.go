@@ -127,8 +127,11 @@ func newAuthCommand(kr config.KeyringStore) *cli.Command {
 service. Credentials are never written to the config file.
 
 Valid keys:
-  r2-key     R2 Access Key ID (Cloudflare: R2 → Manage R2 API Tokens)
-  r2-secret  R2 Secret Access Key (issued alongside the access key)
+  r2-key     S3-compatible access key ID issued by R2
+  r2-secret  S3-compatible secret access key issued by R2
+
+To obtain these, go to Cloudflare R2 → Manage R2 API Tokens and create
+a token with read/write access to your bucket.
 
 Example:
   dollop config auth r2-key     CAFEF00DCAFEF00D...
