@@ -67,9 +67,9 @@ func TestCreate_SingleFile_EphemeralDefault(t *testing.T) {
 	stdout, _, code := runCreate(t, up, "create", path)
 	require.Equal(t, 0, code)
 
-	// prefix: dollop/1/testid — days defaults to 1, id fixed to "testid"
-	assert.Equal(t, "dollop/1/testid/notes.txt", up.calls[0])
-	assert.Contains(t, stdout, "dollop/1/testid/")
+	// prefix: flash/1/testid — days defaults to 1, id fixed to "testid"
+	assert.Equal(t, "flash/1/testid/notes.txt", up.calls[0])
+	assert.Contains(t, stdout, "flash/1/testid/")
 }
 
 func TestCreate_EphemeralDays7(t *testing.T) {
@@ -80,8 +80,8 @@ func TestCreate_EphemeralDays7(t *testing.T) {
 	up := &fakeUploader{}
 	stdout, _, code := runCreate(t, up, "create", "--days", "7", path)
 	require.Equal(t, 0, code)
-	assert.Equal(t, "dollop/7/testid/f.bin", up.calls[0])
-	assert.Contains(t, stdout, "dollop/7/testid/")
+	assert.Equal(t, "flash/7/testid/f.bin", up.calls[0])
+	assert.Contains(t, stdout, "flash/7/testid/")
 }
 
 func TestCreate_Keep(t *testing.T) {

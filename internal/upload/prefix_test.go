@@ -8,9 +8,9 @@ import (
 )
 
 func TestEphemeralPrefix(t *testing.T) {
-	assert.Equal(t, "dollop/1/abc123", upload.EphemeralPrefix(1, "abc123"))
-	assert.Equal(t, "dollop/7/xyz", upload.EphemeralPrefix(7, "xyz"))
-	assert.Equal(t, "dollop/14/id99", upload.EphemeralPrefix(14, "id99"))
+	assert.Equal(t, "flash/1/abc123", upload.EphemeralPrefix(1, "abc123"))
+	assert.Equal(t, "flash/7/xyz", upload.EphemeralPrefix(7, "xyz"))
+	assert.Equal(t, "flash/14/id99", upload.EphemeralPrefix(14, "id99"))
 }
 
 func TestPermanentPrefix(t *testing.T) {
