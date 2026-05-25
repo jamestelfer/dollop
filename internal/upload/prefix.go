@@ -16,7 +16,11 @@ func PermanentPrefix(name string) string {
 }
 
 // PublicURL constructs the public URL for a given prefix under baseURL.
+// If baseURL has no scheme, https:// is prepended.
 func PublicURL(baseURL, prefix string) string {
 	base := strings.TrimRight(baseURL, "/")
+	if !strings.HasPrefix(base, "https://") && !strings.HasPrefix(base, "http://") {
+		base = "https://" + base
+	}
 	return base + "/" + prefix + "/"
 }
