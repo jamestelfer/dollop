@@ -53,7 +53,8 @@ func TestUploadFiles_SingleFile(t *testing.T) {
 	assert.Equal(t, "dollop/1/abc/hello.txt", up.calls[0].key)
 	assert.Contains(t, up.calls[0].contentType, "text/plain")
 	assert.Equal(t, []byte("hello"), up.calls[0].body)
-	assert.Contains(t, stderr.String(), "dollop/1/abc/hello.txt")
+	assert.Contains(t, stderr.String(), "uploading [hello.txt]")
+	assert.Contains(t, stderr.String(), "...done")
 }
 
 func TestUploadFiles_Directory(t *testing.T) {
@@ -87,4 +88,26 @@ func TestUploadFiles_UploaderError(t *testing.T) {
 	var stderr bytes.Buffer
 	err := upload.UploadFiles(context.Background(), up, "b", "p", filepath.Join(dir, "file.bin"), &stderr)
 	assert.Error(t, err)
+	assert.Contains(t, stderr.String(), "uploading [file.bin]")
+	assert.Contains(t, stderr.String(), "...failed")
+}
+
+func TestHumanSize(t *testing.T) {
+	tests := []struct {
+		n    int64
+		want string
+	}{
+		{0, "0 B"},
+		{512, "512 B"},
+		{1023, "1023 B"},
+		{1024, "1.0 KB"},
+		{1536, "1.5 KB"},
+		{1024 * 1024, "1.0 MB"},
+		{int64(1.5 * 1024 * 1024), "1.5 MB"},
+		{1024 * 1024 * 1024, "1.0 GB"},
+		{2_469_606_195, "2.3 GB"},
+	}
+	for _, tc := range tests {
+		assert.Equal(t, tc.want, upload.HumanSize(tc.n), "n=%d", tc.n)
+	}
 }

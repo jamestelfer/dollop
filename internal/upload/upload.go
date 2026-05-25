@@ -39,16 +39,42 @@ func uploadDir(ctx context.Context, up Uploader, bucket, prefix, dir string, std
 }
 
 func uploadFile(ctx context.Context, up Uploader, bucket, key, localPath string, stderr io.Writer) error {
+	info, err := os.Stat(localPath)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(stderr, "uploading [%s] %s...", filepath.Base(localPath), HumanSize(info.Size())) //nolint:errcheck
+
 	f, err := os.Open(localPath) //nolint:gosec
 	if err != nil {
+		fmt.Fprintln(stderr, "failed") //nolint:errcheck
 		return err
 	}
 	defer f.Close() //nolint:errcheck
 
 	ct := ContentType(localPath)
 	if err := up.PutObject(ctx, bucket, key, ct, f); err != nil {
+		fmt.Fprintln(stderr, "failed") //nolint:errcheck
 		return fmt.Errorf("upload %s: %w", key, err)
 	}
-	fmt.Fprintln(stderr, key) //nolint:errcheck
+	fmt.Fprintln(stderr, "done") //nolint:errcheck
 	return nil
+}
+
+func HumanSize(n int64) string {
+	const (
+		kb = 1024
+		mb = 1024 * kb
+		gb = 1024 * mb
+	)
+	switch {
+	case n >= gb:
+		return fmt.Sprintf("%.1f GB", float64(n)/gb)
+	case n >= mb:
+		return fmt.Sprintf("%.1f MB", float64(n)/mb)
+	case n >= kb:
+		return fmt.Sprintf("%.1f KB", float64(n)/kb)
+	default:
+		return fmt.Sprintf("%d B", n)
+	}
 }

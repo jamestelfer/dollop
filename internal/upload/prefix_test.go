@@ -25,6 +25,8 @@ func TestPublicURL(t *testing.T) {
 	}{
 		{"https://drop.example.com", "dollop/7/abc123", "https://drop.example.com/dollop/7/abc123/"},
 		{"https://drop.example.com/", "keep/happy-dog", "https://drop.example.com/keep/happy-dog/"},
+		{"drop.example.com", "dollop/1/xyz", "https://drop.example.com/dollop/1/xyz/"},
+		{"HTTPS://drop.example.com", "dollop/1/xyz", "HTTPS://drop.example.com/dollop/1/xyz/"},
 	}
 	for _, tc := range tests {
 		assert.Equal(t, tc.want, upload.PublicURL(tc.baseURL, tc.prefix))

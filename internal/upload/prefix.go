@@ -2,6 +2,7 @@ package upload
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 )
 
@@ -16,7 +17,11 @@ func PermanentPrefix(name string) string {
 }
 
 // PublicURL constructs the public URL for a given prefix under baseURL.
+// If baseURL has no scheme, https:// is prepended.
 func PublicURL(baseURL, prefix string) string {
 	base := strings.TrimRight(baseURL, "/")
+	if u, err := url.Parse(base); err != nil || u.Scheme == "" {
+		base = "https://" + base
+	}
 	return base + "/" + prefix + "/"
 }
