@@ -41,11 +41,11 @@ func newSetCommand(cfgPath string) *cli.Command {
 		Description: `Writes a setting to the config file. Valid keys:
 
   bucket      R2 bucket name (e.g. my-uploads)
-  account_id  Cloudflare account ID (from dash.cloudflare.com → right sidebar)
-  base_url    public base URL for the bucket (e.g. https://files.example.com)
+  account-id  Cloudflare account ID (from dash.cloudflare.com → right sidebar)
+  base-url    public base URL for the bucket (e.g. https://files.example.com)
 
 Example:
-  dollop config set base_url https://files.example.com`,
+  dollop config set base-url https://files.example.com`,
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			if cmd.Args().Len() != 2 {
 				return cli.Exit("usage: config set <key> <value>", 1)
@@ -71,7 +71,7 @@ func newGetCommand(cfgPath string) *cli.Command {
 		Name:      "get",
 		Usage:     "print the value of a config key",
 		ArgsUsage: "<key>",
-		Description: `Valid keys: bucket, account_id, base_url
+		Description: `Valid keys: bucket, account-id, base-url
 
 Example:
   dollop config get bucket`,

@@ -11,7 +11,7 @@ import (
 
 const ServiceName = "dollop"
 
-var AllowedFileKeys = []string{"bucket", "account_id", "base_url"}
+var AllowedFileKeys = []string{"bucket", "account-id", "base-url"}
 var AllowedKeyringKeys = []string{"r2-key", "r2-secret"}
 
 // Config holds the values persisted to the YAML config file.
@@ -35,9 +35,9 @@ func (c *Config) Set(key, value string) error {
 	switch key {
 	case "bucket":
 		c.Bucket = value
-	case "account_id":
+	case "account-id":
 		c.AccountID = value
-	case "base_url":
+	case "base-url":
 		c.BaseURL = value
 	default:
 		return fmt.Errorf("unknown config key %q", key)
@@ -50,9 +50,9 @@ func (c Config) Get(key string) (string, error) {
 	switch key {
 	case "bucket":
 		return c.Bucket, nil
-	case "account_id":
+	case "account-id":
 		return c.AccountID, nil
-	case "base_url":
+	case "base-url":
 		return c.BaseURL, nil
 	default:
 		return "", fmt.Errorf("unknown config key %q", key)

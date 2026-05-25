@@ -73,8 +73,8 @@ func TestConfig_SetGet_ValidKeys(t *testing.T) {
 		value string
 	}{
 		{"bucket", "my-bucket"},
-		{"account_id", "abc123"},
-		{"base_url", "https://drop.example.com"},
+		{"account-id", "abc123"},
+		{"base-url", "https://drop.example.com"},
 	}
 	for _, tc := range cases {
 		var c config.Config
@@ -101,15 +101,15 @@ func TestConfig_Set_InvalidKey(t *testing.T) {
 func TestConfig_List(t *testing.T) {
 	var c config.Config
 	_ = c.Set("bucket", "b")
-	_ = c.Set("account_id", "a")
-	_ = c.Set("base_url", "u")
+	_ = c.Set("account-id", "a")
+	_ = c.Set("base-url", "u")
 
 	pairs := c.List()
 	if len(pairs) != 3 {
 		t.Fatalf("List() returned %d pairs, want 3", len(pairs))
 	}
 	// must follow AllowedFileKeys order
-	want := [][2]string{{"bucket", "b"}, {"account_id", "a"}, {"base_url", "u"}}
+	want := [][2]string{{"bucket", "b"}, {"account-id", "a"}, {"base-url", "u"}}
 	for i, p := range pairs {
 		if p != want[i] {
 			t.Errorf("pairs[%d] = %v, want %v", i, p, want[i])

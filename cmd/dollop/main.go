@@ -62,8 +62,8 @@ configurable number of days (default: 1). Use --keep for a permanent link.
 
 First-time setup (run once):
   dollop config set bucket      <bucket-name>
-  dollop config set account_id  <cloudflare-account-id>
-  dollop config set base_url    <https://your-bucket-public-url>
+  dollop config set account-id  <cloudflare-account-id>
+  dollop config set base-url    <https://your-bucket-public-url>
   dollop config auth r2-key     <r2-access-key-id>
   dollop config auth r2-secret  <r2-secret-access-key>
 

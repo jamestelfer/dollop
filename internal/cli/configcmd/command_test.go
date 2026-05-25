@@ -153,13 +153,13 @@ func TestConfigList(t *testing.T) {
 	cfgPath := filepath.Join(dir, "config.yaml")
 
 	run(t, cfgPath, newFakeKeyring(), "config", "set", "bucket", "bkt")     //nolint
-	run(t, cfgPath, newFakeKeyring(), "config", "set", "account_id", "acc") //nolint
+	run(t, cfgPath, newFakeKeyring(), "config", "set", "account-id", "acc") //nolint
 
 	out, _, code := run(t, cfgPath, newFakeKeyring(), "config", "list")
 	if code != 0 {
 		t.Fatalf("expected exit 0, got %d", code)
 	}
-	for _, want := range []string{"bucket", "account_id", "base_url"} {
+	for _, want := range []string{"bucket", "account-id", "base-url"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("expected key %q in list output, got:\n%s", want, out)
 		}
