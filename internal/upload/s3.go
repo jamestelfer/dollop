@@ -45,7 +45,7 @@ func (u *S3Uploader) ListBucket(ctx context.Context, bucket string) error {
 		MaxKeys: &maxKeys,
 	})
 	if err != nil {
-		return fmt.Errorf("ListObjectsV2 bucket %s: %w", bucket, err)
+		return fmt.Errorf("failed to list files in bucket %s: %w", bucket, err)
 	}
 	return nil
 }
