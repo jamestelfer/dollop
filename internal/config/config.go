@@ -150,3 +150,13 @@ func ConfigFilePath() (string, error) {
 	}
 	return filepath.Join(dir, "config.yaml"), nil
 }
+
+// AuthFilePath returns the absolute path to the plain-text auth file using the
+// real environment.
+func AuthFilePath() (string, error) {
+	dir, err := ConfigDirWith(os.LookupEnv)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "auth.yaml"), nil
+}

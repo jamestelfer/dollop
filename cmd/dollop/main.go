@@ -29,14 +29,20 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	authPath, err := config.AuthFilePath()
+	if err != nil {
+		return err
+	}
+	pt := config.NewPlaintextStore(authPath)
+	readKr := config.NewFallbackStore(kr, pt)
 
 	cfg, err := config.LoadFrom(cfgPath)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	accessKey, _ := kr.Get(config.ServiceName, "r2-key")
-	secretKey, _ := kr.Get(config.ServiceName, "r2-secret")
+	accessKey, _ := readKr.Get(config.ServiceName, "r2-key")
+	secretKey, _ := readKr.Get(config.ServiceName, "r2-secret")
 
 	var uploader upload.Uploader
 	var lister upload.BucketLister
@@ -49,7 +55,7 @@ func run(ctx context.Context, args []string) error {
 		lister = s3up
 	}
 
-	cfgCmd := configcmd.New(kr, cfgPath)
+	cfgCmd := configcmd.New(kr, pt, cfgPath)
 	createCmd := createcmd.New(
 		uploader,
 		cfg.Bucket,
