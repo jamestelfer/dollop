@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 
 	petname "github.com/dustinkirkland/golang-petname"
 	"github.com/jamestelfer/dollop/internal/cli/configcmd"
 	"github.com/jamestelfer/dollop/internal/cli/createcmd"
+	"github.com/jamestelfer/dollop/internal/cli/doctorcmd"
 	"github.com/jamestelfer/dollop/internal/config"
 	"github.com/jamestelfer/dollop/internal/upload"
 	nanoid "github.com/matoous/go-nanoid/v2"
@@ -37,11 +39,14 @@ func run(ctx context.Context, args []string) error {
 	secretKey, _ := kr.Get(config.ServiceName, "r2-secret")
 
 	var uploader upload.Uploader
+	var lister upload.BucketLister
 	if cfg.AccountID != "" && accessKey != "" && secretKey != "" {
-		uploader, err = upload.NewS3Uploader(cfg.AccountID, accessKey, secretKey)
-		if err != nil {
-			return fmt.Errorf("init uploader: %w", err)
+		s3up, s3err := upload.NewS3Uploader(cfg.AccountID, accessKey, secretKey)
+		if s3err != nil {
+			return fmt.Errorf("init uploader: %w", s3err)
 		}
+		uploader = s3up
+		lister = s3up
 	}
 
 	cfgCmd := configcmd.New(kr, cfgPath)
@@ -51,6 +56,21 @@ func run(ctx context.Context, args []string) error {
 		cfg.BaseURL,
 		func() (string, error) { return nanoid.New() },
 		func() string { return petname.Generate(2, "-") },
+	)
+	doctorCmd := doctorcmd.New(
+		cfg,
+		accessKey != "",
+		secretKey != "",
+		uploader,
+		lister,
+		func() (string, error) { return nanoid.New() },
+		func(ctx context.Context, url string) (*http.Response, error) {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+			if err != nil {
+				return nil, err
+			}
+			return http.DefaultClient.Do(req) //nolint:bodyclose
+		},
 	)
 
 	app := &cli.Command{
@@ -71,7 +91,7 @@ Quick start:
   dollop create photo.jpg              # share a file; link expires in 1 day
   dollop create --days 7 archive.zip   # share a file; link expires in 7 days
   dollop create --keep project/        # share a directory with a permanent link`,
-		Commands: []*cli.Command{&cfgCmd, &createCmd},
+		Commands: []*cli.Command{&cfgCmd, &createCmd, &doctorCmd},
 	}
 	return app.Run(ctx, args)
 }
