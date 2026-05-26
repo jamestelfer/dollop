@@ -34,7 +34,10 @@ func (u *S3Uploader) PutObject(ctx context.Context, bucket, key, contentType str
 		ContentType: aws.String(contentType),
 		Body:        body,
 	})
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to upload %s to bucket %s: %w", key, bucket, err)
+	}
+	return nil
 }
 
 // ListBucket verifies that bucket is accessible by listing at most one object.
