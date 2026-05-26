@@ -36,3 +36,13 @@ func (u *S3Uploader) PutObject(ctx context.Context, bucket, key, contentType str
 	})
 	return err
 }
+
+// ListBucket verifies that bucket is accessible by listing at most one object.
+func (u *S3Uploader) ListBucket(ctx context.Context, bucket string) error {
+	maxKeys := int32(1)
+	_, err := u.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket:  aws.String(bucket),
+		MaxKeys: &maxKeys,
+	})
+	return err
+}
