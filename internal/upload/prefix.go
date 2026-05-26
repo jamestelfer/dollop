@@ -3,6 +3,8 @@ package upload
 import (
 	"fmt"
 	"net/url"
+	"slices"
+	"sort"
 	"strings"
 )
 
@@ -17,11 +19,42 @@ func PermanentPrefix(name string) string {
 }
 
 // PublicURL constructs the public URL for a given prefix under baseURL.
-// If baseURL has no scheme, https:// is prepended.
-func PublicURL(baseURL, prefix string) string {
+// If suffix is non-empty it is appended after the prefix slash (no additional
+// trailing slash). If baseURL has no scheme, https:// is prepended.
+func PublicURL(baseURL, prefix, suffix string) string {
 	base := strings.TrimRight(baseURL, "/")
 	if u, err := url.Parse(base); err != nil || u.Scheme == "" {
 		base = "https://" + base
 	}
+	if suffix != "" {
+		return base + "/" + prefix + "/" + suffix
+	}
 	return base + "/" + prefix + "/"
+}
+
+// URLSuffix returns the filename component to append to the public URL based
+// on the upload contents and whether --index was requested:
+//
+//  1. --index flag or index.html present in files → "" (browser will load it)
+//  2. exactly one file → that file's relative path
+//  3. multiple files → the first path in alphabetical order
+//  4. no files → ""
+func URLSuffix(indexFlag bool, files []string) string {
+	if indexFlag {
+		return ""
+	}
+	if slices.Contains(files, "index.html") {
+		return ""
+	}
+	switch len(files) {
+	case 0:
+		return ""
+	case 1:
+		return files[0]
+	default:
+		sorted := make([]string, len(files))
+		copy(sorted, files)
+		sort.Strings(sorted)
+		return sorted[0]
+	}
 }

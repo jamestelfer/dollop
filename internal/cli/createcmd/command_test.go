@@ -69,7 +69,7 @@ func TestCreate_SingleFile_EphemeralDefault(t *testing.T) {
 
 	// prefix: flash/1/testid — days defaults to 1, id fixed to "testid"
 	assert.Equal(t, "flash/1/testid/notes.txt", up.calls[0])
-	assert.Contains(t, stdout, "flash/1/testid/")
+	assert.Contains(t, stdout, "flash/1/testid/notes.txt")
 }
 
 func TestCreate_EphemeralDays7(t *testing.T) {
@@ -81,7 +81,7 @@ func TestCreate_EphemeralDays7(t *testing.T) {
 	stdout, _, code := runCreate(t, up, "create", "--days", "7", path)
 	require.Equal(t, 0, code)
 	assert.Equal(t, "flash/7/testid/f.bin", up.calls[0])
-	assert.Contains(t, stdout, "flash/7/testid/")
+	assert.Contains(t, stdout, "flash/7/testid/f.bin")
 }
 
 func TestCreate_Keep(t *testing.T) {
@@ -94,7 +94,9 @@ func TestCreate_Keep(t *testing.T) {
 	stdout, _, code := runCreate(t, up, "create", "--keep", path)
 	require.Equal(t, 0, code)
 	assert.Equal(t, "keep/happy-cat/index.html", up.calls[0])
+	// index.html in the upload → no filename suffix on URL
 	assert.Contains(t, stdout, "keep/happy-cat/")
+	assert.NotContains(t, strings.TrimSpace(stdout), "index.html")
 }
 
 func TestCreate_KeepAndDaysMutuallyExclusive(t *testing.T) {
@@ -136,13 +138,16 @@ func TestCreate_Index_GeneratesIndex(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "report.pdf"), []byte("pdf"), 0600))
 
 	up := &fakeUploader{}
-	_, stderr, code := runCreate(t, up, "create", "--index", dir)
+	stdout, stderr, code := runCreate(t, up, "create", "--index", dir)
 	require.Equal(t, 0, code)
 
 	keys := make([]string, len(up.calls))
 	copy(keys, up.calls)
 	assert.Contains(t, keys, "flash/1/testid/index.html")
 	assert.NotContains(t, stderr, "warning")
+	// --index flag → no filename suffix
+	assert.Contains(t, stdout, "flash/1/testid/")
+	assert.NotContains(t, strings.TrimSpace(stdout), "report.pdf")
 }
 
 func TestCreate_Index_SkipsWithWarningIfIndexExists(t *testing.T) {
@@ -150,13 +155,16 @@ func TestCreate_Index_SkipsWithWarningIfIndexExists(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("<h1>mine</h1>"), 0600))
 
 	up := &fakeUploader{}
-	_, stderr, code := runCreate(t, up, "create", "--index", dir)
+	stdout, stderr, code := runCreate(t, up, "create", "--index", dir)
 	require.Equal(t, 0, code)
 
 	// no generated index — only the real index.html
 	assert.Len(t, up.calls, 1)
 	assert.Equal(t, "flash/1/testid/index.html", up.calls[0])
 	assert.Contains(t, stderr, "warning")
+	// --index flag → no filename suffix
+	assert.Contains(t, stdout, "flash/1/testid/")
+	assert.NotContains(t, strings.TrimSpace(stdout), "index.html")
 }
 
 func TestCreate_URLToStdout_OnlyURL(t *testing.T) {
@@ -172,4 +180,32 @@ func TestCreate_URLToStdout_OnlyURL(t *testing.T) {
 	assert.Len(t, lines, 1, "stdout should contain only the URL")
 	assert.True(t, strings.HasPrefix(lines[0], "http") || strings.HasPrefix(lines[0], "/"),
 		"stdout should be a URL, got: %q", lines[0])
+}
+
+func TestCreate_URL_MultipleFiles_FirstAlphabetical(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "zebra.txt"), []byte("z"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "alpha.txt"), []byte("a"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "mango.txt"), []byte("m"), 0600))
+
+	up := &fakeUploader{}
+	stdout, _, code := runCreate(t, up, "create", dir)
+	require.Equal(t, 0, code)
+
+	assert.Contains(t, stdout, "flash/1/testid/alpha.txt")
+}
+
+func TestCreate_URL_IndexHtml_NoSuffix(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "style.css"), []byte("body{}"), 0600))
+
+	up := &fakeUploader{}
+	stdout, _, code := runCreate(t, up, "create", dir)
+	require.Equal(t, 0, code)
+
+	// index.html in upload → no suffix, URL ends with /
+	assert.Contains(t, stdout, "flash/1/testid/")
+	assert.NotContains(t, strings.TrimSpace(stdout), "index.html")
+	assert.NotContains(t, strings.TrimSpace(stdout), "style.css")
 }

@@ -14,30 +14,39 @@ import (
 // If generateIndex is true and no index.html is present in the upload, a
 // generated index page is uploaded first; if index.html already exists a
 // warning is written to stderr and generation is skipped.
-func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath string, generateIndex bool, stderr io.Writer) error {
+// Returns the relative paths of all on-disk files uploaded (not including any
+// generated index.html).
+func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath string, generateIndex bool, stderr io.Writer) ([]string, error) {
 	info, err := os.Stat(localPath)
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	relPaths, hasIndex, err := collectRelativePaths(localPath, info.IsDir())
+	if err != nil {
+		return nil, fmt.Errorf("scan files: %w", err)
 	}
 
 	if generateIndex {
-		relPaths, hasIndex, err := collectRelativePaths(localPath, info.IsDir())
-		if err != nil {
-			return fmt.Errorf("scan files: %w", err)
-		}
 		if hasIndex {
 			fmt.Fprintln(stderr, "warning: index.html already present, skipping index generation") //nolint:errcheck
 		} else {
 			if err := uploadGeneratedIndex(ctx, up, bucket, prefix, relPaths, stderr); err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
 
 	if info.IsDir() {
-		return uploadDir(ctx, up, bucket, prefix, localPath, stderr)
+		if err := uploadDir(ctx, up, bucket, prefix, localPath, stderr); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := uploadFile(ctx, up, bucket, prefix+"/"+filepath.Base(localPath), localPath, stderr); err != nil {
+			return nil, err
+		}
 	}
-	return uploadFile(ctx, up, bucket, prefix+"/"+filepath.Base(localPath), localPath, stderr)
+	return relPaths, nil
 }
 
 func collectRelativePaths(localPath string, isDir bool) ([]string, bool, error) {
