@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.0](https://github.com/jamestelfer/dollop/compare/v1.0.1...v1.1.0) (2026-05-26)
+
+
+### Features
+
+* add --index flag to create command to generate a file listing ([#18](https://github.com/jamestelfer/dollop/issues/18)) ([d9644bd](https://github.com/jamestelfer/dollop/commit/d9644bde762f7a0bff45345e62d8ae6d3cd4e6bf))
+* append filename suffix to public URLs for single files ([#20](https://github.com/jamestelfer/dollop/issues/20)) ([1fb8c42](https://github.com/jamestelfer/dollop/commit/1fb8c420c6b87867e4977fc746bc61e3ca1fc523))
+* include filename in stdout URL based on upload contents ([1fb8c42](https://github.com/jamestelfer/dollop/commit/1fb8c420c6b87867e4977fc746bc61e3ca1fc523))
+
 ## [1.0.1](https://github.com/jamestelfer/dollop/compare/v1.0.0...v1.0.1) (2026-05-25)
 
 
