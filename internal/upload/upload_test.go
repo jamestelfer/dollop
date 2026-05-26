@@ -45,7 +45,7 @@ func TestUploadFiles_SingleFile(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	err := upload.UploadFiles(context.Background(), up, "my-bucket", "dollop/1/abc", path, false, &stderr)
+	files, err := upload.UploadFiles(context.Background(), up, "my-bucket", "dollop/1/abc", path, false, &stderr)
 	require.NoError(t, err)
 
 	require.Len(t, up.calls, 1)
@@ -55,6 +55,7 @@ func TestUploadFiles_SingleFile(t *testing.T) {
 	assert.Equal(t, []byte("hello"), up.calls[0].body)
 	assert.Contains(t, stderr.String(), "uploading [hello.txt]")
 	assert.Contains(t, stderr.String(), "...done")
+	assert.Equal(t, []string{"hello.txt"}, files)
 }
 
 func TestUploadFiles_Directory(t *testing.T) {
@@ -65,7 +66,7 @@ func TestUploadFiles_Directory(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	err := upload.UploadFiles(context.Background(), up, "bucket", "keep/friendly-cat", dir, false, &stderr)
+	files, err := upload.UploadFiles(context.Background(), up, "bucket", "keep/friendly-cat", dir, false, &stderr)
 	require.NoError(t, err)
 
 	require.Len(t, up.calls, 2)
@@ -78,6 +79,7 @@ func TestUploadFiles_Directory(t *testing.T) {
 		"keep/friendly-cat/index.html",
 		"keep/friendly-cat/sub/data.json",
 	}, keys)
+	assert.ElementsMatch(t, []string{"index.html", "sub/data.json"}, files)
 }
 
 func TestUploadFiles_UploaderError(t *testing.T) {
@@ -86,7 +88,7 @@ func TestUploadFiles_UploaderError(t *testing.T) {
 
 	up := &fakeUploader{err: assert.AnError}
 	var stderr bytes.Buffer
-	err := upload.UploadFiles(context.Background(), up, "b", "p", filepath.Join(dir, "file.bin"), false, &stderr)
+	_, err := upload.UploadFiles(context.Background(), up, "b", "p", filepath.Join(dir, "file.bin"), false, &stderr)
 	assert.Error(t, err)
 	assert.Contains(t, stderr.String(), "uploading [file.bin]")
 	assert.Contains(t, stderr.String(), "...failed")
@@ -99,7 +101,7 @@ func TestUploadFiles_Index_GeneratesAndUploads(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr)
+	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr)
 	require.NoError(t, err)
 
 	keys := make([]string, len(up.calls))
@@ -122,6 +124,9 @@ func TestUploadFiles_Index_GeneratesAndUploads(t *testing.T) {
 	assert.Contains(t, string(indexCall.body), "report.pdf")
 
 	assert.NotContains(t, stderr.String(), "warning")
+
+	// generated index.html is not in the returned file list
+	assert.ElementsMatch(t, []string{"notes.txt", "report.pdf"}, files)
 }
 
 func TestUploadFiles_Index_SkipsIfExists(t *testing.T) {
@@ -131,13 +136,14 @@ func TestUploadFiles_Index_SkipsIfExists(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/xyz", dir, true, &stderr)
+	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/xyz", dir, true, &stderr)
 	require.NoError(t, err)
 
 	// only the two real files, no generated index
 	require.Len(t, up.calls, 2)
 	assert.Contains(t, stderr.String(), "warning")
 	assert.Contains(t, stderr.String(), "index.html")
+	assert.ElementsMatch(t, []string{"index.html", "data.csv"}, files)
 }
 
 func TestUploadFiles_Index_SingleFile_IsIndex(t *testing.T) {
@@ -147,11 +153,12 @@ func TestUploadFiles_Index_SingleFile_IsIndex(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/xyz", path, true, &stderr)
+	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/xyz", path, true, &stderr)
 	require.NoError(t, err)
 
 	require.Len(t, up.calls, 1) // only the file itself, no generated index
 	assert.Contains(t, stderr.String(), "warning")
+	assert.Equal(t, []string{"index.html"}, files)
 }
 
 func TestHumanSize(t *testing.T) {

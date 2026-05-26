@@ -91,12 +91,14 @@ are mutually exclusive.
 				prefix = upload.EphemeralPrefix(days, id)
 			}
 
-			if err := upload.UploadFiles(ctx, uploader, bucket, prefix, localPath, genIndex, cmd.Root().ErrWriter); err != nil {
+			files, err := upload.UploadFiles(ctx, uploader, bucket, prefix, localPath, genIndex, cmd.Root().ErrWriter)
+			if err != nil {
 				fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err) //nolint:errcheck
 				return cli.Exit("upload failed", 1)
 			}
 
-			if _, err := fmt.Fprintln(cmd.Root().Writer, upload.PublicURL(baseURL, prefix)); err != nil {
+			suffix := upload.URLSuffix(genIndex, files)
+			if _, err := fmt.Fprintln(cmd.Root().Writer, upload.PublicURL(baseURL, prefix, suffix)); err != nil {
 				return cli.Exit(fmt.Sprintf("write output: %v", err), 1)
 			}
 			return nil
