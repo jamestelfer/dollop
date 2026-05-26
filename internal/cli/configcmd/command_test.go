@@ -48,12 +48,18 @@ func (f *fakeKeyring) Delete(service, user string) error {
 	return nil
 }
 
+// tempPT returns a PlaintextStore backed by a file in a new temp dir.
+func tempPT(t *testing.T) *config.PlaintextStore {
+	t.Helper()
+	return config.NewPlaintextStore(filepath.Join(t.TempDir(), "auth.yaml"))
+}
+
 // run builds the app wired to a temp config file and runs args.
 // Returns stdout, stderr, and the exit code (0 if no error / cli.ExitCoder).
-func run(t *testing.T, cfgPath string, kr config.KeyringStore, args ...string) (stdout, stderr string, code int) {
+func run(t *testing.T, cfgPath string, kr config.KeyringStore, pt *config.PlaintextStore, args ...string) (stdout, stderr string, code int) {
 	t.Helper()
 	var outBuf, errBuf bytes.Buffer
-	sub := configcmd.New(kr, cfgPath)
+	sub := configcmd.New(kr, pt, cfgPath)
 	app := &cli.Command{
 		Name:      "dollop",
 		Writer:    &outBuf,
@@ -75,7 +81,7 @@ func run(t *testing.T, cfgPath string, kr config.KeyringStore, args ...string) (
 
 func TestConfigHelp(t *testing.T) {
 	dir := t.TempDir()
-	out, _, code := run(t, filepath.Join(dir, "config.yaml"), newFakeKeyring(), "config", "--help")
+	out, _, code := run(t, filepath.Join(dir, "config.yaml"), newFakeKeyring(), tempPT(t), "config", "--help")
 	if code != 0 {
 		t.Fatalf("expected exit 0, got %d", code)
 	}
@@ -90,7 +96,7 @@ func TestConfigSet_ValidKey(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")
 
-	_, _, code := run(t, cfgPath, newFakeKeyring(), "config", "set", "bucket", "my-bucket")
+	_, _, code := run(t, cfgPath, newFakeKeyring(), tempPT(t), "config", "set", "bucket", "my-bucket")
 	if code != 0 {
 		t.Fatalf("expected exit 0, got %d", code)
 	}
@@ -108,7 +114,7 @@ func TestConfigSet_PrintsFilePath(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")
 
-	stdout, _, code := run(t, cfgPath, newFakeKeyring(), "config", "set", "bucket", "my-bucket")
+	stdout, _, code := run(t, cfgPath, newFakeKeyring(), tempPT(t), "config", "set", "bucket", "my-bucket")
 	if code != 0 {
 		t.Fatalf("expected exit 0, got %d", code)
 	}
@@ -119,7 +125,7 @@ func TestConfigSet_PrintsFilePath(t *testing.T) {
 
 func TestConfigSet_InvalidKey(t *testing.T) {
 	dir := t.TempDir()
-	_, _, code := run(t, filepath.Join(dir, "c.yaml"), newFakeKeyring(), "config", "set", "unknown", "val")
+	_, _, code := run(t, filepath.Join(dir, "c.yaml"), newFakeKeyring(), tempPT(t), "config", "set", "unknown", "val")
 	if code == 0 {
 		t.Error("expected non-zero exit for unknown key")
 	}
@@ -131,7 +137,7 @@ func TestConfigSet_WrongArgCount(t *testing.T) {
 		{"config", "set"},
 		{"config", "set", "bucket"},
 	} {
-		_, _, code := run(t, filepath.Join(dir, "c.yaml"), newFakeKeyring(), args...)
+		_, _, code := run(t, filepath.Join(dir, "c.yaml"), newFakeKeyring(), tempPT(t), args...)
 		if code == 0 {
 			t.Errorf("args %v: expected non-zero exit", args)
 		}
@@ -141,10 +147,11 @@ func TestConfigSet_WrongArgCount(t *testing.T) {
 func TestConfigGet_ValidKey(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")
+	pt := tempPT(t)
 
-	run(t, cfgPath, newFakeKeyring(), "config", "set", "bucket", "b1") //nolint
+	run(t, cfgPath, newFakeKeyring(), pt, "config", "set", "bucket", "b1") //nolint
 
-	out, _, code := run(t, cfgPath, newFakeKeyring(), "config", "get", "bucket")
+	out, _, code := run(t, cfgPath, newFakeKeyring(), pt, "config", "get", "bucket")
 	if code != 0 {
 		t.Fatalf("expected exit 0, got %d", code)
 	}
@@ -155,7 +162,7 @@ func TestConfigGet_ValidKey(t *testing.T) {
 
 func TestConfigGet_InvalidKey(t *testing.T) {
 	dir := t.TempDir()
-	_, _, code := run(t, filepath.Join(dir, "c.yaml"), newFakeKeyring(), "config", "get", "unknown")
+	_, _, code := run(t, filepath.Join(dir, "c.yaml"), newFakeKeyring(), tempPT(t), "config", "get", "unknown")
 	if code == 0 {
 		t.Error("expected non-zero exit for unknown key")
 	}
@@ -164,11 +171,12 @@ func TestConfigGet_InvalidKey(t *testing.T) {
 func TestConfigList(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")
+	pt := tempPT(t)
 
-	run(t, cfgPath, newFakeKeyring(), "config", "set", "bucket", "bkt")     //nolint
-	run(t, cfgPath, newFakeKeyring(), "config", "set", "account-id", "acc") //nolint
+	run(t, cfgPath, newFakeKeyring(), pt, "config", "set", "bucket", "bkt")     //nolint
+	run(t, cfgPath, newFakeKeyring(), pt, "config", "set", "account-id", "acc") //nolint
 
-	out, _, code := run(t, cfgPath, newFakeKeyring(), "config", "list")
+	out, _, code := run(t, cfgPath, newFakeKeyring(), pt, "config", "list")
 	if code != 0 {
 		t.Fatalf("expected exit 0, got %d", code)
 	}
@@ -183,7 +191,7 @@ func TestConfigAuth_ValidKey(t *testing.T) {
 	dir := t.TempDir()
 	kr := newFakeKeyring()
 
-	_, _, code := run(t, filepath.Join(dir, "c.yaml"), kr, "config", "auth", "r2-key", "mykey")
+	_, _, code := run(t, filepath.Join(dir, "c.yaml"), kr, tempPT(t), "config", "auth", "r2-key", "mykey")
 	if code != 0 {
 		t.Fatalf("expected exit 0, got %d", code)
 	}
@@ -198,7 +206,7 @@ func TestConfigAuth_ValidKey(t *testing.T) {
 
 func TestConfigAuth_InvalidKey(t *testing.T) {
 	dir := t.TempDir()
-	_, _, code := run(t, filepath.Join(dir, "c.yaml"), newFakeKeyring(), "config", "auth", "unknown", "val")
+	_, _, code := run(t, filepath.Join(dir, "c.yaml"), newFakeKeyring(), tempPT(t), "config", "auth", "unknown", "val")
 	if code == 0 {
 		t.Error("expected non-zero exit for unknown keyring key")
 	}
@@ -209,11 +217,55 @@ func TestConfigAuth_KeyringError(t *testing.T) {
 	kr := newFakeKeyring()
 	kr.err = errors.New("keyring unavailable")
 
-	_, stderr, code := run(t, filepath.Join(dir, "c.yaml"), kr, "config", "auth", "r2-key", "v")
+	_, stderr, code := run(t, filepath.Join(dir, "c.yaml"), kr, tempPT(t), "config", "auth", "r2-key", "v")
 	if code == 0 {
 		t.Error("expected non-zero exit on keyring error")
 	}
 	if !strings.Contains(stderr, "keyring") {
 		t.Errorf("expected keyring error in stderr, got: %q", stderr)
+	}
+	if !strings.Contains(stderr, "--insecure") {
+		t.Errorf("expected --insecure hint in stderr, got: %q", stderr)
+	}
+}
+
+func TestConfigAuth_Insecure(t *testing.T) {
+	dir := t.TempDir()
+	pt := config.NewPlaintextStore(filepath.Join(dir, "auth.yaml"))
+	kr := newFakeKeyring()
+	kr.err = errors.New("keyring unavailable")
+
+	stdout, _, code := run(t, filepath.Join(dir, "c.yaml"), kr, pt, "config", "auth", "--insecure", "r2-key", "mykey")
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d", code)
+	}
+
+	val, err := pt.Get(config.ServiceName, "r2-key")
+	if err != nil {
+		t.Fatalf("PlaintextStore.Get: %v", err)
+	}
+	if val != "mykey" {
+		t.Errorf("plaintext value = %q, want %q", val, "mykey")
+	}
+	if !strings.Contains(stdout, pt.Path()) {
+		t.Errorf("expected auth file path in output, got: %q", stdout)
+	}
+}
+
+func TestConfigAuth_Insecure_FilePermissions(t *testing.T) {
+	dir := t.TempDir()
+	pt := config.NewPlaintextStore(filepath.Join(dir, "auth.yaml"))
+
+	_, _, code := run(t, filepath.Join(dir, "c.yaml"), newFakeKeyring(), pt, "config", "auth", "--insecure", "r2-key", "val")
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d", code)
+	}
+
+	info, err := pt.Stat()
+	if err != nil {
+		t.Fatalf("stat auth file: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("auth file permissions = %o, want 0600", perm)
 	}
 }

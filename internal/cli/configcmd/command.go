@@ -10,8 +10,9 @@ import (
 )
 
 // New returns the config command tree. cfgPath is the config file path;
-// kr is the keyring store used by the auth subcommand.
-func New(kr config.KeyringStore, cfgPath string) cli.Command {
+// kr is the keyring store used by the auth subcommand;
+// pt is the plain-text store used when --insecure is passed to auth.
+func New(kr config.KeyringStore, pt *config.PlaintextStore, cfgPath string) cli.Command {
 	return cli.Command{
 		Name:  "config",
 		Usage: "manage dollop configuration",
@@ -28,7 +29,7 @@ Run 'dollop config <command> --help' for details on each subcommand.`,
 			newSetCommand(cfgPath),
 			newGetCommand(cfgPath),
 			newListCommand(cfgPath),
-			newAuthCommand(kr),
+			newAuthCommand(kr, pt),
 		},
 	}
 }
@@ -121,11 +122,17 @@ func newListCommand(cfgPath string) *cli.Command {
 	}
 }
 
-func newAuthCommand(kr config.KeyringStore) *cli.Command {
+func newAuthCommand(kr config.KeyringStore, pt *config.PlaintextStore) *cli.Command {
 	return &cli.Command{
 		Name:      "auth",
 		Usage:     "store an R2 credential in the OS keyring",
 		ArgsUsage: "<key> <value>",
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:  "insecure",
+				Usage: "store credentials in plain text (" + pt.Path() + ") instead of the OS keyring",
+			},
+		},
 		Description: `Stores an R2 credential securely in the OS keyring under the "dollop"
 service. Credentials are never written to the config file.
 
@@ -138,7 +145,12 @@ a token with read/write access to your bucket.
 
 Example:
   dollop config auth r2-key     CAFEF00DCAFEF00D...
-  dollop config auth r2-secret  abc123secretkey...`,
+  dollop config auth r2-secret  abc123secretkey...
+
+On headless Linux systems without a keyring daemon, use --insecure to store
+credentials in plain text instead:
+  dollop config auth --insecure r2-key     CAFEF00DCAFEF00D...
+  dollop config auth --insecure r2-secret  abc123secretkey...`,
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			if cmd.Args().Len() != 2 {
 				return cli.Exit("usage: config auth <key> <value>", 1)
@@ -149,9 +161,19 @@ Example:
 				return cli.Exit(fmt.Sprintf("unknown keyring key %q", key), 1)
 			}
 
+			if cmd.Bool("insecure") {
+				if err := pt.Set(config.ServiceName, key, value); err != nil {
+					return cli.Exit(fmt.Sprintf("failed to store credential in plain text: %v", err), 1)
+				}
+				if _, werr := fmt.Fprintf(cmd.Root().Writer, "saved to plain text: %s\n", pt.Path()); werr != nil {
+					return cli.Exit(fmt.Sprintf("write output: %v", werr), 1)
+				}
+				return nil
+			}
+
 			if err := kr.Set(config.ServiceName, key, value); err != nil {
-				if _, werr := fmt.Fprintf(cmd.Root().ErrWriter, "keyring error: %v\n", err); werr != nil {
-					return cli.Exit(fmt.Sprintf("write keyring error: %v", werr), 1)
+				if _, werr := fmt.Fprintf(cmd.Root().ErrWriter, "keyring error: %v\nKeyring unavailable; re-run with --insecure to store credentials in plain text\n", err); werr != nil {
+					return cli.Exit(fmt.Sprintf("write error: %v", werr), 1)
 				}
 				return cli.Exit("failed to store credential in keyring", 1)
 			}
