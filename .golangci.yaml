@@ -90,6 +90,7 @@ linters:
           - gocyclo
           - gosec
           - gocritic
+          - bodyclose  # mock http.Response bodies are closed by the code under test
 
       # Allow dynamic errors in certain contexts
       - text: "G204"  # Subprocess with variable (command injection)
