@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/jamestelfer/dollop/compare/v1.1.0...v1.2.0) (2026-05-26)
+
+
+### Features
+
+* add doctor command for end-to-end configuration and connectivity checks ([#21](https://github.com/jamestelfer/dollop/issues/21)) ([b6b3b16](https://github.com/jamestelfer/dollop/commit/b6b3b1668f6405c448487a9d6b88468b77dd0cd8))
+* add plain-text auth fallback for headless Linux environments ([#22](https://github.com/jamestelfer/dollop/issues/22)) ([10a5b4e](https://github.com/jamestelfer/dollop/commit/10a5b4e253e59cb2ebfabc36f44dc1143d320d3c))
+
 ## [1.1.0](https://github.com/jamestelfer/dollop/compare/v1.0.1...v1.1.0) (2026-05-26)
 
 
