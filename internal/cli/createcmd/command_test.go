@@ -131,6 +131,34 @@ func TestCreate_UploaderError(t *testing.T) {
 	assert.True(t, strings.Contains(stderr, "network error") || strings.Contains(stderr, "upload"))
 }
 
+func TestCreate_Index_GeneratesIndex(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "report.pdf"), []byte("pdf"), 0600))
+
+	up := &fakeUploader{}
+	_, stderr, code := runCreate(t, up, "create", "--index", dir)
+	require.Equal(t, 0, code)
+
+	keys := make([]string, len(up.calls))
+	copy(keys, up.calls)
+	assert.Contains(t, keys, "flash/1/testid/index.html")
+	assert.NotContains(t, stderr, "warning")
+}
+
+func TestCreate_Index_SkipsWithWarningIfIndexExists(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("<h1>mine</h1>"), 0600))
+
+	up := &fakeUploader{}
+	_, stderr, code := runCreate(t, up, "create", "--index", dir)
+	require.Equal(t, 0, code)
+
+	// no generated index — only the real index.html
+	assert.Len(t, up.calls, 1)
+	assert.Equal(t, "flash/1/testid/index.html", up.calls[0])
+	assert.Contains(t, stderr, "warning")
+}
+
 func TestCreate_URLToStdout_OnlyURL(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "f.txt")
