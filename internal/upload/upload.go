@@ -170,14 +170,14 @@ func uploadSource(ctx context.Context, up Uploader, bucket, prefix string, src r
 		fmt.Fprintf(stderr, "rendering [%s]...", name) //nolint:errcheck
 	}
 
-	rc, err := src.Open()
+	body, err := src.Open()
 	if err != nil {
 		fmt.Fprintln(stderr, "failed") //nolint:errcheck
 		return fmt.Errorf("open %s: %w", src.RelPath, err)
 	}
-	defer rc.Close() //nolint:errcheck
+	defer body.Close() //nolint:errcheck
 
-	if err := up.PutObject(ctx, bucket, key, ct, rc); err != nil {
+	if err := up.PutObject(ctx, bucket, key, ct, body); err != nil {
 		fmt.Fprintln(stderr, "failed") //nolint:errcheck
 		return fmt.Errorf("upload %s: %w", key, err)
 	}

@@ -10,11 +10,14 @@ import (
 // the file is ready to be read. ContentType is empty when the upload layer
 // should detect it from the file extension. Size is -1 when the final size is
 // unknown until Open is called (e.g. dynamically rendered content).
+//
+// Open returns an io.ReadSeekCloser so the S3 SDK can seek to determine
+// Content-Length without buffering the entire body.
 type Source struct {
 	RelPath     string
 	ContentType string
 	Size        int64
-	Open        func() (io.ReadCloser, error)
+	Open        func() (io.ReadSeekCloser, error)
 }
 
 // Renderer plans the set of Sources to upload from a list of relative paths
@@ -43,7 +46,7 @@ func (d *diskRenderer) Plan(relPaths []string, sourceDir string) ([]Source, []Sh
 		sources = append(sources, Source{
 			RelPath: p,
 			Size:    sz,
-			Open:    func() (io.ReadCloser, error) { return os.Open(absPath) }, //nolint:gosec
+			Open:    func() (io.ReadSeekCloser, error) { return os.Open(absPath) }, //nolint:gosec
 		})
 	}
 	return sources, nil, nil

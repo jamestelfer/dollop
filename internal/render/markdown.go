@@ -84,12 +84,12 @@ func (m *markdownRenderer) Plan(relPaths []string, sourceDir string) ([]Source, 
 			RelPath:     htmlRel,
 			ContentType: "text/html; charset=utf-8",
 			Size:        -1,
-			Open: func() (io.ReadCloser, error) {
+			Open: func() (io.ReadSeekCloser, error) {
 				html, err := renderMarkdownFile(mdPath, sourceDir, batch)
 				if err != nil {
 					return nil, err
 				}
-				return io.NopCloser(bytes.NewReader(html)), nil
+				return nopSeekCloser{bytes.NewReader(html)}, nil
 			},
 		})
 	}
@@ -119,9 +119,14 @@ func diskSource(relPath, sourceDir string) Source {
 	return Source{
 		RelPath: relPath,
 		Size:    sz,
-		Open:    func() (io.ReadCloser, error) { return os.Open(absPath) }, //nolint:gosec
+		Open:    func() (io.ReadSeekCloser, error) { return os.Open(absPath) }, //nolint:gosec
 	}
 }
+
+// nopSeekCloser wraps *bytes.Reader to satisfy io.ReadSeekCloser with a no-op Close.
+type nopSeekCloser struct{ *bytes.Reader }
+
+func (nopSeekCloser) Close() error { return nil }
 
 func extractTitle(metadata map[string]any, src []byte, doc ast.Node, fallback string) string {
 	if metadata != nil {
