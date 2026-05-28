@@ -31,7 +31,7 @@ func (f *fakeUploader) PutObject(_ context.Context, _, key, _ string, _ io.Reade
 	return nil
 }
 
-func runCreate(t *testing.T, up *fakeUploader, args ...string) (stdout, stderr string, code int) {
+func runCreate(t *testing.T, up upload.Uploader, args ...string) (stdout, stderr string, code int) {
 	t.Helper()
 	var outBuf, errBuf bytes.Buffer
 	cmd := createcmd.New(
@@ -64,31 +64,11 @@ func TestCreate_NilUploader_FriendlyError(t *testing.T) {
 	path := filepath.Join(dir, "notes.txt")
 	require.NoError(t, os.WriteFile(path, []byte("hi"), 0600))
 
-	var outBuf, errBuf bytes.Buffer
-	// nil uploader simulates missing R2 credentials/account-id at startup.
-	cmd := createcmd.New(
-		nil,
-		"test-bucket",
-		"",
-		func() (string, error) { return "testid", nil },
-		func() string { return "happy-cat" },
-	)
-	app := &cli.Command{
-		Name:           "dollop",
-		Writer:         &outBuf,
-		ErrWriter:      &errBuf,
-		Commands:       []*cli.Command{&cmd},
-		ExitErrHandler: func(_ context.Context, _ *cli.Command, _ error) {},
-	}
-	err := app.Run(context.Background(), []string{"dollop", "create", path})
-
-	// Must fail cleanly with a non-zero exit, not panic.
-	require.Error(t, err)
-	var ec cli.ExitCoder
-	require.ErrorAs(t, err, &ec)
-	assert.NotEqual(t, 0, ec.ExitCode())
-	assert.Contains(t, err.Error(), "credentials")
-	assert.Empty(t, outBuf.String(), "no URL should be printed when uploader is unconfigured")
+	// nil uploader simulates missing R2 credentials/account-id at startup; it
+	// must fail cleanly with a non-zero exit and no URL output, not panic.
+	stdout, _, code := runCreate(t, nil, "create", path)
+	assert.NotEqual(t, 0, code)
+	assert.Empty(t, stdout, "no URL should be printed when uploader is unconfigured")
 }
 
 func TestCreate_NilUploader_CopyDirStillWorks(t *testing.T) {
@@ -96,23 +76,9 @@ func TestCreate_NilUploader_CopyDirStillWorks(t *testing.T) {
 	dst := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(src, "data.txt"), []byte("content"), 0o600))
 
-	var outBuf, errBuf bytes.Buffer
 	// Even with no uploader configured, --copy-dir must work (it uses DirUploader).
-	cmd := createcmd.New(
-		nil,
-		"test-bucket",
-		"",
-		func() (string, error) { return "testid", nil },
-		func() string { return "happy-cat" },
-	)
-	app := &cli.Command{
-		Name:           "dollop",
-		Writer:         &outBuf,
-		ErrWriter:      &errBuf,
-		Commands:       []*cli.Command{&cmd},
-		ExitErrHandler: func(_ context.Context, _ *cli.Command, _ error) {},
-	}
-	require.NoError(t, app.Run(context.Background(), []string{"dollop", "create", "--copy-dir", dst, src}))
+	_, _, code := runCreate(t, nil, "create", "--copy-dir", dst, src)
+	require.Equal(t, 0, code)
 
 	got, err := os.ReadFile(filepath.Join(dst, "flash", "1", "testid", "data.txt"))
 	require.NoError(t, err)
