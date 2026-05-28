@@ -93,6 +93,10 @@ are mutually exclusive.
 				activeUploader = &upload.DirUploader{Root: copyDir}
 			}
 
+			if activeUploader == nil {
+				return cli.Exit("R2 is not configured; set account-id with 'dollop config set account-id <id>' and credentials with 'dollop config auth'", 1)
+			}
+
 			var prefix string
 			if keep {
 				prefix = upload.PermanentPrefix(newName())
