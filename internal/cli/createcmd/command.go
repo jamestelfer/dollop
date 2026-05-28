@@ -50,6 +50,11 @@ are mutually exclusive.
 				Name:  "no-render",
 				Usage: "disable automatic rendering of .md files to .html",
 			},
+			&cli.StringFlag{
+				Name:   "copy-dir",
+				Usage:  "copy files to this local directory instead of uploading to R2 (integration testing only)",
+				Hidden: true,
+			},
 		},
 		MutuallyExclusiveFlags: []cli.MutuallyExclusiveFlags{
 			{
@@ -79,7 +84,14 @@ are mutually exclusive.
 			keep := cmd.Bool("keep")
 			genIndex := cmd.Bool("index")
 			noRender := cmd.Bool("no-render")
+			copyDir := cmd.String("copy-dir")
 			localPath := cmd.Args().Get(0)
+
+			activeUploader := uploader
+			if copyDir != "" {
+				fmt.Fprintf(cmd.Root().ErrWriter, "note: writing to local directory %s instead of R2\n", copyDir) //nolint:errcheck
+				activeUploader = &upload.DirUploader{Root: copyDir}
+			}
 
 			var prefix string
 			if keep {
@@ -102,7 +114,7 @@ are mutually exclusive.
 				uploadOpts = append(uploadOpts, upload.WithRenderer(render.NewMarkdownRendererWithStderr(cmd.Root().ErrWriter)))
 			}
 
-			files, err := upload.UploadFiles(ctx, uploader, bucket, prefix, localPath, genIndex, cmd.Root().ErrWriter, uploadOpts...)
+			files, err := upload.UploadFiles(ctx, activeUploader, bucket, prefix, localPath, genIndex, cmd.Root().ErrWriter, uploadOpts...)
 			if err != nil {
 				fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err) //nolint:errcheck
 				return cli.Exit("upload failed", 1)
