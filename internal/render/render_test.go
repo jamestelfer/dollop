@@ -157,6 +157,70 @@ func TestMarkdownRenderer_SourceFooterLink(t *testing.T) {
 	assert.Greater(t, footerLink, mdBodyClose, "source link should appear after markdown-body closing tag")
 }
 
+// TestMarkdownRenderer_InternalLinkRewritten verifies that a link to an .md
+// file present in the batch is rewritten to .html in the rendered output.
+func TestMarkdownRenderer_InternalLinkRewritten(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.md"), []byte("[see guide](guide.md)"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "guide.md"), []byte("# Guide"), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"index.md", "guide.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "index.html"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), `href="guide.html"`)
+	assert.NotContains(t, string(content), `href="guide.md"`)
+}
+
+// TestMarkdownRenderer_ExternalLinkNotRewritten verifies that an external URL
+// containing .md is not rewritten.
+func TestMarkdownRenderer_ExternalLinkNotRewritten(t *testing.T) {
+	dir := t.TempDir()
+	md := "[ext](https://github.com/foo/bar/blob/main/README.md)"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "README.md")
+}
+
+// TestMarkdownRenderer_FragmentPreservedOnRewrite verifies that fragment
+// identifiers are kept when an internal link is rewritten.
+func TestMarkdownRenderer_FragmentPreservedOnRewrite(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("[sec](other.md#section)"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.md"), []byte("# other"), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"doc.md", "other.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), `href="other.html#section"`)
+}
+
+// TestMarkdownRenderer_NonBatchLinkNotRewritten verifies that a link to an .md
+// file NOT in the batch is left unchanged.
+func TestMarkdownRenderer_NonBatchLinkNotRewritten(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("[other](missing.md)"), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), `href="missing.md"`)
+}
+
 // TestMarkdownRenderer_CSSPathRootLevel verifies that a root-level file links
 // to the CSS with no path prefix.
 func TestMarkdownRenderer_CSSPathRootLevel(t *testing.T) {

@@ -54,7 +54,7 @@ func (m *markdownRenderer) Render(relPaths []string, sourceDir string) ([]string
 			continue
 		}
 
-		generated, err := renderMarkdownFile(p, sourceDir)
+		generated, err := renderMarkdownFile(p, sourceDir, existing)
 		if err != nil {
 			return nil, err
 		}
@@ -123,7 +123,7 @@ var mdParser = goldmark.New(
 	goldmark.WithExtensions(meta.Meta),
 )
 
-func renderMarkdownFile(relPath, sourceDir string) (string, error) {
+func renderMarkdownFile(relPath, sourceDir string, batch map[string]bool) (string, error) {
 	src, err := os.ReadFile(filepath.Join(sourceDir, relPath)) //nolint:gosec
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", relPath, err)
@@ -132,6 +132,10 @@ func renderMarkdownFile(relPath, sourceDir string) (string, error) {
 	reader := text.NewReader(src)
 	pctx := parser.NewContext()
 	doc := mdParser.Parser().Parse(reader, parser.WithContext(pctx))
+
+	// rewrite internal .md links before rendering
+	lr := &linkRewriter{batch: batch}
+	lr.Transform(doc.(*ast.Document), reader, pctx)
 
 	var bodyBuf bytes.Buffer
 	if err := mdParser.Renderer().Render(&bodyBuf, src, doc); err != nil {

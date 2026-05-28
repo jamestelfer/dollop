@@ -134,11 +134,11 @@
 > Requirements: R17, R18  
 > Commit: `feat: rewrite internal .md links to .html in rendered output`
 
-- [ ] goldmark AST transformer rewrites `.md` / `.markdown` link destinations to `.html`
-- [ ] Only links whose paths are present in the upload batch are rewritten (R17)
-- [ ] External URLs (any destination with a scheme) are never rewritten (R18)
-- [ ] Fragment identifiers preserved (`guide.md#section` → `guide.html#section`)
-- [ ] `just verify` passes
+- [x] goldmark AST transformer rewrites `.md` / `.markdown` link destinations to `.html`
+- [x] Only links whose paths are present in the upload batch are rewritten (R17)
+- [x] External URLs (any destination with a scheme) are never rewritten (R18)
+- [x] Fragment identifiers preserved (`guide.md#section` → `guide.html#section`)
+- [x] `just verify` passes
 
 ### Phase 5: GFM extensions + frontmatter stripping
 
