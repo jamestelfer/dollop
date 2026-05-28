@@ -165,7 +165,7 @@ func renderMarkdownFile(relPath, sourceDir string, batch map[string]bool) (strin
 		Title:            title,
 		CSSPath:          prefix + "github-markdown.css",
 		HighlightCSSPath: prefix + "highlight-github.css",
-		Body:             template.HTML(bodyBuf.String()), //nolint:gosec
+		Body:             template.HTML(sanitizeHTML(bodyBuf.String())), //nolint:gosec
 		SourcePath:       filepath.Base(relPath),
 	}
 

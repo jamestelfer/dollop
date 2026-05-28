@@ -158,12 +158,12 @@
 > Requirements: R9  
 > Commit: `feat: sanitize rendered html with bluemonday github-compatible policy`
 
-- [ ] Render with `html.WithUnsafe()`, then sanitize output with bluemonday
-- [ ] Custom policy from `NewPolicy()`, not `UGCPolicy()`
-- [ ] Policy permits `<details>`, `<summary>`, `<kbd>`, `<sub>`, `<sup>` and other GitHub-allowed tags
-- [ ] Sanitization runs on rendered body fragment before HTML template wrapping
-- [ ] Raw `<script>` in markdown is stripped; `<details>` survives
-- [ ] `just verify` passes
+- [x] Render with `html.WithUnsafe()`, then sanitize output with bluemonday
+- [x] Custom policy from `NewPolicy()`, not `UGCPolicy()`
+- [x] Policy permits `<details>`, `<summary>`, `<kbd>`, `<sub>`, `<sup>` and other GitHub-allowed tags
+- [x] Sanitization runs on rendered body fragment before HTML template wrapping
+- [x] Raw `<script>` in markdown is stripped; `<details>` survives
+- [x] `just verify` passes
 
 ### Phase 7: Syntax highlighting (Chroma fully wired)
 

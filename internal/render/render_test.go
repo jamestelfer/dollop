@@ -190,6 +190,40 @@ func TestMarkdownRenderer_HeadingAnchor(t *testing.T) {
 	assert.Contains(t, string(content), `id="`)
 }
 
+// TestMarkdownRenderer_ScriptTagStripped verifies that a raw <script> tag in
+// markdown input is removed from the rendered output.
+func TestMarkdownRenderer_ScriptTagStripped(t *testing.T) {
+	dir := t.TempDir()
+	md := "Hello\n\n<script>alert('xss')</script>\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(content), "<script>")
+	assert.NotContains(t, string(content), "alert")
+}
+
+// TestMarkdownRenderer_DetailsPermitted verifies that <details>/<summary>
+// survive the sanitization pass.
+func TestMarkdownRenderer_DetailsPermitted(t *testing.T) {
+	dir := t.TempDir()
+	md := "<details><summary>Click</summary>Body</details>\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "<details>")
+	assert.Contains(t, string(content), "<summary>")
+}
+
 // TestMarkdownRenderer_TaskList renders GFM task list items as checkboxes.
 func TestMarkdownRenderer_TaskList(t *testing.T) {
 	dir := t.TempDir()
