@@ -59,6 +59,20 @@ func runCreate(t *testing.T, up *fakeUploader, args ...string) (stdout, stderr s
 	return outBuf.String(), errBuf.String(), 0
 }
 
+func TestCreate_NonTTY_OutputIsPlainURL(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "notes.txt")
+	require.NoError(t, os.WriteFile(path, []byte("hi"), 0600))
+
+	up := &fakeUploader{}
+	stdout, _, code := runCreate(t, up, "create", path)
+	require.Equal(t, 0, code)
+
+	// bytes.Buffer is not a TTY — stdout must contain no ANSI escape sequences
+	assert.NotContains(t, stdout, "\x1b", "non-TTY output must not contain escape sequences")
+	assert.Contains(t, stdout, "flash/1/testid")
+}
+
 func TestCreate_SingleFile_EphemeralDefault(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "notes.txt")

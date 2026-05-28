@@ -121,7 +121,8 @@ are mutually exclusive.
 			}
 
 			suffix := upload.URLSuffix(genIndex, files)
-			if _, err := fmt.Fprintln(cmd.Root().Writer, upload.PublicURL(baseURL, prefix, suffix)); err != nil {
+			url := upload.PublicURL(baseURL, prefix, suffix)
+			if _, err := fmt.Fprintln(cmd.Root().Writer, formatURL(url, isTerminalWriter(cmd.Root().Writer))); err != nil {
 				return cli.Exit(fmt.Sprintf("write output: %v", err), 1)
 			}
 			return nil
