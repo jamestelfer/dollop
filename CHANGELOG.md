@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/jamestelfer/dollop/compare/v1.3.0...v1.4.0) (2026-05-28)
+
+
+### Features
+
+* add --version flag ([#26](https://github.com/jamestelfer/dollop/issues/26)) ([51b2898](https://github.com/jamestelfer/dollop/commit/51b2898b191be2ab478042ee9ceb88b75cfe7c29))
+
 ## [1.3.0](https://github.com/jamestelfer/dollop/compare/v1.2.0...v1.3.0) (2026-05-28)
 
 
