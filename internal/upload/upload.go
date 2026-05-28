@@ -7,7 +7,35 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
+
+	"github.com/jamestelfer/dollop/internal/render"
 )
+
+// FileRenderer converts source files (e.g. .md → .html) within a directory.
+// It is the same interface as render.Renderer and is satisfied by the types in
+// that package.
+type FileRenderer = render.Renderer
+
+type uploadOptions struct {
+	renderer FileRenderer
+}
+
+// UploadOption configures optional behaviour for UploadFiles.
+type UploadOption func(*uploadOptions)
+
+// WithRenderer sets a FileRenderer that is invoked after path collection and
+// before uploading. When no renderer is supplied, files are uploaded as-is.
+func WithRenderer(r FileRenderer) UploadOption {
+	return func(o *uploadOptions) {
+		o.renderer = r
+	}
+}
+
+// NewMarkdownFileRenderer returns a FileRenderer that converts .md files to .html.
+func NewMarkdownFileRenderer() FileRenderer {
+	return render.NewMarkdownRenderer()
+}
 
 // UploadFiles uploads localPath (file or directory) to bucket under prefix.
 // Each completed key is written to stderr. Files are uploaded sequentially.
@@ -16,15 +44,36 @@ import (
 // warning is written to stderr and generation is skipped.
 // Returns the relative paths of all on-disk files uploaded (not including any
 // generated index.html).
-func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath string, generateIndex bool, stderr io.Writer) ([]string, error) {
+func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath string, generateIndex bool, stderr io.Writer, opts ...UploadOption) ([]string, error) {
+	var o uploadOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	info, err := os.Stat(localPath)
 	if err != nil {
 		return nil, err
 	}
 
+	sourceDir := localPath
+	if !info.IsDir() {
+		sourceDir = filepath.Dir(localPath)
+	}
+
 	relPaths, hasIndex, err := collectRelativePaths(localPath, info.IsDir())
 	if err != nil {
 		return nil, fmt.Errorf("scan files: %w", err)
+	}
+
+	if o.renderer != nil {
+		relPaths, err = o.renderer.Render(relPaths, sourceDir)
+		if err != nil {
+			return nil, fmt.Errorf("render: %w", err)
+		}
+		// after rendering, index.md may have produced index.html
+		if slices.Contains(relPaths, "index.html") {
+			hasIndex = true
+		}
 	}
 
 	if generateIndex {
@@ -37,12 +86,10 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 		}
 	}
 
-	if info.IsDir() {
-		if err := uploadDir(ctx, up, bucket, prefix, localPath, stderr); err != nil {
-			return nil, err
-		}
-	} else {
-		if err := uploadFile(ctx, up, bucket, prefix+"/"+filepath.Base(localPath), localPath, stderr); err != nil {
+	for _, p := range relPaths {
+		key := prefix + "/" + p
+		absPath := filepath.Join(sourceDir, filepath.FromSlash(p))
+		if err := uploadFile(ctx, up, bucket, key, absPath, stderr); err != nil {
 			return nil, err
 		}
 	}
@@ -87,23 +134,6 @@ func uploadGeneratedIndex(ctx context.Context, up Uploader, bucket, prefix strin
 	}
 	fmt.Fprintln(stderr, "done") //nolint:errcheck
 	return nil
-}
-
-func uploadDir(ctx context.Context, up Uploader, bucket, prefix, dir string, stderr io.Writer) error {
-	return filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			return nil
-		}
-		rel, err := filepath.Rel(dir, path)
-		if err != nil {
-			return err
-		}
-		key := prefix + "/" + filepath.ToSlash(rel)
-		return uploadFile(ctx, up, bucket, key, path, stderr)
-	})
 }
 
 func uploadFile(ctx context.Context, up Uploader, bucket, key, localPath string, stderr io.Writer) error {

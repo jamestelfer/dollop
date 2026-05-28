@@ -86,21 +86,21 @@
 
 ### P0 Baseline
 
-- [ ] Run `just verify` on the branch before starting Phase 1 — all checks pass
+- [x] Run `just verify` on the branch before starting Phase 1 — all checks pass
 
 ### Phase 1: Tracer bullet — bare render, pipeline wiring, URL suffix
 
 > Requirements: R27, R28, R29, R30, R31  
 > Commit: `feat: tracer bullet markdown render pipeline`
 
-- [ ] `internal/render` package exists with `Renderer` interface + real + no-op implementations
-- [ ] `UploadFiles` calls renderer between `collectRelativePaths` and upload loop
-- [ ] Rendered `.html` uploaded as `text/html; charset=utf-8`; original `.md` still uploaded
-- [ ] `URLSuffix` returns `.html` over `.md` for the same stem (R29)
-- [ ] `--no-render` flag on `create` command disables rendering (R31)
-- [ ] Collision warning fires to stderr when `{stem}.html` already exists on disk (R28)
-- [ ] `hasIndex` is true when `index.md` is in the batch and rendering is active (R30)
-- [ ] `just verify` passes
+- [x] `internal/render` package exists with `Renderer` interface + real + no-op implementations
+- [x] `UploadFiles` calls renderer between `collectRelativePaths` and upload loop
+- [x] Rendered `.html` uploaded as `text/html; charset=utf-8`; original `.md` still uploaded
+- [x] `URLSuffix` returns `.html` over `.md` for the same stem (R29)
+- [x] `--no-render` flag on `create` command disables rendering (R31)
+- [x] Collision warning fires to stderr when `{stem}.html` already exists on disk (R28)
+- [x] `hasIndex` is true when `index.md` is in the batch and rendering is active (R30)
+- [x] `just verify` passes
 
 ### Phase 2: HTML document template, title, source footer
 

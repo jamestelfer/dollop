@@ -161,6 +161,61 @@ func TestUploadFiles_Index_SingleFile_IsIndex(t *testing.T) {
 	assert.Equal(t, []string{"index.html"}, files)
 }
 
+func TestUploadFiles_Render_IndexMdSetsHasIndex(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.md"), []byte("# Home"), 0600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	// generateIndex=true so we can observe the hasIndex collision warning
+	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr, upload.WithRenderer(upload.NewMarkdownFileRenderer()))
+	require.NoError(t, err)
+
+	// rendered index.html triggers the "already present" warning, not a generated one
+	assert.Contains(t, stderr.String(), "warning")
+	assert.Contains(t, stderr.String(), "index.html")
+
+	// both index.md and index.html are in the returned paths
+	assert.Contains(t, files, "index.md")
+	assert.Contains(t, files, "index.html")
+}
+
+func TestUploadFiles_Render_MarkdownProducesHTML(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello"), 0600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(upload.NewMarkdownFileRenderer()))
+	require.NoError(t, err)
+
+	keys := make([]string, len(up.calls))
+	for i, c := range up.calls {
+		keys[i] = c.key
+	}
+	assert.Contains(t, keys, "flash/1/abc/notes.md")
+	assert.Contains(t, keys, "flash/1/abc/notes.html")
+	assert.ElementsMatch(t, []string{"notes.md", "notes.html"}, files)
+}
+
+func TestUploadFiles_Render_NoRender_SkipsHTML(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello"), 0600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr)
+	require.NoError(t, err)
+
+	keys := make([]string, len(up.calls))
+	for i, c := range up.calls {
+		keys[i] = c.key
+	}
+	assert.Contains(t, keys, "flash/1/abc/notes.md")
+	assert.NotContains(t, keys, "flash/1/abc/notes.html")
+	assert.Equal(t, []string{"notes.md"}, files)
+}
+
 func TestHumanSize(t *testing.T) {
 	tests := []struct {
 		n    int64

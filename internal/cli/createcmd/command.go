@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jamestelfer/dollop/internal/render"
 	"github.com/jamestelfer/dollop/internal/upload"
 	"github.com/urfave/cli/v3"
 )
@@ -45,6 +46,10 @@ are mutually exclusive.
 				Name:  "index",
 				Usage: "generate and upload an index.html listing all uploaded files (skipped with a warning if index.html already exists)",
 			},
+			&cli.BoolFlag{
+				Name:  "no-render",
+				Usage: "disable automatic rendering of .md files to .html",
+			},
 		},
 		MutuallyExclusiveFlags: []cli.MutuallyExclusiveFlags{
 			{
@@ -73,6 +78,7 @@ are mutually exclusive.
 			days := cmd.Int("days")
 			keep := cmd.Bool("keep")
 			genIndex := cmd.Bool("index")
+			noRender := cmd.Bool("no-render")
 			localPath := cmd.Args().Get(0)
 
 			var prefix string
@@ -91,7 +97,12 @@ are mutually exclusive.
 				prefix = upload.EphemeralPrefix(days, id)
 			}
 
-			files, err := upload.UploadFiles(ctx, uploader, bucket, prefix, localPath, genIndex, cmd.Root().ErrWriter)
+			var uploadOpts []upload.UploadOption
+			if !noRender {
+				uploadOpts = append(uploadOpts, upload.WithRenderer(render.NewMarkdownRendererWithStderr(cmd.Root().ErrWriter)))
+			}
+
+			files, err := upload.UploadFiles(ctx, uploader, bucket, prefix, localPath, genIndex, cmd.Root().ErrWriter, uploadOpts...)
 			if err != nil {
 				fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err) //nolint:errcheck
 				return cli.Exit("upload failed", 1)

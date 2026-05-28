@@ -195,6 +195,33 @@ func TestCreate_URL_MultipleFiles_FirstAlphabetical(t *testing.T) {
 	assert.Contains(t, stdout, "flash/1/testid/alpha.txt")
 }
 
+func TestCreate_Render_MarkdownProducesHTMLByDefault(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello"), 0600))
+
+	up := &fakeUploader{}
+	stdout, _, code := runCreate(t, up, "create", dir)
+	require.Equal(t, 0, code)
+
+	assert.Contains(t, up.calls, "flash/1/testid/notes.md")
+	assert.Contains(t, up.calls, "flash/1/testid/notes.html")
+	// URL suffix should point to .html
+	assert.Contains(t, stdout, "notes.html")
+}
+
+func TestCreate_NoRender_SkipsRendering(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello"), 0600))
+
+	up := &fakeUploader{}
+	stdout, _, code := runCreate(t, up, "create", "--no-render", dir)
+	require.Equal(t, 0, code)
+
+	assert.Contains(t, up.calls, "flash/1/testid/notes.md")
+	assert.NotContains(t, up.calls, "flash/1/testid/notes.html")
+	assert.Contains(t, stdout, "notes.md")
+}
+
 func TestCreate_URL_IndexHtml_NoSuffix(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>"), 0600))
