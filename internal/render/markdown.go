@@ -36,8 +36,9 @@ func NewMarkdownRendererWithStderr(stderr io.Writer) Renderer {
 }
 
 type markdownRenderer struct {
-	stderr    io.Writer
-	didRender bool // set to true after at least one .md is rendered
+	stderr       io.Writer
+	didRender    bool // set to true after at least one .md is rendered
+	needsMermaid bool // set to true when at least one file has a mermaid fence
 }
 
 func (m *markdownRenderer) Render(relPaths []string, sourceDir string) ([]string, error) {
@@ -61,12 +62,15 @@ func (m *markdownRenderer) Render(relPaths []string, sourceDir string) ([]string
 			continue
 		}
 
-		generated, err := renderMarkdownFile(p, sourceDir, existing)
+		hasMermaid, generated, err := renderMarkdownFile(p, sourceDir, existing)
 		if err != nil {
 			return nil, err
 		}
 		result = append(result, generated)
 		m.didRender = true
+		if hasMermaid {
+			m.needsMermaid = true
+		}
 	}
 	return result, nil
 }
@@ -75,10 +79,14 @@ func (m *markdownRenderer) SharedAssets() []SharedAsset {
 	if !m.didRender {
 		return nil
 	}
-	return []SharedAsset{
+	assets := []SharedAsset{
 		{Name: "github-markdown.css", ContentType: "text/css; charset=utf-8", Content: githubMarkdownCSS},
 		{Name: "highlight-github.css", ContentType: "text/css; charset=utf-8", Content: highlightGithubCSS},
 	}
+	if m.needsMermaid {
+		assets = append(assets, SharedAsset{Name: "mermaid.min.js", ContentType: "application/javascript", Content: mermaidMinJS})
+	}
+	return assets
 }
 
 func extractTitle(metadata map[string]any, src []byte, doc ast.Node, fallback string) string {
@@ -146,12 +154,29 @@ var mdParser = goldmark.New(
 	),
 )
 
-func renderMarkdownFile(relPath, sourceDir string, batch map[string]bool) (string, error) {
+func hasMermaidFence(doc ast.Node, src []byte) bool {
+	found := false
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		cb, ok := n.(*ast.FencedCodeBlock)
+		if ok && string(cb.Language(src)) == "mermaid" {
+			found = true
+			return ast.WalkStop, nil
+		}
+		return ast.WalkContinue, nil
+	})
+	return found
+}
+
+func renderMarkdownFile(relPath, sourceDir string, batch map[string]bool) (bool, string, error) {
 	src, err := os.ReadFile(filepath.Join(sourceDir, relPath)) //nolint:gosec
 	if err != nil {
-		return "", fmt.Errorf("read %s: %w", relPath, err)
+		return false, "", fmt.Errorf("read %s: %w", relPath, err)
 	}
 
+	src = preprocessAlerts(src)
 	reader := text.NewReader(src)
 	pctx := parser.NewContext()
 	doc := mdParser.Parser().Parse(reader, parser.WithContext(pctx))
@@ -160,9 +185,11 @@ func renderMarkdownFile(relPath, sourceDir string, batch map[string]bool) (strin
 	lr := &linkRewriter{batch: batch}
 	lr.Transform(doc.(*ast.Document), reader, pctx)
 
+	mermaid := hasMermaidFence(doc, src)
+
 	var bodyBuf bytes.Buffer
 	if err := mdParser.Renderer().Render(&bodyBuf, src, doc); err != nil {
-		return "", fmt.Errorf("render %s: %w", relPath, err)
+		return false, "", fmt.Errorf("render %s: %w", relPath, err)
 	}
 
 	stem := strings.TrimSuffix(relPath, filepath.Ext(relPath))
@@ -172,21 +199,27 @@ func renderMarkdownFile(relPath, sourceDir string, batch map[string]bool) (strin
 	title := extractTitle(meta.Get(pctx), src, doc, basename)
 	prefix := cssDepthPrefix(relPath)
 
+	var mermaidPath string
+	if mermaid {
+		mermaidPath = prefix + "mermaid.min.js"
+	}
+
 	data := pageData{
 		Title:            title,
 		CSSPath:          prefix + "github-markdown.css",
 		HighlightCSSPath: prefix + "highlight-github.css",
+		MermaidPath:      mermaidPath,
 		Body:             template.HTML(sanitizeHTML(bodyBuf.String())), //nolint:gosec
 		SourcePath:       filepath.Base(relPath),
 	}
 
 	out, err := renderTemplate(data)
 	if err != nil {
-		return "", fmt.Errorf("template %s: %w", relPath, err)
+		return false, "", fmt.Errorf("template %s: %w", relPath, err)
 	}
 
 	if err := os.WriteFile(filepath.Join(sourceDir, htmlRel), out, 0o600); err != nil {
-		return "", fmt.Errorf("write %s: %w", htmlRel, err)
+		return false, "", fmt.Errorf("write %s: %w", htmlRel, err)
 	}
-	return htmlRel, nil
+	return mermaid, htmlRel, nil
 }

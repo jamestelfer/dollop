@@ -21,6 +21,10 @@ const htmlTmplSrc = `<!DOCTYPE html>
 <footer>
 <a href="{{.SourcePath}}">View source (.md)</a>
 </footer>
+{{- if .MermaidPath}}
+<script src="{{.MermaidPath}}"></script>
+<script>mermaid.initialize({startOnLoad:true});</script>
+{{- end}}
 </body>
 </html>`
 
@@ -30,6 +34,7 @@ type pageData struct {
 	Title            string
 	CSSPath          string
 	HighlightCSSPath string
+	MermaidPath      string // empty when no mermaid fence in the document
 	Body             template.HTML
 	SourcePath       string
 }

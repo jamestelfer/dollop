@@ -268,6 +268,78 @@ func TestMarkdownRenderer_Footnote(t *testing.T) {
 	assert.Contains(t, string(content), "footnote")
 }
 
+// TestMarkdownRenderer_MermaidFenceInjectsScript verifies that a file with a
+// mermaid fenced code block gets a mermaid script tag in the rendered HTML.
+func TestMarkdownRenderer_MermaidFenceInjectsScript(t *testing.T) {
+	dir := t.TempDir()
+	md := "```mermaid\ngraph TD\n    A --> B\n```\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "mermaid.min.js")
+}
+
+// TestMarkdownRenderer_NoMermaidFenceNoScript verifies that a file without a
+// mermaid fence does not get a mermaid script tag.
+func TestMarkdownRenderer_NoMermaidFenceNoScript(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("# Hello"), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(content), "mermaid")
+}
+
+// TestMarkdownRenderer_AlertNote verifies that > [!NOTE] blockquotes are
+// transformed into GitHub-style alert divs.
+func TestMarkdownRenderer_AlertNote(t *testing.T) {
+	dir := t.TempDir()
+	md := "> [!NOTE]\n> This is a note.\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
+	require.NoError(t, err)
+	html := string(content)
+
+	assert.Contains(t, html, `class="markdown-alert markdown-alert-note"`)
+	assert.Contains(t, html, "This is a note.")
+}
+
+// TestMarkdownRenderer_AlertAllTypes verifies all five alert types produce the
+// correct class name.
+func TestMarkdownRenderer_AlertAllTypes(t *testing.T) {
+	types := []string{"NOTE", "WARNING", "TIP", "IMPORTANT", "CAUTION"}
+	for _, alertType := range types {
+		t.Run(alertType, func(t *testing.T) {
+			dir := t.TempDir()
+			md := "> [!" + alertType + "]\n> body\n"
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
+
+			r := render.NewMarkdownRenderer()
+			_, err := r.Render([]string{"doc.md"}, dir)
+			require.NoError(t, err)
+
+			content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
+			require.NoError(t, err)
+			lower := strings.ToLower(alertType)
+			assert.Contains(t, string(content), `class="markdown-alert markdown-alert-`+lower+`"`)
+		})
+	}
+}
+
 // TestMarkdownRenderer_SyntaxHighlightingCSSClasses verifies that fenced code
 // blocks produce CSS class-based highlighting (not inline styles).
 func TestMarkdownRenderer_SyntaxHighlightingCSSClasses(t *testing.T) {

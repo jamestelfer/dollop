@@ -180,13 +180,13 @@
 > Requirements: R6, R7, R8, R22, R24  
 > Commit: `feat: github alert callouts and mermaid diagram support`
 
-- [ ] Custom goldmark AST transformer implements GitHub alert syntax (R6)
-- [ ] Alert output: `<div class="markdown-alert markdown-alert-{type}">` with title span
-- [ ] All five types supported: NOTE, WARNING, TIP, IMPORTANT, CAUTION
-- [ ] Mermaid fences detected; `<script src="…/mermaid.min.js">` injected only when present (R7, R8)
-- [ ] `mermaid.min.js` embedded and added to shared-asset uploads only when a fence is found (R22, R24)
-- [ ] Batch with one mermaid file + one non-mermaid file: exactly one `mermaid.min.js` upload
-- [ ] `just verify` passes
+- [x] Custom goldmark AST transformer implements GitHub alert syntax (R6) — implemented as pre-processing step
+- [x] Alert output: `<div class="markdown-alert markdown-alert-{type}">` with title span
+- [x] All five types supported: NOTE, WARNING, TIP, IMPORTANT, CAUTION
+- [x] Mermaid fences detected; `<script src="…/mermaid.min.js">` injected only when present (R7, R8)
+- [x] `mermaid.min.js` embedded and added to shared-asset uploads only when a fence is found (R22, R24)
+- [x] Batch with one mermaid file + one non-mermaid file: exactly one `mermaid.min.js` upload
+- [x] `just verify` passes
 
 ### Phase 9: `PutOption` / Cache-Control on shared assets
 

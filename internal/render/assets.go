@@ -14,6 +14,11 @@ var githubMarkdownCSS []byte
 //go:embed assets/highlight-github.css
 var highlightGithubCSS []byte
 
+// mermaid.min.js v11 — https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js
+//
+//go:embed assets/mermaid.min.js
+var mermaidMinJS []byte
+
 // SharedAsset is a file that should be uploaded at the prefix root with
 // cache headers, separate from the per-file relPaths list.
 type SharedAsset struct {
