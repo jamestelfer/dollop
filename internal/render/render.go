@@ -1,6 +1,7 @@
 package render
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -46,7 +47,13 @@ func (d *diskRenderer) Plan(relPaths []string, sourceDir string) ([]Source, []Sh
 		sources = append(sources, Source{
 			RelPath: p,
 			Size:    sz,
-			Open:    func() (io.ReadSeekCloser, error) { return os.Open(absPath) }, //nolint:gosec
+			Open: func() (io.ReadSeekCloser, error) {
+				f, err := os.Open(absPath) //nolint:gosec
+				if err != nil {
+					return nil, fmt.Errorf("open %s: %w", absPath, err)
+				}
+				return f, nil
+			},
 		})
 	}
 	return sources, nil, nil

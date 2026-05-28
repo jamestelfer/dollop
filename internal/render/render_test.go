@@ -85,6 +85,7 @@ func TestDiskRenderer_OpenIsSeekable(t *testing.T) {
 	r := render.NewDiskRenderer()
 	sources, _, err := r.Plan([]string{"data.txt"}, dir)
 	require.NoError(t, err)
+	require.Len(t, sources, 1)
 
 	rc, err := sources[0].Open()
 	require.NoError(t, err)

@@ -51,7 +51,7 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 
 	info, err := os.Stat(localPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("stat %s: %w", localPath, err)
 	}
 
 	sourceDir := localPath
