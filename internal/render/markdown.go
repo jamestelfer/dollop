@@ -3,12 +3,17 @@ package render
 import (
 	"bytes"
 	"fmt"
+	"html/template"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/yuin/goldmark"
+	meta "github.com/yuin/goldmark-meta"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/text"
 )
 
 // NewMarkdownRenderer returns a Renderer that converts .md files to .html,
@@ -57,10 +62,47 @@ func (m *markdownRenderer) Render(relPaths []string, sourceDir string) ([]string
 	return result, nil
 }
 
+func extractTitle(metadata map[string]any, src []byte, doc ast.Node, fallback string) string {
+	if metadata != nil {
+		if v, ok := metadata["title"]; ok {
+			if s, ok := v.(string); ok && s != "" {
+				return s
+			}
+		}
+	}
+	// walk AST for the first H1
+	var h1 string
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		if heading, ok := n.(*ast.Heading); ok && heading.Level == 1 {
+			// collect all text segments from the heading's children
+			var sb strings.Builder
+			for child := heading.FirstChild(); child != nil; child = child.NextSibling() {
+				if t, ok := child.(*ast.Text); ok {
+					sb.Write(t.Segment.Value(src))
+				}
+			}
+			h1 = sb.String()
+			return ast.WalkStop, nil
+		}
+		return ast.WalkContinue, nil
+	})
+	if h1 != "" {
+		return h1
+	}
+	return fallback
+}
+
 func isMarkdown(p string) bool {
 	ext := strings.ToLower(filepath.Ext(p))
 	return ext == ".md" || ext == ".markdown"
 }
+
+var mdParser = goldmark.New(
+	goldmark.WithExtensions(meta.Meta),
+)
 
 func renderMarkdownFile(relPath, sourceDir string) (string, error) {
 	src, err := os.ReadFile(filepath.Join(sourceDir, relPath)) //nolint:gosec
@@ -68,14 +110,35 @@ func renderMarkdownFile(relPath, sourceDir string) (string, error) {
 		return "", fmt.Errorf("read %s: %w", relPath, err)
 	}
 
-	var buf bytes.Buffer
-	if err := goldmark.Convert(src, &buf); err != nil {
+	reader := text.NewReader(src)
+	pctx := parser.NewContext()
+	doc := mdParser.Parser().Parse(reader, parser.WithContext(pctx))
+
+	var bodyBuf bytes.Buffer
+	if err := mdParser.Renderer().Render(&bodyBuf, src, doc); err != nil {
 		return "", fmt.Errorf("render %s: %w", relPath, err)
 	}
 
 	stem := strings.TrimSuffix(relPath, filepath.Ext(relPath))
+	basename := filepath.Base(stem)
 	htmlRel := stem + ".html"
-	if err := os.WriteFile(filepath.Join(sourceDir, htmlRel), buf.Bytes(), 0o600); err != nil {
+
+	title := extractTitle(meta.Get(pctx), src, doc, basename)
+
+	data := pageData{
+		Title:            title,
+		CSSPath:          "github-markdown.css",
+		HighlightCSSPath: "highlight-github.css",
+		Body:             template.HTML(bodyBuf.String()), //nolint:gosec
+		SourcePath:       filepath.Base(relPath),
+	}
+
+	out, err := renderTemplate(data)
+	if err != nil {
+		return "", fmt.Errorf("template %s: %w", relPath, err)
+	}
+
+	if err := os.WriteFile(filepath.Join(sourceDir, htmlRel), out, 0o600); err != nil {
 		return "", fmt.Errorf("write %s: %w", htmlRel, err)
 	}
 	return htmlRel, nil

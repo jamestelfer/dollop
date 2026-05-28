@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/jamestelfer/dollop/internal/render"
@@ -64,6 +65,96 @@ func TestMarkdownRenderer_NonMarkdownPassedThrough(t *testing.T) {
 	got, err := r.Render([]string{"photo.jpg"}, dir)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"photo.jpg"}, got)
+}
+
+// TestMarkdownRenderer_TitleFromFrontmatter verifies that a YAML frontmatter
+// title field is used as the HTML <title>.
+func TestMarkdownRenderer_TitleFromFrontmatter(t *testing.T) {
+	dir := t.TempDir()
+	md := "---\ntitle: My Custom Title\n---\n\n# Other Heading\n\nBody text."
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "<title>My Custom Title</title>")
+	// frontmatter block must not appear in the rendered body
+	assert.NotContains(t, string(content), "title: My Custom Title")
+}
+
+// TestMarkdownRenderer_TitleFromH1 verifies that when there is no frontmatter
+// title, the first H1 text is used.
+func TestMarkdownRenderer_TitleFromH1(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("# My H1 Title\n\nBody."), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "<title>My H1 Title</title>")
+}
+
+// TestMarkdownRenderer_TitleFallbackToFilename verifies that when there is
+// neither frontmatter nor H1, the stem of the filename is used.
+func TestMarkdownRenderer_TitleFallbackToFilename(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "my-doc.md"), []byte("Just a paragraph."), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"my-doc.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "my-doc.html"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "<title>my-doc</title>")
+}
+
+// TestMarkdownRenderer_OutputIsFullHTMLDocument verifies the rendered file is a
+// complete HTML5 document with required structural tags and markdown-body div.
+func TestMarkdownRenderer_OutputIsFullHTMLDocument(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("# Title\n\nParagraph."), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
+	require.NoError(t, err)
+	html := string(content)
+
+	assert.Contains(t, html, "<!DOCTYPE html>")
+	assert.Contains(t, html, "<html")
+	assert.Contains(t, html, "<head>")
+	assert.Contains(t, html, "<body>")
+	assert.Contains(t, html, `class="markdown-body"`)
+}
+
+// TestMarkdownRenderer_SourceFooterLink verifies the rendered HTML includes a
+// link back to the .md source file outside the markdown-body div.
+func TestMarkdownRenderer_SourceFooterLink(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("Hello"), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"notes.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "notes.html"))
+	require.NoError(t, err)
+	html := string(content)
+
+	assert.Contains(t, html, `href="notes.md"`)
+	// the link must appear outside the markdown-body div (after its closing tag)
+	mdBodyClose := strings.Index(html, "</div>")
+	footerLink := strings.Index(html, `href="notes.md"`)
+	assert.Greater(t, footerLink, mdBodyClose, "source link should appear after markdown-body closing tag")
 }
 
 // TestMarkdownRenderer_CollisionSkipsAndWarns verifies that when a .html file

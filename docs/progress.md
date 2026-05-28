@@ -107,14 +107,14 @@
 > Requirements: R11, R12, R13, R14, R16  
 > Commit: `feat: html document template, title resolution, source footer`
 
-- [ ] Output is a complete HTML5 document (`<!DOCTYPE html>`, `<html>`, `<head>`, `<body>`)
-- [ ] `<div class="markdown-body">` wraps rendered content (R10)
-- [ ] `<title>` from frontmatter `title` field (R12)
-- [ ] `<title>` falls back to first H1 text when no frontmatter title (R13)
-- [ ] `<title>` falls back to filename without extension when no H1 (R14)
-- [ ] Stylesheet `<link>` tags emitted in `<head>` (placeholder paths; CSS not yet uploaded) (R11)
-- [ ] Source footer link points to `./{filename}.md`, outside `markdown-body` (R16)
-- [ ] `just verify` passes
+- [x] Output is a complete HTML5 document (`<!DOCTYPE html>`, `<html>`, `<head>`, `<body>`)
+- [x] `<div class="markdown-body">` wraps rendered content (R10)
+- [x] `<title>` from frontmatter `title` field (R12)
+- [x] `<title>` falls back to first H1 text when no frontmatter title (R13)
+- [x] `<title>` falls back to filename without extension when no H1 (R14)
+- [x] Stylesheet `<link>` tags emitted in `<head>` (placeholder paths; CSS not yet uploaded) (R11)
+- [x] Source footer link points to `./{filename}.md`, outside `markdown-body` (R16)
+- [x] `just verify` passes
 
 ### Phase 3: Embedded CSS assets + depth-relative paths
 
