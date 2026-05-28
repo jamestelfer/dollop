@@ -18,6 +18,8 @@ var Version = "dev"
 // Fprint writes the version line ("<name> <version>") to w. It is the single
 // formatting point so the --version flag output stays consistent.
 func Fprint(w io.Writer, name string) error {
-	_, err := fmt.Fprintf(w, "%s %s\n", name, Version)
-	return err
+	if _, err := fmt.Fprintf(w, "%s %s\n", name, Version); err != nil {
+		return fmt.Errorf("write version: %w", err)
+	}
+	return nil
 }
