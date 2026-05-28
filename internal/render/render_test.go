@@ -76,6 +76,67 @@ func TestDiskRenderer_OpenReadsFile(t *testing.T) {
 	assert.Equal(t, "hello world", content)
 }
 
+// TestDiskRenderer_OpenIsSeekable verifies that disk sources return seekable
+// bodies. The S3 SDK requires Seek to determine Content-Length automatically.
+func TestDiskRenderer_OpenIsSeekable(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "data.txt"), []byte("hello world"), 0600))
+
+	r := render.NewDiskRenderer()
+	sources, _, err := r.Plan([]string{"data.txt"}, dir)
+	require.NoError(t, err)
+
+	rc, err := sources[0].Open()
+	require.NoError(t, err)
+	defer rc.Close() //nolint:errcheck
+
+	first, err := io.ReadAll(rc)
+	require.NoError(t, err)
+
+	_, err = rc.Seek(0, io.SeekStart)
+	require.NoError(t, err, "disk source must be seekable")
+
+	second, err := io.ReadAll(rc)
+	require.NoError(t, err)
+	assert.Equal(t, first, second, "seek-and-reread must return identical content")
+}
+
+// TestMarkdownRenderer_RenderedHTMLIsSeekable verifies that rendered HTML
+// sources return seekable bodies. The S3 SDK requires Seek to determine
+// Content-Length automatically; wrapping bytes.Reader in io.NopCloser would
+// hide Seek and cause 411 MissingContentLength errors from R2.
+func TestMarkdownRenderer_RenderedHTMLIsSeekable(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("# Hello"), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	var htmlSrc render.Source
+	for _, src := range sources {
+		if src.RelPath == "doc.html" {
+			htmlSrc = src
+			break
+		}
+	}
+	require.NotEmpty(t, htmlSrc.RelPath, "expected doc.html source")
+
+	rc, err := htmlSrc.Open()
+	require.NoError(t, err)
+	defer rc.Close() //nolint:errcheck
+
+	first, err := io.ReadAll(rc)
+	require.NoError(t, err)
+
+	_, err = rc.Seek(0, io.SeekStart)
+	require.NoError(t, err, "rendered HTML source must be seekable")
+
+	second, err := io.ReadAll(rc)
+	require.NoError(t, err)
+	assert.Equal(t, first, second, "seek-and-reread must return identical content")
+}
+
 // TestMarkdownRenderer_RendersHTML verifies that a .md file produces a
 // corresponding .html source and that both paths are in the result.
 // Rendered HTML must not be written to disk.
