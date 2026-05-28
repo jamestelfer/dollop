@@ -531,3 +531,23 @@ func TestMarkdownRenderer_CollisionSkipsAndWarns(t *testing.T) {
 
 	assert.Contains(t, stderr.String(), "notes.html already present, skipping rendering of notes.md")
 }
+
+func TestMarkdownRenderer_CollisionStillUploadsCSS(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.html"), []byte("<h1>existing</h1>"), 0600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"notes.md", "notes.html"}, dir)
+	require.NoError(t, err)
+
+	// CSS must be returned even though rendering was skipped — the existing HTML
+	// references the stylesheet and it needs to be uploaded alongside it.
+	assets := r.SharedAssets()
+	names := make([]string, len(assets))
+	for i, a := range assets {
+		names[i] = a.Name
+	}
+	assert.Contains(t, names, "github-markdown.css")
+	assert.Contains(t, names, "highlight-github.css")
+}

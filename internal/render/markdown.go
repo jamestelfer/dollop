@@ -37,6 +37,7 @@ func NewMarkdownRendererWithStderr(stderr io.Writer) Renderer {
 
 type markdownRenderer struct {
 	stderr       io.Writer
+	hasMarkdown  bool // set to true when at least one .md is in the batch
 	didRender    bool // set to true after at least one .md is rendered
 	needsMermaid bool // set to true when at least one file has a mermaid fence
 }
@@ -54,6 +55,7 @@ func (m *markdownRenderer) Render(relPaths []string, sourceDir string) ([]string
 		if !isMarkdown(p) {
 			continue
 		}
+		m.hasMarkdown = true
 		stem := strings.TrimSuffix(p, filepath.Ext(p))
 		htmlRel := stem + ".html"
 
@@ -76,7 +78,7 @@ func (m *markdownRenderer) Render(relPaths []string, sourceDir string) ([]string
 }
 
 func (m *markdownRenderer) SharedAssets() []SharedAsset {
-	if !m.didRender {
+	if !m.hasMarkdown {
 		return nil
 	}
 	assets := []SharedAsset{
