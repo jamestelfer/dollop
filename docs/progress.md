@@ -193,10 +193,10 @@
 > Requirements: R32, R33, R25 (properly implemented)  
 > Commit: `feat: putOption pattern and cache-control on shared asset uploads`
 
-- [ ] `type PutOption func(*putOptions)` added to `upload` package
-- [ ] `Uploader.PutObject` signature gains `opts ...PutOption` — all existing callers unchanged (R32)
-- [ ] `WithCacheControl(value string) PutOption` implemented
-- [ ] `S3Uploader` passes `CacheControl` in `PutObjectInput` when option supplied (R33)
-- [ ] Shared assets uploaded with `Cache-Control: max-age=604800` (R25)
-- [ ] All existing `PutObject` call sites compile without changes
-- [ ] `just verify` passes
+- [x] `type PutOption func(*PutOptions)` added to `upload` package (PutOptions exported for implementors)
+- [x] `Uploader.PutObject` signature gains `opts ...PutOption` — test fakes updated with variadic, existing callers pass none (R32)
+- [x] `WithCacheControl(value string) PutOption` implemented
+- [x] `S3Uploader` passes `CacheControl` in `PutObjectInput` when option supplied (R33)
+- [x] Shared assets uploaded with `Cache-Control: max-age=604800` (R25)
+- [x] All existing `PutObject` call sites compile without changes
+- [x] `just verify` passes

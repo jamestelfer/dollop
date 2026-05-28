@@ -76,7 +76,7 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 		}
 		for _, asset := range o.renderer.SharedAssets() {
 			key := prefix + "/" + asset.Name
-			if err := up.PutObject(ctx, bucket, key, asset.ContentType, bytes.NewReader(asset.Content)); err != nil {
+			if err := up.PutObject(ctx, bucket, key, asset.ContentType, bytes.NewReader(asset.Content), WithCacheControl("max-age=604800")); err != nil {
 				return nil, fmt.Errorf("upload shared asset %s: %w", asset.Name, err)
 			}
 		}

@@ -26,7 +26,7 @@ type putCall struct {
 	body        []byte
 }
 
-func (f *fakeUploader) PutObject(_ context.Context, bucket, key, contentType string, body io.Reader) error {
+func (f *fakeUploader) PutObject(_ context.Context, bucket, key, contentType string, body io.Reader, _ ...upload.PutOption) error {
 	if f.err != nil {
 		return f.err
 	}

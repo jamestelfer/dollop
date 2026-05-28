@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/jamestelfer/dollop/internal/cli/createcmd"
+	"github.com/jamestelfer/dollop/internal/upload"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v3"
@@ -22,7 +23,7 @@ type fakeUploader struct {
 	err   error
 }
 
-func (f *fakeUploader) PutObject(_ context.Context, _, key, _ string, _ io.Reader) error {
+func (f *fakeUploader) PutObject(_ context.Context, _, key, _ string, _ io.Reader, _ ...upload.PutOption) error {
 	if f.err != nil {
 		return f.err
 	}
