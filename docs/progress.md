@@ -121,13 +121,13 @@
 > Requirements: R19, R20, R21, R23, R24 (stub), R25 (stub), R26  
 > Commit: `feat: embed css assets, depth-relative paths, shared asset upload`
 
-- [ ] `internal/render/assets/` created with `github-markdown.css` and `highlight-github.css` embedded via `//go:embed assets/*`
-- [ ] Asset versions pinned and documented in a comment near the embed directive
-- [ ] Shared assets uploaded once per prefix regardless of `.md` file count (R23)
-- [ ] Depth-relative `<link>` hrefs: root → `github-markdown.css`; one level deep → `../github-markdown.css` (R19)
-- [ ] Shared assets not present in `relPaths` returned by `UploadFiles` (R26)
-- [ ] `Cache-Control: max-age=604800` stubbed or hardcoded on shared asset uploads (R25 stub)
-- [ ] `just verify` passes
+- [x] `internal/render/assets/` created with `github-markdown.css` and `highlight-github.css` embedded via `//go:embed assets/*`
+- [x] Asset versions pinned and documented in a comment near the embed directive
+- [x] Shared assets uploaded once per prefix regardless of `.md` file count (R23)
+- [x] Depth-relative `<link>` hrefs: root → `github-markdown.css`; one level deep → `../github-markdown.css` (R19)
+- [x] Shared assets not present in `relPaths` returned by `UploadFiles` (R26)
+- [ ] `Cache-Control: max-age=604800` stubbed or hardcoded on shared asset uploads (R25 stub) — deferred to Phase 9
+- [x] `just verify` passes
 
 ### Phase 4: Link rewriting
 

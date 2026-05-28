@@ -157,6 +157,37 @@ func TestMarkdownRenderer_SourceFooterLink(t *testing.T) {
 	assert.Greater(t, footerLink, mdBodyClose, "source link should appear after markdown-body closing tag")
 }
 
+// TestMarkdownRenderer_CSSPathRootLevel verifies that a root-level file links
+// to the CSS with no path prefix.
+func TestMarkdownRenderer_CSSPathRootLevel(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("Hello"), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"notes.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "notes.html"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), `href="github-markdown.css"`)
+}
+
+// TestMarkdownRenderer_CSSPathOneLevelDeep verifies that a file one directory
+// deep links to the CSS with a ../ prefix.
+func TestMarkdownRenderer_CSSPathOneLevelDeep(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "sub"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "sub", "page.md"), []byte("Hello"), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"sub/page.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "sub", "page.html"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), `href="../github-markdown.css"`)
+}
+
 // TestMarkdownRenderer_CollisionSkipsAndWarns verifies that when a .html file
 // with the same stem already exists on disk, the .md file is not rendered and
 // a warning is written to stderr.

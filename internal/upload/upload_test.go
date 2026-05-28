@@ -161,6 +161,30 @@ func TestUploadFiles_Index_SingleFile_IsIndex(t *testing.T) {
 	assert.Equal(t, []string{"index.html"}, files)
 }
 
+func TestUploadFiles_Render_SharedAssetsUploadedOnce(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.md"), []byte("# A"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "b.md"), []byte("# B"), 0o600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(upload.NewMarkdownFileRenderer()))
+	require.NoError(t, err)
+
+	// count CSS uploads
+	cssCount := 0
+	for _, c := range up.calls {
+		if c.key == "flash/1/abc/github-markdown.css" {
+			cssCount++
+		}
+	}
+	assert.Equal(t, 1, cssCount, "shared CSS should be uploaded exactly once")
+
+	// shared assets must not appear in returned relPaths
+	assert.NotContains(t, files, "github-markdown.css")
+	assert.NotContains(t, files, "highlight-github.css")
+}
+
 func TestUploadFiles_Render_IndexMdSetsHasIndex(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.md"), []byte("# Home"), 0600))

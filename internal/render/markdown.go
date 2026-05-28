@@ -29,7 +29,8 @@ func NewMarkdownRendererWithStderr(stderr io.Writer) Renderer {
 }
 
 type markdownRenderer struct {
-	stderr io.Writer
+	stderr    io.Writer
+	didRender bool // set to true after at least one .md is rendered
 }
 
 func (m *markdownRenderer) Render(relPaths []string, sourceDir string) ([]string, error) {
@@ -58,8 +59,19 @@ func (m *markdownRenderer) Render(relPaths []string, sourceDir string) ([]string
 			return nil, err
 		}
 		result = append(result, generated)
+		m.didRender = true
 	}
 	return result, nil
+}
+
+func (m *markdownRenderer) SharedAssets() []SharedAsset {
+	if !m.didRender {
+		return nil
+	}
+	return []SharedAsset{
+		{Name: "github-markdown.css", ContentType: "text/css; charset=utf-8", Content: githubMarkdownCSS},
+		{Name: "highlight-github.css", ContentType: "text/css; charset=utf-8", Content: highlightGithubCSS},
+	}
 }
 
 func extractTitle(metadata map[string]any, src []byte, doc ast.Node, fallback string) string {
@@ -95,6 +107,13 @@ func extractTitle(metadata map[string]any, src []byte, doc ast.Node, fallback st
 	return fallback
 }
 
+// cssDepthPrefix returns the relative path prefix (e.g. "../../") needed to
+// reach the prefix root from the file's location within the prefix.
+func cssDepthPrefix(relPath string) string {
+	depth := strings.Count(filepath.ToSlash(relPath), "/")
+	return strings.Repeat("../", depth)
+}
+
 func isMarkdown(p string) bool {
 	ext := strings.ToLower(filepath.Ext(p))
 	return ext == ".md" || ext == ".markdown"
@@ -124,11 +143,12 @@ func renderMarkdownFile(relPath, sourceDir string) (string, error) {
 	htmlRel := stem + ".html"
 
 	title := extractTitle(meta.Get(pctx), src, doc, basename)
+	prefix := cssDepthPrefix(relPath)
 
 	data := pageData{
 		Title:            title,
-		CSSPath:          "github-markdown.css",
-		HighlightCSSPath: "highlight-github.css",
+		CSSPath:          prefix + "github-markdown.css",
+		HighlightCSSPath: prefix + "highlight-github.css",
 		Body:             template.HTML(bodyBuf.String()), //nolint:gosec
 		SourcePath:       filepath.Base(relPath),
 	}

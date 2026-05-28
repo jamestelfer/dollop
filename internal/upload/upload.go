@@ -74,6 +74,12 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 		if slices.Contains(relPaths, "index.html") {
 			hasIndex = true
 		}
+		for _, asset := range o.renderer.SharedAssets() {
+			key := prefix + "/" + asset.Name
+			if err := up.PutObject(ctx, bucket, key, asset.ContentType, bytes.NewReader(asset.Content)); err != nil {
+				return nil, fmt.Errorf("upload shared asset %s: %w", asset.Name, err)
+			}
+		}
 	}
 
 	if generateIndex {
