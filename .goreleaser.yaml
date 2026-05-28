@@ -7,7 +7,7 @@ builds:
     main: ./cmd/dollop
     flags:
       - "-trimpath"
-    ldflags: "-w -X main.version={{.Version}}"
+    ldflags: "-w -X github.com/jamestelfer/dollop/internal/buildinfo.Version={{.Version}}"
     env:
       - CGO_ENABLED=0
     goos:
