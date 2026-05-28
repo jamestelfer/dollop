@@ -145,13 +145,13 @@
 > Requirements: R1, R2, R3, R4, R5, R15  
 > Commit: `feat: gfm extensions, goldmark-anchor, emoji, footnotes, frontmatter stripping`
 
-- [ ] `extension.GFM` bundle enabled (tables, strikethrough, task lists, autolinks) (R1)
-- [ ] `extension.Footnote` enabled (R2)
-- [ ] `goldmark-highlighting/v2` with `github` Chroma theme, CSS classes (R3)
-- [ ] `goldmark-anchor` for heading hover-links (R4)
-- [ ] `goldmark-emoji` for `:shortcode:` syntax (R5)
-- [ ] YAML frontmatter stripped from rendered body (R15)
-- [ ] `just verify` passes
+- [x] `extension.GFM` bundle enabled (tables, strikethrough, task lists, autolinks) (R1)
+- [x] `extension.Footnote` enabled (R2)
+- [ ] `goldmark-highlighting/v2` with `github` Chroma theme, CSS classes (R3) — deferred to Phase 7
+- [x] `goldmark-anchor` for heading hover-links (R4)
+- [x] `goldmark-emoji` for `:shortcode:` syntax (R5)
+- [x] YAML frontmatter stripped from rendered body (R15)
+- [x] `just verify` passes
 
 ### Phase 6: Bluemonday sanitization
 

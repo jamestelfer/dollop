@@ -10,10 +10,14 @@ import (
 	"strings"
 
 	"github.com/yuin/goldmark"
+	emoji "github.com/yuin/goldmark-emoji"
 	meta "github.com/yuin/goldmark-meta"
 	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
+	"go.abhg.dev/goldmark/anchor"
 )
 
 // NewMarkdownRenderer returns a Renderer that converts .md files to .html,
@@ -120,7 +124,15 @@ func isMarkdown(p string) bool {
 }
 
 var mdParser = goldmark.New(
-	goldmark.WithExtensions(meta.Meta),
+	goldmark.WithRendererOptions(html.WithUnsafe()),
+	goldmark.WithParserOptions(parser.WithAutoHeadingID()),
+	goldmark.WithExtensions(
+		meta.Meta,
+		extension.GFM,
+		extension.Footnote,
+		emoji.Emoji,
+		&anchor.Extender{},
+	),
 )
 
 func renderMarkdownFile(relPath, sourceDir string, batch map[string]bool) (string, error) {

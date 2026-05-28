@@ -52,7 +52,7 @@ func TestMarkdownRenderer_RendersHTML(t *testing.T) {
 
 	content, err := os.ReadFile(htmlPath)
 	require.NoError(t, err)
-	assert.Contains(t, string(content), "<h1>")
+	assert.Contains(t, string(content), "<h1")
 }
 
 // TestMarkdownRenderer_NonMarkdownPassedThrough verifies non-.md files are
@@ -155,6 +155,98 @@ func TestMarkdownRenderer_SourceFooterLink(t *testing.T) {
 	mdBodyClose := strings.Index(html, "</div>")
 	footerLink := strings.Index(html, `href="notes.md"`)
 	assert.Greater(t, footerLink, mdBodyClose, "source link should appear after markdown-body closing tag")
+}
+
+// TestMarkdownRenderer_Emoji renders :smile: shortcode as the emoji character.
+func TestMarkdownRenderer_Emoji(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("Hello :smile:"), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
+	require.NoError(t, err)
+	// :smile: maps to 😄 (U+1F604); goldmark emits the HTML entity form
+	assert.True(t,
+		strings.Contains(string(content), "😄") || strings.Contains(string(content), "&#x1f604;"),
+		"expected emoji character or HTML entity for :smile:",
+	)
+}
+
+// TestMarkdownRenderer_HeadingAnchor verifies headings get an anchor attribute.
+func TestMarkdownRenderer_HeadingAnchor(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("# My Heading"), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
+	require.NoError(t, err)
+	// goldmark-anchor adds id attributes to headings
+	assert.Contains(t, string(content), `id="`)
+}
+
+// TestMarkdownRenderer_TaskList renders GFM task list items as checkboxes.
+func TestMarkdownRenderer_TaskList(t *testing.T) {
+	dir := t.TempDir()
+	md := "- [x] done\n- [ ] todo\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), `type="checkbox"`)
+}
+
+// TestMarkdownRenderer_Strikethrough renders ~~text~~ as <del>.
+func TestMarkdownRenderer_Strikethrough(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("~~gone~~"), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "<del>")
+}
+
+// TestMarkdownRenderer_Footnote renders a footnote reference and definition.
+func TestMarkdownRenderer_Footnote(t *testing.T) {
+	dir := t.TempDir()
+	md := "Text[^1].\n\n[^1]: Note.\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "footnote")
+}
+
+// TestMarkdownRenderer_GFMTable renders a markdown table as an HTML table.
+func TestMarkdownRenderer_GFMTable(t *testing.T) {
+	dir := t.TempDir()
+	md := "| Col1 | Col2 |\n|------|------|\n| A    | B    |\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "<table>")
 }
 
 // TestMarkdownRenderer_InternalLinkRewritten verifies that a link to an .md
