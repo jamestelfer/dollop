@@ -223,6 +223,24 @@ func TestCreate_NoRender_SkipsRendering(t *testing.T) {
 	assert.Contains(t, stdout, "notes.md")
 }
 
+func TestCreate_CopyDir_WritesFilesToDisk(t *testing.T) {
+	src := t.TempDir()
+	dst := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(src, "data.txt"), []byte("content"), 0o600))
+
+	up := &fakeUploader{}
+	_, stderr, code := runCreate(t, up, "create", "--copy-dir", dst, src)
+	require.Equal(t, 0, code)
+
+	// fakeUploader receives no calls; DirUploader handles the write
+	assert.Empty(t, up.calls)
+	assert.Contains(t, stderr, "local directory")
+
+	got, err := os.ReadFile(filepath.Join(dst, "flash", "1", "testid", "data.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "content", string(got))
+}
+
 func TestCreate_URL_IndexHtml_NoSuffix(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>"), 0600))
