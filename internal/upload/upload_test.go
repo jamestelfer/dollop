@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/jamestelfer/dollop/internal/render"
 	"github.com/jamestelfer/dollop/internal/upload"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,7 +27,7 @@ type putCall struct {
 	body        []byte
 }
 
-func (f *fakeUploader) PutObject(_ context.Context, bucket, key, contentType string, body io.Reader) error {
+func (f *fakeUploader) PutObject(_ context.Context, bucket, key, contentType string, body io.Reader, _ ...upload.PutOption) error {
 	if f.err != nil {
 		return f.err
 	}
@@ -159,6 +160,105 @@ func TestUploadFiles_Index_SingleFile_IsIndex(t *testing.T) {
 	require.Len(t, up.calls, 1) // only the file itself, no generated index
 	assert.Contains(t, stderr.String(), "warning")
 	assert.Equal(t, []string{"index.html"}, files)
+}
+
+func TestUploadFiles_Render_MermaidBatchUploadsJSOnce(t *testing.T) {
+	dir := t.TempDir()
+	mermaidMD := "```mermaid\ngraph TD\n    A --> B\n```\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.md"), []byte(mermaidMD), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "b.md"), []byte("# Plain"), 0o600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	_, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	require.NoError(t, err)
+
+	mermaidCount := 0
+	for _, c := range up.calls {
+		if c.key == "flash/1/abc/mermaid.min.js" {
+			mermaidCount++
+		}
+	}
+	assert.Equal(t, 1, mermaidCount, "mermaid.min.js should be uploaded exactly once")
+}
+
+func TestUploadFiles_Render_SharedAssetsUploadedOnce(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.md"), []byte("# A"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "b.md"), []byte("# B"), 0o600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	require.NoError(t, err)
+
+	// count CSS uploads
+	cssCount := 0
+	for _, c := range up.calls {
+		if c.key == "flash/1/abc/github-markdown.css" {
+			cssCount++
+		}
+	}
+	assert.Equal(t, 1, cssCount, "shared CSS should be uploaded exactly once")
+
+	// shared assets must not appear in returned relPaths
+	assert.NotContains(t, files, "github-markdown.css")
+	assert.NotContains(t, files, "highlight-github.css")
+}
+
+func TestUploadFiles_Render_IndexMdSetsHasIndex(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.md"), []byte("# Home"), 0600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	// generateIndex=true so we can observe the hasIndex collision warning
+	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	require.NoError(t, err)
+
+	// rendered index.html triggers the "already present" warning, not a generated one
+	assert.Contains(t, stderr.String(), "warning")
+	assert.Contains(t, stderr.String(), "index.html")
+
+	// both index.md and index.html are in the returned paths
+	assert.Contains(t, files, "index.md")
+	assert.Contains(t, files, "index.html")
+}
+
+func TestUploadFiles_Render_MarkdownProducesHTML(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello"), 0600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	require.NoError(t, err)
+
+	keys := make([]string, len(up.calls))
+	for i, c := range up.calls {
+		keys[i] = c.key
+	}
+	assert.Contains(t, keys, "flash/1/abc/notes.md")
+	assert.Contains(t, keys, "flash/1/abc/notes.html")
+	assert.ElementsMatch(t, []string{"notes.md", "notes.html"}, files)
+}
+
+func TestUploadFiles_Render_NoRender_SkipsHTML(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello"), 0600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr)
+	require.NoError(t, err)
+
+	keys := make([]string, len(up.calls))
+	for i, c := range up.calls {
+		keys[i] = c.key
+	}
+	assert.Contains(t, keys, "flash/1/abc/notes.md")
+	assert.NotContains(t, keys, "flash/1/abc/notes.html")
+	assert.Equal(t, []string{"notes.md"}, files)
 }
 
 func TestHumanSize(t *testing.T) {

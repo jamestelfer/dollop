@@ -54,6 +54,9 @@ func TestURLSuffix(t *testing.T) {
 		{"multiple files already sorted", false, []string{"apple.txt", "banana.txt"}, "apple.txt"},
 		{"no files", false, nil, ""},
 		{"empty files slice", false, []string{}, ""},
+		{"html preferred over md same stem", false, []string{"notes.md", "notes.html"}, "notes.html"},
+		{"html preferred over md multiple files", false, []string{"z.md", "z.html", "a.txt"}, "a.txt"},
+		{"md alone no html", false, []string{"readme.md"}, "readme.md"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

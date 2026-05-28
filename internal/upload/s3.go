@@ -27,14 +27,21 @@ func NewS3Uploader(accountID, accessKey, secretKey string) (*S3Uploader, error) 
 	return &S3Uploader{client: client}, nil
 }
 
-func (u *S3Uploader) PutObject(ctx context.Context, bucket, key, contentType string, body io.Reader) error {
-	_, err := u.client.PutObject(ctx, &s3.PutObjectInput{
+func (u *S3Uploader) PutObject(ctx context.Context, bucket, key, contentType string, body io.Reader, opts ...PutOption) error {
+	var o PutOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+	input := &s3.PutObjectInput{
 		Bucket:      aws.String(bucket),
 		Key:         aws.String(key),
 		ContentType: aws.String(contentType),
 		Body:        body,
-	})
-	if err != nil {
+	}
+	if o.CacheControl != "" {
+		input.CacheControl = aws.String(o.CacheControl)
+	}
+	if _, err := u.client.PutObject(ctx, input); err != nil {
 		return fmt.Errorf("failed to upload %s to bucket %s: %w", key, bucket, err)
 	}
 	return nil

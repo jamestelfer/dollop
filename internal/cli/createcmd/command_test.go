@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/jamestelfer/dollop/internal/cli/createcmd"
+	"github.com/jamestelfer/dollop/internal/upload"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v3"
@@ -22,7 +23,7 @@ type fakeUploader struct {
 	err   error
 }
 
-func (f *fakeUploader) PutObject(_ context.Context, _, key, _ string, _ io.Reader) error {
+func (f *fakeUploader) PutObject(_ context.Context, _, key, _ string, _ io.Reader, _ ...upload.PutOption) error {
 	if f.err != nil {
 		return f.err
 	}
@@ -56,6 +57,20 @@ func runCreate(t *testing.T, up *fakeUploader, args ...string) (stdout, stderr s
 		return outBuf.String(), errBuf.String(), 1
 	}
 	return outBuf.String(), errBuf.String(), 0
+}
+
+func TestCreate_NonTTY_OutputIsPlainURL(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "notes.txt")
+	require.NoError(t, os.WriteFile(path, []byte("hi"), 0600))
+
+	up := &fakeUploader{}
+	stdout, _, code := runCreate(t, up, "create", path)
+	require.Equal(t, 0, code)
+
+	// bytes.Buffer is not a TTY — stdout must contain no ANSI escape sequences
+	assert.NotContains(t, stdout, "\x1b", "non-TTY output must not contain escape sequences")
+	assert.Contains(t, stdout, "flash/1/testid")
 }
 
 func TestCreate_SingleFile_EphemeralDefault(t *testing.T) {
@@ -193,6 +208,51 @@ func TestCreate_URL_MultipleFiles_FirstAlphabetical(t *testing.T) {
 	require.Equal(t, 0, code)
 
 	assert.Contains(t, stdout, "flash/1/testid/alpha.txt")
+}
+
+func TestCreate_Render_MarkdownProducesHTMLByDefault(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello"), 0600))
+
+	up := &fakeUploader{}
+	stdout, _, code := runCreate(t, up, "create", dir)
+	require.Equal(t, 0, code)
+
+	assert.Contains(t, up.calls, "flash/1/testid/notes.md")
+	assert.Contains(t, up.calls, "flash/1/testid/notes.html")
+	// URL suffix should point to .html
+	assert.Contains(t, stdout, "notes.html")
+}
+
+func TestCreate_NoRender_SkipsRendering(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello"), 0600))
+
+	up := &fakeUploader{}
+	stdout, _, code := runCreate(t, up, "create", "--no-render", dir)
+	require.Equal(t, 0, code)
+
+	assert.Contains(t, up.calls, "flash/1/testid/notes.md")
+	assert.NotContains(t, up.calls, "flash/1/testid/notes.html")
+	assert.Contains(t, stdout, "notes.md")
+}
+
+func TestCreate_CopyDir_WritesFilesToDisk(t *testing.T) {
+	src := t.TempDir()
+	dst := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(src, "data.txt"), []byte("content"), 0o600))
+
+	up := &fakeUploader{}
+	_, stderr, code := runCreate(t, up, "create", "--copy-dir", dst, src)
+	require.Equal(t, 0, code)
+
+	// fakeUploader receives no calls; DirUploader handles the write
+	assert.Empty(t, up.calls)
+	assert.Contains(t, stderr, "local directory")
+
+	got, err := os.ReadFile(filepath.Join(dst, "flash", "1", "testid", "data.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "content", string(got))
 }
 
 func TestCreate_URL_IndexHtml_NoSuffix(t *testing.T) {

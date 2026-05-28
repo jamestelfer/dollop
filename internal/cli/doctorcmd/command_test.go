@@ -26,7 +26,7 @@ type fakeUploader struct {
 	calls []string
 }
 
-func (f *fakeUploader) PutObject(_ context.Context, _, key, _ string, _ io.Reader) error {
+func (f *fakeUploader) PutObject(_ context.Context, _, key, _ string, _ io.Reader, _ ...upload.PutOption) error {
 	if f.err != nil {
 		return f.err
 	}
