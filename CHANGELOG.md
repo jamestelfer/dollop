@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/jamestelfer/dollop/compare/v1.2.0...v1.3.0) (2026-05-28)
+
+
+### Features
+
+* render markdown files to HTML on upload ([#24](https://github.com/jamestelfer/dollop/issues/24)) ([21cec1d](https://github.com/jamestelfer/dollop/commit/21cec1d102f5b5873030c57d6ab6d3e3e6c0edfd))
+
 ## [1.2.0](https://github.com/jamestelfer/dollop/compare/v1.1.0...v1.2.0) (2026-05-26)
 
 
