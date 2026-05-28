@@ -7,6 +7,7 @@ import (
 	"os"
 
 	petname "github.com/dustinkirkland/golang-petname"
+	"github.com/jamestelfer/dollop/internal/buildinfo"
 	"github.com/jamestelfer/dollop/internal/cli/configcmd"
 	"github.com/jamestelfer/dollop/internal/cli/createcmd"
 	"github.com/jamestelfer/dollop/internal/cli/doctorcmd"
@@ -79,9 +80,14 @@ func run(ctx context.Context, args []string) error {
 		},
 	)
 
+	cli.VersionPrinter = func(cmd *cli.Command) {
+		_ = buildinfo.Fprint(cmd.Root().Writer, cmd.Root().Name)
+	}
+
 	app := &cli.Command{
-		Name:  "dollop",
-		Usage: "publish files as shareable, expiring browser links",
+		Name:    "dollop",
+		Version: buildinfo.Version,
+		Usage:   "publish files as shareable, expiring browser links",
 		Description: `dollop publishes local files or directories as browser-accessible links.
 Each 'create' prints a unique URL you can share; the link expires after a
 configurable number of days (default: 1). Use --keep for a permanent link.
