@@ -299,6 +299,43 @@ func TestMarkdownRenderer_NoMermaidFenceNoScript(t *testing.T) {
 	assert.NotContains(t, string(content), "mermaid")
 }
 
+// TestMarkdownRenderer_AlertInsideFencedCodeNotConverted verifies that alert
+// syntax inside a fenced code block is treated as literal code, not converted.
+// The regex pre-processor fails this because it runs on raw bytes before parsing.
+func TestMarkdownRenderer_AlertInsideFencedCodeNotConverted(t *testing.T) {
+	dir := t.TempDir()
+	md := "Example:\n\n```\n> [!NOTE]\n> body text\n```\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(content), `class="markdown-alert"`, "alert syntax inside code fence must not be converted")
+	assert.Contains(t, string(content), "[!NOTE]", "literal text must survive inside code fence")
+}
+
+// TestMarkdownRenderer_AlertNotOnFirstLineNotConverted verifies that a
+// blockquote where [!TYPE] appears after the first line is NOT converted.
+// The regex pre-processor fails this: its leading (> ...\n)* prefix allows
+// it to match mid-blockquote markers.
+func TestMarkdownRenderer_AlertNotOnFirstLineNotConverted(t *testing.T) {
+	dir := t.TempDir()
+	md := "> Regular blockquote text.\n> [!NOTE]\n> This should not be an alert.\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(content), `class="markdown-alert"`, "[!NOTE] not on first line must not become an alert")
+	assert.Contains(t, string(content), "<blockquote>", "original blockquote must be preserved")
+}
+
 // TestMarkdownRenderer_AlertNote verifies that > [!NOTE] blockquotes are
 // transformed into GitHub-style alert divs.
 func TestMarkdownRenderer_AlertNote(t *testing.T) {

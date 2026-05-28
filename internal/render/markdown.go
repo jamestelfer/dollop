@@ -151,6 +151,7 @@ var mdParser = goldmark.New(
 			),
 			highlighting.WithCustomStyle(styles.Get("github")),
 		),
+		&alertExtension{},
 	),
 )
 
@@ -176,7 +177,6 @@ func renderMarkdownFile(relPath, sourceDir string, batch map[string]bool) (bool,
 		return false, "", fmt.Errorf("read %s: %w", relPath, err)
 	}
 
-	src = preprocessAlerts(src)
 	reader := text.NewReader(src)
 	pctx := parser.NewContext()
 	doc := mdParser.Parser().Parse(reader, parser.WithContext(pctx))
