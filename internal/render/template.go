@@ -10,9 +10,14 @@ const htmlTmplSrc = `<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>{{.Title}}</title>
 <link rel="stylesheet" href="{{.CSSPath}}">
 <link rel="stylesheet" href="{{.HighlightCSSPath}}">
+<style>
+body { margin: 0; background-color: #ffffff; }
+@media (prefers-color-scheme: dark) { body { background-color: #0d1117; } }
+</style>
 </head>
 <body>
 <div class="markdown-body">

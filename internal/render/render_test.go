@@ -160,6 +160,23 @@ func TestMarkdownRenderer_RendersHTML(t *testing.T) {
 	assert.True(t, os.IsNotExist(statErr), "notes.html must not be written to disk")
 }
 
+// TestMarkdownRenderer_DarkModeSupport verifies the rendered HTML includes the
+// color-scheme meta tag and a body style block that mirrors the dark/light
+// backgrounds from github-markdown.css so the page chrome matches the content.
+func TestMarkdownRenderer_DarkModeSupport(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("Hello"), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	html := openSource(t, sources, "doc.html")
+	assert.Contains(t, html, `name="color-scheme" content="light dark"`)
+	assert.Contains(t, html, `prefers-color-scheme: dark`)
+	assert.Contains(t, html, `#0d1117`) // dark bg matching --bgColor-default
+}
+
 // TestMarkdownRenderer_NonMarkdownPassedThrough verifies non-.md files are
 // included in the result without any additional paths.
 func TestMarkdownRenderer_NonMarkdownPassedThrough(t *testing.T) {
