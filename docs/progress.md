@@ -74,3 +74,129 @@
 | `github.com/matoous/go-nanoid/v2` | Ephemeral upload IDs |
 | `github.com/dustinkirkland/golang-petname` | Permanent upload names |
 | `github.com/stretchr/testify` | Test assertions |
+
+---
+
+## Markdown Rendering
+
+> Source PRD: docs/prd-markdown-rendering.md  
+> Source plan: docs/plan-markdown-rendering.md  
+> Branch: `claude/markdown-rendering-docs-edJdh`  
+> Process: TDD red-green-refactor, one test at a time. Each phase committed separately after `just verify` passes.
+
+### P0 Baseline
+
+- [ ] Run `just verify` on the branch before starting Phase 1 — all checks pass
+
+### Phase 1: Tracer bullet — bare render, pipeline wiring, URL suffix
+
+> Requirements: R27, R28, R29, R30, R31  
+> Commit: `feat: tracer bullet markdown render pipeline`
+
+- [ ] `internal/render` package exists with `Renderer` interface + real + no-op implementations
+- [ ] `UploadFiles` calls renderer between `collectRelativePaths` and upload loop
+- [ ] Rendered `.html` uploaded as `text/html; charset=utf-8`; original `.md` still uploaded
+- [ ] `URLSuffix` returns `.html` over `.md` for the same stem (R29)
+- [ ] `--no-render` flag on `create` command disables rendering (R31)
+- [ ] Collision warning fires to stderr when `{stem}.html` already exists on disk (R28)
+- [ ] `hasIndex` is true when `index.md` is in the batch and rendering is active (R30)
+- [ ] `just verify` passes
+
+### Phase 2: HTML document template, title, source footer
+
+> Requirements: R11, R12, R13, R14, R16  
+> Commit: `feat: html document template, title resolution, source footer`
+
+- [ ] Output is a complete HTML5 document (`<!DOCTYPE html>`, `<html>`, `<head>`, `<body>`)
+- [ ] `<div class="markdown-body">` wraps rendered content (R10)
+- [ ] `<title>` from frontmatter `title` field (R12)
+- [ ] `<title>` falls back to first H1 text when no frontmatter title (R13)
+- [ ] `<title>` falls back to filename without extension when no H1 (R14)
+- [ ] Stylesheet `<link>` tags emitted in `<head>` (placeholder paths; CSS not yet uploaded) (R11)
+- [ ] Source footer link points to `./{filename}.md`, outside `markdown-body` (R16)
+- [ ] `just verify` passes
+
+### Phase 3: Embedded CSS assets + depth-relative paths
+
+> Requirements: R19, R20, R21, R23, R24 (stub), R25 (stub), R26  
+> Commit: `feat: embed css assets, depth-relative paths, shared asset upload`
+
+- [ ] `internal/render/assets/` created with `github-markdown.css` and `highlight-github.css` embedded via `//go:embed assets/*`
+- [ ] Asset versions pinned and documented in a comment near the embed directive
+- [ ] Shared assets uploaded once per prefix regardless of `.md` file count (R23)
+- [ ] Depth-relative `<link>` hrefs: root → `github-markdown.css`; one level deep → `../github-markdown.css` (R19)
+- [ ] Shared assets not present in `relPaths` returned by `UploadFiles` (R26)
+- [ ] `Cache-Control: max-age=604800` stubbed or hardcoded on shared asset uploads (R25 stub)
+- [ ] `just verify` passes
+
+### Phase 4: Link rewriting
+
+> Requirements: R17, R18  
+> Commit: `feat: rewrite internal .md links to .html in rendered output`
+
+- [ ] goldmark AST transformer rewrites `.md` / `.markdown` link destinations to `.html`
+- [ ] Only links whose paths are present in the upload batch are rewritten (R17)
+- [ ] External URLs (any destination with a scheme) are never rewritten (R18)
+- [ ] Fragment identifiers preserved (`guide.md#section` → `guide.html#section`)
+- [ ] `just verify` passes
+
+### Phase 5: GFM extensions + frontmatter stripping
+
+> Requirements: R1, R2, R3, R4, R5, R15  
+> Commit: `feat: gfm extensions, goldmark-anchor, emoji, footnotes, frontmatter stripping`
+
+- [ ] `extension.GFM` bundle enabled (tables, strikethrough, task lists, autolinks) (R1)
+- [ ] `extension.Footnote` enabled (R2)
+- [ ] `goldmark-highlighting/v2` with `github` Chroma theme, CSS classes (R3)
+- [ ] `goldmark-anchor` for heading hover-links (R4)
+- [ ] `goldmark-emoji` for `:shortcode:` syntax (R5)
+- [ ] YAML frontmatter stripped from rendered body (R15)
+- [ ] `just verify` passes
+
+### Phase 6: Bluemonday sanitization
+
+> Requirements: R9  
+> Commit: `feat: sanitize rendered html with bluemonday github-compatible policy`
+
+- [ ] Render with `html.WithUnsafe()`, then sanitize output with bluemonday
+- [ ] Custom policy from `NewPolicy()`, not `UGCPolicy()`
+- [ ] Policy permits `<details>`, `<summary>`, `<kbd>`, `<sub>`, `<sup>` and other GitHub-allowed tags
+- [ ] Sanitization runs on rendered body fragment before HTML template wrapping
+- [ ] Raw `<script>` in markdown is stripped; `<details>` survives
+- [ ] `just verify` passes
+
+### Phase 7: Syntax highlighting (Chroma fully wired)
+
+> Requirements: R3 (fully verified)  
+> Commit: `feat: verify chroma syntax highlighting css classes and stylesheet link`
+
+- [ ] CSS classes emitted (not inline styles), `github` Chroma theme
+- [ ] Stylesheet linked via depth-relative path from Phase 3
+- [ ] Fenced code blocks render with token-level colouring in the browser
+- [ ] `just verify` passes
+
+### Phase 8: Alerts + Mermaid
+
+> Requirements: R6, R7, R8, R22, R24  
+> Commit: `feat: github alert callouts and mermaid diagram support`
+
+- [ ] Custom goldmark AST transformer implements GitHub alert syntax (R6)
+- [ ] Alert output: `<div class="markdown-alert markdown-alert-{type}">` with title span
+- [ ] All five types supported: NOTE, WARNING, TIP, IMPORTANT, CAUTION
+- [ ] Mermaid fences detected; `<script src="…/mermaid.min.js">` injected only when present (R7, R8)
+- [ ] `mermaid.min.js` embedded and added to shared-asset uploads only when a fence is found (R22, R24)
+- [ ] Batch with one mermaid file + one non-mermaid file: exactly one `mermaid.min.js` upload
+- [ ] `just verify` passes
+
+### Phase 9: `PutOption` / Cache-Control on shared assets
+
+> Requirements: R32, R33, R25 (properly implemented)  
+> Commit: `feat: putOption pattern and cache-control on shared asset uploads`
+
+- [ ] `type PutOption func(*putOptions)` added to `upload` package
+- [ ] `Uploader.PutObject` signature gains `opts ...PutOption` — all existing callers unchanged (R32)
+- [ ] `WithCacheControl(value string) PutOption` implemented
+- [ ] `S3Uploader` passes `CacheControl` in `PutObjectInput` when option supplied (R33)
+- [ ] Shared assets uploaded with `Cache-Control: max-age=604800` (R25)
+- [ ] All existing `PutObject` call sites compile without changes
+- [ ] `just verify` passes
