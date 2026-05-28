@@ -76,9 +76,12 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 		}
 		for _, asset := range o.renderer.SharedAssets() {
 			key := prefix + "/" + asset.Name
+			fmt.Fprintf(stderr, "uploading [%s] %s...", asset.Name, HumanSize(int64(len(asset.Content)))) //nolint:errcheck
 			if err := up.PutObject(ctx, bucket, key, asset.ContentType, bytes.NewReader(asset.Content), WithCacheControl("max-age=604800")); err != nil {
+				fmt.Fprintln(stderr, "failed") //nolint:errcheck
 				return nil, fmt.Errorf("upload shared asset %s: %w", asset.Name, err)
 			}
+			fmt.Fprintln(stderr, "done") //nolint:errcheck
 		}
 	}
 
