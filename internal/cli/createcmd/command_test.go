@@ -59,6 +59,66 @@ func runCreate(t *testing.T, up *fakeUploader, args ...string) (stdout, stderr s
 	return outBuf.String(), errBuf.String(), 0
 }
 
+func TestCreate_NilUploader_FriendlyError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "notes.txt")
+	require.NoError(t, os.WriteFile(path, []byte("hi"), 0600))
+
+	var outBuf, errBuf bytes.Buffer
+	// nil uploader simulates missing R2 credentials/account-id at startup.
+	cmd := createcmd.New(
+		nil,
+		"test-bucket",
+		"",
+		func() (string, error) { return "testid", nil },
+		func() string { return "happy-cat" },
+	)
+	app := &cli.Command{
+		Name:           "dollop",
+		Writer:         &outBuf,
+		ErrWriter:      &errBuf,
+		Commands:       []*cli.Command{&cmd},
+		ExitErrHandler: func(_ context.Context, _ *cli.Command, _ error) {},
+	}
+	err := app.Run(context.Background(), []string{"dollop", "create", path})
+
+	// Must fail cleanly with a non-zero exit, not panic.
+	require.Error(t, err)
+	var ec cli.ExitCoder
+	require.ErrorAs(t, err, &ec)
+	assert.NotEqual(t, 0, ec.ExitCode())
+	assert.Contains(t, err.Error(), "credentials")
+	assert.Empty(t, outBuf.String(), "no URL should be printed when uploader is unconfigured")
+}
+
+func TestCreate_NilUploader_CopyDirStillWorks(t *testing.T) {
+	src := t.TempDir()
+	dst := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(src, "data.txt"), []byte("content"), 0o600))
+
+	var outBuf, errBuf bytes.Buffer
+	// Even with no uploader configured, --copy-dir must work (it uses DirUploader).
+	cmd := createcmd.New(
+		nil,
+		"test-bucket",
+		"",
+		func() (string, error) { return "testid", nil },
+		func() string { return "happy-cat" },
+	)
+	app := &cli.Command{
+		Name:           "dollop",
+		Writer:         &outBuf,
+		ErrWriter:      &errBuf,
+		Commands:       []*cli.Command{&cmd},
+		ExitErrHandler: func(_ context.Context, _ *cli.Command, _ error) {},
+	}
+	require.NoError(t, app.Run(context.Background(), []string{"dollop", "create", "--copy-dir", dst, src}))
+
+	got, err := os.ReadFile(filepath.Join(dst, "flash", "1", "testid", "data.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "content", string(got))
+}
+
 func TestCreate_NonTTY_OutputIsPlainURL(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "notes.txt")
