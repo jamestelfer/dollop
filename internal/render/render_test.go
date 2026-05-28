@@ -2,6 +2,7 @@ package render_test
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,47 +13,90 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestNoopRenderer verifies that the no-op renderer returns its input unchanged
-// and never errors.
-func TestNoopRenderer_PassesThrough(t *testing.T) {
+// sourceRelPaths extracts the RelPath from each Source.
+func sourceRelPaths(sources []render.Source) []string {
+	paths := make([]string, len(sources))
+	for i, s := range sources {
+		paths[i] = s.RelPath
+	}
+	return paths
+}
+
+// openSource opens the Source with the given RelPath and returns its full content.
+func openSource(t *testing.T, sources []render.Source, relPath string) string {
+	t.Helper()
+	for _, src := range sources {
+		if src.RelPath == relPath {
+			rc, err := src.Open()
+			require.NoError(t, err)
+			defer rc.Close() //nolint:errcheck
+			content, err := io.ReadAll(rc)
+			require.NoError(t, err)
+			return string(content)
+		}
+	}
+	t.Fatalf("source %q not found in plan results (got %v)", relPath, sourceRelPaths(sources))
+	return ""
+}
+
+// TestDiskRenderer_PassesThrough verifies that the disk renderer returns its
+// input unchanged with no shared assets.
+func TestDiskRenderer_PassesThrough(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello"), 0600))
 
-	r := render.NewNoopRenderer()
-	got, err := r.Render([]string{"notes.md"}, dir)
+	r := render.NewDiskRenderer()
+	sources, assets, err := r.Plan([]string{"notes.md"}, dir)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"notes.md"}, got)
+
+	assert.Equal(t, []string{"notes.md"}, sourceRelPaths(sources))
+	assert.Nil(t, assets)
 }
 
-// TestNoopRenderer_EmptySlice verifies no-op handles an empty input.
-func TestNoopRenderer_EmptySlice(t *testing.T) {
-	r := render.NewNoopRenderer()
-	got, err := r.Render([]string{}, t.TempDir())
+// TestDiskRenderer_EmptySlice verifies the disk renderer handles empty input.
+func TestDiskRenderer_EmptySlice(t *testing.T) {
+	r := render.NewDiskRenderer()
+	sources, _, err := r.Plan([]string{}, t.TempDir())
 	require.NoError(t, err)
-	assert.Equal(t, []string{}, got)
+	assert.Empty(t, sources)
+}
+
+// TestDiskRenderer_OpenReadsFile verifies that opening a disk Source returns
+// the file's content.
+func TestDiskRenderer_OpenReadsFile(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "hello.txt"), []byte("hello world"), 0600))
+
+	r := render.NewDiskRenderer()
+	sources, _, err := r.Plan([]string{"hello.txt"}, dir)
+	require.NoError(t, err)
+	require.Len(t, sources, 1)
+
+	content := openSource(t, sources, "hello.txt")
+	assert.Equal(t, "hello world", content)
 }
 
 // TestMarkdownRenderer_RendersHTML verifies that a .md file produces a
-// corresponding .html file on disk and that both paths are in the result.
+// corresponding .html source and that both paths are in the result.
+// Rendered HTML must not be written to disk.
 func TestMarkdownRenderer_RendersHTML(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello\n\nWorld"), 0600))
 
 	r := render.NewMarkdownRenderer()
-	got, err := r.Render([]string{"notes.md"}, dir)
+	sources, _, err := r.Plan([]string{"notes.md"}, dir)
 	require.NoError(t, err)
 
+	got := sourceRelPaths(sources)
 	assert.Contains(t, got, "notes.md")
 	assert.Contains(t, got, "notes.html")
 
-	// .html file must exist on disk
-	htmlPath := filepath.Join(dir, "notes.html")
-	_, statErr := os.Stat(htmlPath)
-	require.NoError(t, statErr, "notes.html should have been written to disk")
+	html := openSource(t, sources, "notes.html")
+	assert.Contains(t, html, "<h1")
 
-	content, err := os.ReadFile(htmlPath)
-	require.NoError(t, err)
-	assert.Contains(t, string(content), "<h1")
+	// rendered HTML must not be written to disk
+	_, statErr := os.Stat(filepath.Join(dir, "notes.html"))
+	assert.True(t, os.IsNotExist(statErr), "notes.html must not be written to disk")
 }
 
 // TestMarkdownRenderer_NonMarkdownPassedThrough verifies non-.md files are
@@ -62,9 +106,9 @@ func TestMarkdownRenderer_NonMarkdownPassedThrough(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "photo.jpg"), []byte("data"), 0600))
 
 	r := render.NewMarkdownRenderer()
-	got, err := r.Render([]string{"photo.jpg"}, dir)
+	sources, _, err := r.Plan([]string{"photo.jpg"}, dir)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"photo.jpg"}, got)
+	assert.Equal(t, []string{"photo.jpg"}, sourceRelPaths(sources))
 }
 
 // TestMarkdownRenderer_TitleFromFrontmatter verifies that a YAML frontmatter
@@ -75,14 +119,12 @@ func TestMarkdownRenderer_TitleFromFrontmatter(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"doc.md"}, dir)
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
-	require.NoError(t, err)
-	assert.Contains(t, string(content), "<title>My Custom Title</title>")
-	// frontmatter block must not appear in the rendered body
-	assert.NotContains(t, string(content), "title: My Custom Title")
+	html := openSource(t, sources, "doc.html")
+	assert.Contains(t, html, "<title>My Custom Title</title>")
+	assert.NotContains(t, html, "title: My Custom Title")
 }
 
 // TestMarkdownRenderer_TitleFromH1 verifies that when there is no frontmatter
@@ -92,12 +134,11 @@ func TestMarkdownRenderer_TitleFromH1(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("# My H1 Title\n\nBody."), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"doc.md"}, dir)
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
-	require.NoError(t, err)
-	assert.Contains(t, string(content), "<title>My H1 Title</title>")
+	html := openSource(t, sources, "doc.html")
+	assert.Contains(t, html, "<title>My H1 Title</title>")
 }
 
 // TestMarkdownRenderer_TitleFallbackToFilename verifies that when there is
@@ -107,28 +148,24 @@ func TestMarkdownRenderer_TitleFallbackToFilename(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "my-doc.md"), []byte("Just a paragraph."), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"my-doc.md"}, dir)
+	sources, _, err := r.Plan([]string{"my-doc.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "my-doc.html"))
-	require.NoError(t, err)
-	assert.Contains(t, string(content), "<title>my-doc</title>")
+	html := openSource(t, sources, "my-doc.html")
+	assert.Contains(t, html, "<title>my-doc</title>")
 }
 
-// TestMarkdownRenderer_OutputIsFullHTMLDocument verifies the rendered file is a
-// complete HTML5 document with required structural tags and markdown-body div.
+// TestMarkdownRenderer_OutputIsFullHTMLDocument verifies the rendered source
+// is a complete HTML5 document with required structural tags and markdown-body div.
 func TestMarkdownRenderer_OutputIsFullHTMLDocument(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("# Title\n\nParagraph."), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"doc.md"}, dir)
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
-	require.NoError(t, err)
-	html := string(content)
-
+	html := openSource(t, sources, "doc.html")
 	assert.Contains(t, html, "<!DOCTYPE html>")
 	assert.Contains(t, html, "<html")
 	assert.Contains(t, html, "<head>")
@@ -143,15 +180,11 @@ func TestMarkdownRenderer_SourceFooterLink(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("Hello"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"notes.md"}, dir)
+	sources, _, err := r.Plan([]string{"notes.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "notes.html"))
-	require.NoError(t, err)
-	html := string(content)
-
+	html := openSource(t, sources, "notes.html")
 	assert.Contains(t, html, `href="notes.md"`)
-	// the link must appear outside the markdown-body div (after its closing tag)
 	mdBodyClose := strings.Index(html, "</div>")
 	footerLink := strings.Index(html, `href="notes.md"`)
 	assert.Greater(t, footerLink, mdBodyClose, "source link should appear after markdown-body closing tag")
@@ -163,14 +196,12 @@ func TestMarkdownRenderer_Emoji(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("Hello :smile:"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"doc.md"}, dir)
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
-	require.NoError(t, err)
-	// :smile: maps to 😄 (U+1F604); goldmark emits the HTML entity form
+	html := openSource(t, sources, "doc.html")
 	assert.True(t,
-		strings.Contains(string(content), "😄") || strings.Contains(string(content), "&#x1f604;"),
+		strings.Contains(html, "😄") || strings.Contains(html, "&#x1f604;"),
 		"expected emoji character or HTML entity for :smile:",
 	)
 }
@@ -181,13 +212,11 @@ func TestMarkdownRenderer_HeadingAnchor(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("# My Heading"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"doc.md"}, dir)
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
-	require.NoError(t, err)
-	// goldmark-anchor adds id attributes to headings
-	assert.Contains(t, string(content), `id="`)
+	html := openSource(t, sources, "doc.html")
+	assert.Contains(t, html, `id="`)
 }
 
 // TestMarkdownRenderer_ScriptTagStripped verifies that a raw <script> tag in
@@ -198,13 +227,12 @@ func TestMarkdownRenderer_ScriptTagStripped(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"doc.md"}, dir)
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
-	require.NoError(t, err)
-	assert.NotContains(t, string(content), "<script>")
-	assert.NotContains(t, string(content), "alert")
+	html := openSource(t, sources, "doc.html")
+	assert.NotContains(t, html, "<script>")
+	assert.NotContains(t, html, "alert")
 }
 
 // TestMarkdownRenderer_DetailsPermitted verifies that <details>/<summary>
@@ -215,13 +243,12 @@ func TestMarkdownRenderer_DetailsPermitted(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"doc.md"}, dir)
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
-	require.NoError(t, err)
-	assert.Contains(t, string(content), "<details>")
-	assert.Contains(t, string(content), "<summary>")
+	html := openSource(t, sources, "doc.html")
+	assert.Contains(t, html, "<details>")
+	assert.Contains(t, html, "<summary>")
 }
 
 // TestMarkdownRenderer_TaskList renders GFM task list items as checkboxes.
@@ -231,12 +258,11 @@ func TestMarkdownRenderer_TaskList(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"doc.md"}, dir)
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
-	require.NoError(t, err)
-	assert.Contains(t, string(content), `type="checkbox"`)
+	html := openSource(t, sources, "doc.html")
+	assert.Contains(t, html, `type="checkbox"`)
 }
 
 // TestMarkdownRenderer_Strikethrough renders ~~text~~ as <del>.
@@ -245,12 +271,11 @@ func TestMarkdownRenderer_Strikethrough(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("~~gone~~"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"doc.md"}, dir)
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
-	require.NoError(t, err)
-	assert.Contains(t, string(content), "<del>")
+	html := openSource(t, sources, "doc.html")
+	assert.Contains(t, html, "<del>")
 }
 
 // TestMarkdownRenderer_Footnote renders a footnote reference and definition.
@@ -260,28 +285,33 @@ func TestMarkdownRenderer_Footnote(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"doc.md"}, dir)
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
-	require.NoError(t, err)
-	assert.Contains(t, string(content), "footnote")
+	html := openSource(t, sources, "doc.html")
+	assert.Contains(t, html, "footnote")
 }
 
 // TestMarkdownRenderer_MermaidFenceInjectsScript verifies that a file with a
-// mermaid fenced code block gets a mermaid script tag in the rendered HTML.
+// mermaid fenced code block gets a mermaid script tag in the rendered HTML and
+// mermaid.min.js in the shared assets.
 func TestMarkdownRenderer_MermaidFenceInjectsScript(t *testing.T) {
 	dir := t.TempDir()
 	md := "```mermaid\ngraph TD\n    A --> B\n```\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"doc.md"}, dir)
+	sources, assets, err := r.Plan([]string{"doc.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
-	require.NoError(t, err)
-	assert.Contains(t, string(content), "mermaid.min.js")
+	html := openSource(t, sources, "doc.html")
+	assert.Contains(t, html, "mermaid.min.js")
+
+	assetNames := make([]string, len(assets))
+	for i, a := range assets {
+		assetNames[i] = a.Name
+	}
+	assert.Contains(t, assetNames, "mermaid.min.js")
 }
 
 // TestMarkdownRenderer_NoMermaidFenceNoScript verifies that a file without a
@@ -291,49 +321,43 @@ func TestMarkdownRenderer_NoMermaidFenceNoScript(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("# Hello"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"doc.md"}, dir)
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
-	require.NoError(t, err)
-	assert.NotContains(t, string(content), "mermaid")
+	html := openSource(t, sources, "doc.html")
+	assert.NotContains(t, html, "mermaid")
 }
 
 // TestMarkdownRenderer_AlertInsideFencedCodeNotConverted verifies that alert
 // syntax inside a fenced code block is treated as literal code, not converted.
-// The regex pre-processor fails this because it runs on raw bytes before parsing.
 func TestMarkdownRenderer_AlertInsideFencedCodeNotConverted(t *testing.T) {
 	dir := t.TempDir()
 	md := "Example:\n\n```\n> [!NOTE]\n> body text\n```\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"doc.md"}, dir)
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
-	require.NoError(t, err)
-	assert.NotContains(t, string(content), `class="markdown-alert"`, "alert syntax inside code fence must not be converted")
-	assert.Contains(t, string(content), "[!NOTE]", "literal text must survive inside code fence")
+	html := openSource(t, sources, "doc.html")
+	assert.NotContains(t, html, `class="markdown-alert"`, "alert syntax inside code fence must not be converted")
+	assert.Contains(t, html, "[!NOTE]", "literal text must survive inside code fence")
 }
 
 // TestMarkdownRenderer_AlertNotOnFirstLineNotConverted verifies that a
 // blockquote where [!TYPE] appears after the first line is NOT converted.
-// The regex pre-processor fails this: its leading (> ...\n)* prefix allows
-// it to match mid-blockquote markers.
 func TestMarkdownRenderer_AlertNotOnFirstLineNotConverted(t *testing.T) {
 	dir := t.TempDir()
 	md := "> Regular blockquote text.\n> [!NOTE]\n> This should not be an alert.\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"doc.md"}, dir)
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
-	require.NoError(t, err)
-	assert.NotContains(t, string(content), `class="markdown-alert"`, "[!NOTE] not on first line must not become an alert")
-	assert.Contains(t, string(content), "<blockquote>", "original blockquote must be preserved")
+	html := openSource(t, sources, "doc.html")
+	assert.NotContains(t, html, `class="markdown-alert"`, "[!NOTE] not on first line must not become an alert")
+	assert.Contains(t, html, "<blockquote>", "original blockquote must be preserved")
 }
 
 // TestMarkdownRenderer_AlertNote verifies that > [!NOTE] blockquotes are
@@ -344,13 +368,10 @@ func TestMarkdownRenderer_AlertNote(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"doc.md"}, dir)
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
-	require.NoError(t, err)
-	html := string(content)
-
+	html := openSource(t, sources, "doc.html")
 	assert.Contains(t, html, `class="markdown-alert markdown-alert-note"`)
 	assert.Contains(t, html, "This is a note.")
 }
@@ -366,13 +387,12 @@ func TestMarkdownRenderer_AlertAllTypes(t *testing.T) {
 			require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 			r := render.NewMarkdownRenderer()
-			_, err := r.Render([]string{"doc.md"}, dir)
+			sources, _, err := r.Plan([]string{"doc.md"}, dir)
 			require.NoError(t, err)
 
-			content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
-			require.NoError(t, err)
+			html := openSource(t, sources, "doc.html")
 			lower := strings.ToLower(alertType)
-			assert.Contains(t, string(content), `class="markdown-alert markdown-alert-`+lower+`"`)
+			assert.Contains(t, html, `class="markdown-alert markdown-alert-`+lower+`"`)
 		})
 	}
 }
@@ -385,16 +405,11 @@ func TestMarkdownRenderer_SyntaxHighlightingCSSClasses(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"doc.md"}, dir)
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
-	require.NoError(t, err)
-	html := string(content)
-
-	// Chroma CSS-class mode emits class="chroma" container
+	html := openSource(t, sources, "doc.html")
 	assert.Contains(t, html, `class="chroma"`)
-	// must not use inline style attributes for syntax colours
 	assert.NotContains(t, html, `style="color`)
 }
 
@@ -405,12 +420,11 @@ func TestMarkdownRenderer_GFMTable(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"doc.md"}, dir)
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
-	require.NoError(t, err)
-	assert.Contains(t, string(content), "<table>")
+	html := openSource(t, sources, "doc.html")
+	assert.Contains(t, html, "<table>")
 }
 
 // TestMarkdownRenderer_InternalLinkRewritten verifies that a link to an .md
@@ -421,13 +435,12 @@ func TestMarkdownRenderer_InternalLinkRewritten(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "guide.md"), []byte("# Guide"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"index.md", "guide.md"}, dir)
+	sources, _, err := r.Plan([]string{"index.md", "guide.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "index.html"))
-	require.NoError(t, err)
-	assert.Contains(t, string(content), `href="guide.html"`)
-	assert.NotContains(t, string(content), `href="guide.md"`)
+	html := openSource(t, sources, "index.html")
+	assert.Contains(t, html, `href="guide.html"`)
+	assert.NotContains(t, html, `href="guide.md"`)
 }
 
 // TestMarkdownRenderer_ExternalLinkNotRewritten verifies that an external URL
@@ -438,12 +451,11 @@ func TestMarkdownRenderer_ExternalLinkNotRewritten(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"doc.md"}, dir)
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
-	require.NoError(t, err)
-	assert.Contains(t, string(content), "README.md")
+	html := openSource(t, sources, "doc.html")
+	assert.Contains(t, html, "README.md")
 }
 
 // TestMarkdownRenderer_FragmentPreservedOnRewrite verifies that fragment
@@ -454,12 +466,11 @@ func TestMarkdownRenderer_FragmentPreservedOnRewrite(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.md"), []byte("# other"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"doc.md", "other.md"}, dir)
+	sources, _, err := r.Plan([]string{"doc.md", "other.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
-	require.NoError(t, err)
-	assert.Contains(t, string(content), `href="other.html#section"`)
+	html := openSource(t, sources, "doc.html")
+	assert.Contains(t, html, `href="other.html#section"`)
 }
 
 // TestMarkdownRenderer_NonBatchLinkNotRewritten verifies that a link to an .md
@@ -469,12 +480,11 @@ func TestMarkdownRenderer_NonBatchLinkNotRewritten(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("[other](missing.md)"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"doc.md"}, dir)
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
-	require.NoError(t, err)
-	assert.Contains(t, string(content), `href="missing.md"`)
+	html := openSource(t, sources, "doc.html")
+	assert.Contains(t, html, `href="missing.md"`)
 }
 
 // TestMarkdownRenderer_CSSPathRootLevel verifies that a root-level file links
@@ -484,12 +494,11 @@ func TestMarkdownRenderer_CSSPathRootLevel(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("Hello"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"notes.md"}, dir)
+	sources, _, err := r.Plan([]string{"notes.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "notes.html"))
-	require.NoError(t, err)
-	assert.Contains(t, string(content), `href="github-markdown.css"`)
+	html := openSource(t, sources, "notes.html")
+	assert.Contains(t, html, `href="github-markdown.css"`)
 }
 
 // TestMarkdownRenderer_CSSPathOneLevelDeep verifies that a file one directory
@@ -500,17 +509,16 @@ func TestMarkdownRenderer_CSSPathOneLevelDeep(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "sub", "page.md"), []byte("Hello"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"sub/page.md"}, dir)
+	sources, _, err := r.Plan([]string{"sub/page.md"}, dir)
 	require.NoError(t, err)
 
-	content, err := os.ReadFile(filepath.Join(dir, "sub", "page.html"))
-	require.NoError(t, err)
-	assert.Contains(t, string(content), `href="../github-markdown.css"`)
+	html := openSource(t, sources, "sub/page.html")
+	assert.Contains(t, html, `href="../github-markdown.css"`)
 }
 
 // TestMarkdownRenderer_CollisionSkipsAndWarns verifies that when a .html file
-// with the same stem already exists on disk, the .md file is not rendered and
-// a warning is written to stderr.
+// with the same stem already exists in the batch, the .md file is not rendered
+// and a warning is written to stderr.
 func TestMarkdownRenderer_CollisionSkipsAndWarns(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello"), 0600))
@@ -518,32 +526,31 @@ func TestMarkdownRenderer_CollisionSkipsAndWarns(t *testing.T) {
 
 	var stderr bytes.Buffer
 	r := render.NewMarkdownRendererWithStderr(&stderr)
-	got, err := r.Render([]string{"notes.md", "notes.html"}, dir)
+	sources, _, err := r.Plan([]string{"notes.md", "notes.html"}, dir)
 	require.NoError(t, err)
 
-	// both paths still appear (existing html is kept)
-	assert.Contains(t, got, "notes.md")
-	assert.Contains(t, got, "notes.html")
-	// but it was not re-rendered — the existing content is intact
-	htmlContent, err := os.ReadFile(filepath.Join(dir, "notes.html"))
-	require.NoError(t, err)
-	assert.Equal(t, "<h1>existing</h1>", string(htmlContent))
+	relPaths := sourceRelPaths(sources)
+	assert.Contains(t, relPaths, "notes.md")
+	assert.Contains(t, relPaths, "notes.html")
+
+	// existing notes.html source must be readable and unchanged
+	html := openSource(t, sources, "notes.html")
+	assert.Equal(t, "<h1>existing</h1>", html)
 
 	assert.Contains(t, stderr.String(), "notes.html already present, skipping rendering of notes.md")
 }
 
+// TestMarkdownRenderer_CollisionStillUploadsCSS verifies that CSS shared
+// assets are returned even when rendering was skipped due to a collision.
 func TestMarkdownRenderer_CollisionStillUploadsCSS(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello"), 0600))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.html"), []byte("<h1>existing</h1>"), 0600))
 
 	r := render.NewMarkdownRenderer()
-	_, err := r.Render([]string{"notes.md", "notes.html"}, dir)
+	_, assets, err := r.Plan([]string{"notes.md", "notes.html"}, dir)
 	require.NoError(t, err)
 
-	// CSS must be returned even though rendering was skipped — the existing HTML
-	// references the stylesheet and it needs to be uploaded alongside it.
-	assets := r.SharedAssets()
 	names := make([]string, len(assets))
 	for i, a := range assets {
 		names[i] = a.Name

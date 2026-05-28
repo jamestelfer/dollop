@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"slices"
 
 	"github.com/jamestelfer/dollop/internal/render"
 )
@@ -32,22 +31,22 @@ func WithRenderer(r FileRenderer) UploadOption {
 	}
 }
 
-// NewMarkdownFileRenderer returns a FileRenderer that converts .md files to .html.
-func NewMarkdownFileRenderer() FileRenderer {
-	return render.NewMarkdownRenderer()
-}
-
 // UploadFiles uploads localPath (file or directory) to bucket under prefix.
 // Each completed key is written to stderr. Files are uploaded sequentially.
 // If generateIndex is true and no index.html is present in the upload, a
 // generated index page is uploaded first; if index.html already exists a
 // warning is written to stderr and generation is skipped.
-// Returns the relative paths of all on-disk files uploaded (not including any
+// Returns the relative paths of all files uploaded (not including any
 // generated index.html).
 func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath string, generateIndex bool, stderr io.Writer, opts ...UploadOption) ([]string, error) {
 	var o uploadOptions
 	for _, opt := range opts {
 		opt(&o)
+	}
+
+	renderer := o.renderer
+	if renderer == nil {
+		renderer = render.NewDiskRenderer()
 	}
 
 	info, err := os.Stat(localPath)
@@ -60,58 +59,74 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 		sourceDir = filepath.Dir(localPath)
 	}
 
-	relPaths, hasIndex, err := collectRelativePaths(localPath, info.IsDir())
+	relPaths, err := collectRelativePaths(localPath, info.IsDir())
 	if err != nil {
 		return nil, fmt.Errorf("scan files: %w", err)
 	}
 
-	if o.renderer != nil {
-		relPaths, err = o.renderer.Render(relPaths, sourceDir)
-		if err != nil {
-			return nil, fmt.Errorf("render: %w", err)
-		}
-		// after rendering, index.md may have produced index.html
-		if slices.Contains(relPaths, "index.html") {
-			hasIndex = true
-		}
-		for _, asset := range o.renderer.SharedAssets() {
-			key := prefix + "/" + asset.Name
-			fmt.Fprintf(stderr, "uploading [%s] %s...", asset.Name, HumanSize(int64(len(asset.Content)))) //nolint:errcheck
-			if err := up.PutObject(ctx, bucket, key, asset.ContentType, bytes.NewReader(asset.Content), WithCacheControl("max-age=604800")); err != nil {
-				fmt.Fprintln(stderr, "failed") //nolint:errcheck
-				return nil, fmt.Errorf("upload shared asset %s: %w", asset.Name, err)
-			}
-			fmt.Fprintln(stderr, "done") //nolint:errcheck
-		}
+	sources, sharedAssets, err := renderer.Plan(relPaths, sourceDir)
+	if err != nil {
+		return nil, fmt.Errorf("plan: %w", err)
+	}
+
+	if err := uploadSharedAssets(ctx, up, bucket, prefix, sharedAssets, stderr); err != nil {
+		return nil, err
 	}
 
 	if generateIndex {
-		if hasIndex {
+		if containsIndex(sources) {
 			fmt.Fprintln(stderr, "warning: index.html already present, skipping index generation") //nolint:errcheck
 		} else {
-			if err := uploadGeneratedIndex(ctx, up, bucket, prefix, relPaths, stderr); err != nil {
+			srcRelPaths := make([]string, len(sources))
+			for i, src := range sources {
+				srcRelPaths[i] = src.RelPath
+			}
+			if err := uploadGeneratedIndex(ctx, up, bucket, prefix, srcRelPaths, stderr); err != nil {
 				return nil, err
 			}
 		}
 	}
 
-	for _, p := range relPaths {
-		key := prefix + "/" + p
-		absPath := filepath.Join(sourceDir, filepath.FromSlash(p))
-		if err := uploadFile(ctx, up, bucket, key, absPath, stderr); err != nil {
+	for _, src := range sources {
+		if err := uploadSource(ctx, up, bucket, prefix, src, stderr); err != nil {
 			return nil, err
 		}
 	}
-	return relPaths, nil
+
+	result := make([]string, len(sources))
+	for i, src := range sources {
+		result[i] = src.RelPath
+	}
+	return result, nil
 }
 
-func collectRelativePaths(localPath string, isDir bool) ([]string, bool, error) {
+func containsIndex(sources []render.Source) bool {
+	for _, src := range sources {
+		if src.RelPath == "index.html" {
+			return true
+		}
+	}
+	return false
+}
+
+func uploadSharedAssets(ctx context.Context, up Uploader, bucket, prefix string, assets []render.SharedAsset, stderr io.Writer) error {
+	for _, asset := range assets {
+		key := prefix + "/" + asset.Name
+		fmt.Fprintf(stderr, "uploading [%s] %s...", asset.Name, HumanSize(int64(len(asset.Content)))) //nolint:errcheck
+		if err := up.PutObject(ctx, bucket, key, asset.ContentType, bytes.NewReader(asset.Content), WithCacheControl("max-age=604800")); err != nil {
+			fmt.Fprintln(stderr, "failed") //nolint:errcheck
+			return fmt.Errorf("upload shared asset %s: %w", asset.Name, err)
+		}
+		fmt.Fprintln(stderr, "done") //nolint:errcheck
+	}
+	return nil
+}
+
+func collectRelativePaths(localPath string, isDir bool) ([]string, error) {
 	if !isDir {
-		name := filepath.Base(localPath)
-		return []string{name}, name == "index.html", nil
+		return []string{filepath.Base(localPath)}, nil
 	}
 	var paths []string
-	hasIndex := false
 	err := filepath.WalkDir(localPath, func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err
@@ -120,14 +135,10 @@ func collectRelativePaths(localPath string, isDir bool) ([]string, bool, error) 
 		if err != nil {
 			return err
 		}
-		rel = filepath.ToSlash(rel)
-		paths = append(paths, rel)
-		if rel == "index.html" {
-			hasIndex = true
-		}
+		paths = append(paths, filepath.ToSlash(rel))
 		return nil
 	})
-	return paths, hasIndex, err
+	return paths, err
 }
 
 func uploadGeneratedIndex(ctx context.Context, up Uploader, bucket, prefix string, files []string, stderr io.Writer) error {
@@ -145,22 +156,28 @@ func uploadGeneratedIndex(ctx context.Context, up Uploader, bucket, prefix strin
 	return nil
 }
 
-func uploadFile(ctx context.Context, up Uploader, bucket, key, localPath string, stderr io.Writer) error {
-	info, err := os.Stat(localPath)
-	if err != nil {
-		return err
+func uploadSource(ctx context.Context, up Uploader, bucket, prefix string, src render.Source, stderr io.Writer) error {
+	ct := src.ContentType
+	if ct == "" {
+		ct = ContentType(src.RelPath)
 	}
-	fmt.Fprintf(stderr, "uploading [%s] %s...", filepath.Base(localPath), HumanSize(info.Size())) //nolint:errcheck
+	key := prefix + "/" + src.RelPath
+	name := filepath.Base(src.RelPath)
 
-	f, err := os.Open(localPath) //nolint:gosec
+	if src.Size >= 0 {
+		fmt.Fprintf(stderr, "uploading [%s] %s...", name, HumanSize(src.Size)) //nolint:errcheck
+	} else {
+		fmt.Fprintf(stderr, "rendering [%s]...", name) //nolint:errcheck
+	}
+
+	rc, err := src.Open()
 	if err != nil {
 		fmt.Fprintln(stderr, "failed") //nolint:errcheck
-		return err
+		return fmt.Errorf("open %s: %w", src.RelPath, err)
 	}
-	defer f.Close() //nolint:errcheck
+	defer rc.Close() //nolint:errcheck
 
-	ct := ContentType(localPath)
-	if err := up.PutObject(ctx, bucket, key, ct, f); err != nil {
+	if err := up.PutObject(ctx, bucket, key, ct, rc); err != nil {
 		fmt.Fprintln(stderr, "failed") //nolint:errcheck
 		return fmt.Errorf("upload %s: %w", key, err)
 	}

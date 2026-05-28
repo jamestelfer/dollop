@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/jamestelfer/dollop/internal/render"
 	"github.com/jamestelfer/dollop/internal/upload"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -169,7 +170,7 @@ func TestUploadFiles_Render_MermaidBatchUploadsJSOnce(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	_, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(upload.NewMarkdownFileRenderer()))
+	_, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
 	require.NoError(t, err)
 
 	mermaidCount := 0
@@ -188,7 +189,7 @@ func TestUploadFiles_Render_SharedAssetsUploadedOnce(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(upload.NewMarkdownFileRenderer()))
+	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
 	require.NoError(t, err)
 
 	// count CSS uploads
@@ -212,7 +213,7 @@ func TestUploadFiles_Render_IndexMdSetsHasIndex(t *testing.T) {
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
 	// generateIndex=true so we can observe the hasIndex collision warning
-	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr, upload.WithRenderer(upload.NewMarkdownFileRenderer()))
+	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
 	require.NoError(t, err)
 
 	// rendered index.html triggers the "already present" warning, not a generated one
@@ -230,7 +231,7 @@ func TestUploadFiles_Render_MarkdownProducesHTML(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(upload.NewMarkdownFileRenderer()))
+	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
 	require.NoError(t, err)
 
 	keys := make([]string, len(up.calls))

@@ -36,59 +36,91 @@ func NewMarkdownRendererWithStderr(stderr io.Writer) Renderer {
 }
 
 type markdownRenderer struct {
-	stderr       io.Writer
-	hasMarkdown  bool // set to true when at least one .md is in the batch
-	didRender    bool // set to true after at least one .md is rendered
-	needsMermaid bool // set to true when at least one file has a mermaid fence
+	stderr io.Writer
 }
 
-func (m *markdownRenderer) Render(relPaths []string, sourceDir string) ([]string, error) {
-	// build a set of paths already in the list so we can detect collisions
-	existing := make(map[string]bool, len(relPaths))
+func (m *markdownRenderer) Plan(relPaths []string, sourceDir string) ([]Source, []SharedAsset, error) {
+	// batch map is used both for collision detection and by the link rewriter
+	// to know which .md files are being rendered.
+	batch := make(map[string]bool, len(relPaths))
 	for _, p := range relPaths {
-		existing[p] = true
+		batch[p] = true
 	}
 
-	result := make([]string, 0, len(relPaths))
+	hasMarkdown := false
+	needsMermaid := false
+	sources := make([]Source, 0, len(relPaths)+len(relPaths)/2)
+
 	for _, p := range relPaths {
-		result = append(result, p)
 		if !isMarkdown(p) {
+			sources = append(sources, diskSource(p, sourceDir))
 			continue
 		}
-		m.hasMarkdown = true
+
+		hasMarkdown = true
+
+		// include the source .md file as a plain disk source
+		sources = append(sources, diskSource(p, sourceDir))
+
 		stem := strings.TrimSuffix(p, filepath.Ext(p))
 		htmlRel := stem + ".html"
 
-		if existing[htmlRel] {
+		if batch[htmlRel] {
 			fmt.Fprintf(m.stderr, "%s already present, skipping rendering of %s\n", htmlRel, p) //nolint:errcheck
 			continue
 		}
 
-		hasMermaid, generated, err := renderMarkdownFile(p, sourceDir, existing)
+		// pre-scan for mermaid with a fast string search (no retained memory)
+		srcBytes, err := os.ReadFile(filepath.Join(sourceDir, filepath.FromSlash(p))) //nolint:gosec
 		if err != nil {
-			return nil, err
+			return nil, nil, fmt.Errorf("read %s: %w", p, err)
 		}
-		result = append(result, generated)
-		m.didRender = true
-		if hasMermaid {
-			m.needsMermaid = true
+		if bytes.Contains(srcBytes, []byte("```mermaid")) {
+			needsMermaid = true
 		}
-	}
-	return result, nil
-}
 
-func (m *markdownRenderer) SharedAssets() []SharedAsset {
-	if !m.hasMarkdown {
-		return nil
+		mdPath := p
+		sources = append(sources, Source{
+			RelPath:     htmlRel,
+			ContentType: "text/html; charset=utf-8",
+			Size:        -1,
+			Open: func() (io.ReadCloser, error) {
+				html, err := renderMarkdownFile(mdPath, sourceDir, batch)
+				if err != nil {
+					return nil, err
+				}
+				return io.NopCloser(bytes.NewReader(html)), nil
+			},
+		})
 	}
+
+	if !hasMarkdown {
+		return sources, nil, nil
+	}
+
 	assets := []SharedAsset{
 		{Name: "github-markdown.css", ContentType: "text/css; charset=utf-8", Content: githubMarkdownCSS},
 		{Name: "highlight-github.css", ContentType: "text/css; charset=utf-8", Content: highlightGithubCSS},
 	}
-	if m.needsMermaid {
+	if needsMermaid {
 		assets = append(assets, SharedAsset{Name: "mermaid.min.js", ContentType: "application/javascript", Content: mermaidMinJS})
 	}
-	return assets
+	return sources, assets, nil
+}
+
+// diskSource creates a Source that reads the given relative path from sourceDir.
+func diskSource(relPath, sourceDir string) Source {
+	absPath := filepath.Join(sourceDir, filepath.FromSlash(relPath))
+	info, err := os.Stat(absPath)
+	var sz int64 = -1
+	if err == nil {
+		sz = info.Size()
+	}
+	return Source{
+		RelPath: relPath,
+		Size:    sz,
+		Open:    func() (io.ReadCloser, error) { return os.Open(absPath) }, //nolint:gosec
+	}
 }
 
 func extractTitle(metadata map[string]any, src []byte, doc ast.Node, fallback string) string {
@@ -173,10 +205,12 @@ func hasMermaidFence(doc ast.Node, src []byte) bool {
 	return found
 }
 
-func renderMarkdownFile(relPath, sourceDir string, batch map[string]bool) (bool, string, error) {
-	src, err := os.ReadFile(filepath.Join(sourceDir, relPath)) //nolint:gosec
+// renderMarkdownFile parses and renders the given .md file to HTML bytes.
+// It does not write any files to disk.
+func renderMarkdownFile(relPath, sourceDir string, batch map[string]bool) ([]byte, error) {
+	src, err := os.ReadFile(filepath.Join(sourceDir, filepath.FromSlash(relPath))) //nolint:gosec
 	if err != nil {
-		return false, "", fmt.Errorf("read %s: %w", relPath, err)
+		return nil, fmt.Errorf("read %s: %w", relPath, err)
 	}
 
 	reader := text.NewReader(src)
@@ -191,12 +225,11 @@ func renderMarkdownFile(relPath, sourceDir string, batch map[string]bool) (bool,
 
 	var bodyBuf bytes.Buffer
 	if err := mdParser.Renderer().Render(&bodyBuf, src, doc); err != nil {
-		return false, "", fmt.Errorf("render %s: %w", relPath, err)
+		return nil, fmt.Errorf("render %s: %w", relPath, err)
 	}
 
 	stem := strings.TrimSuffix(relPath, filepath.Ext(relPath))
 	basename := filepath.Base(stem)
-	htmlRel := stem + ".html"
 
 	title := extractTitle(meta.Get(pctx), src, doc, basename)
 	prefix := cssDepthPrefix(relPath)
@@ -217,11 +250,7 @@ func renderMarkdownFile(relPath, sourceDir string, batch map[string]bool) (bool,
 
 	out, err := renderTemplate(data)
 	if err != nil {
-		return false, "", fmt.Errorf("template %s: %w", relPath, err)
+		return nil, fmt.Errorf("template %s: %w", relPath, err)
 	}
-
-	if err := os.WriteFile(filepath.Join(sourceDir, htmlRel), out, 0o600); err != nil {
-		return false, "", fmt.Errorf("write %s: %w", htmlRel, err)
-	}
-	return mermaid, htmlRel, nil
+	return out, nil
 }
