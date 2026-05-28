@@ -9,8 +9,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	chromahtml "github.com/alecthomas/chroma/v2/formatters/html"
+	"github.com/alecthomas/chroma/v2/styles"
 	"github.com/yuin/goldmark"
 	emoji "github.com/yuin/goldmark-emoji"
+	highlighting "github.com/yuin/goldmark-highlighting/v2"
 	meta "github.com/yuin/goldmark-meta"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
@@ -132,6 +135,14 @@ var mdParser = goldmark.New(
 		extension.Footnote,
 		emoji.Emoji,
 		&anchor.Extender{},
+		highlighting.NewHighlighting(
+			highlighting.WithStyle("github"),
+			highlighting.WithFormatOptions(
+				chromahtml.WithClasses(true),
+				chromahtml.WithLineNumbers(false),
+			),
+			highlighting.WithCustomStyle(styles.Get("github")),
+		),
 	),
 )
 

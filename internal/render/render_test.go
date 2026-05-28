@@ -268,6 +268,27 @@ func TestMarkdownRenderer_Footnote(t *testing.T) {
 	assert.Contains(t, string(content), "footnote")
 }
 
+// TestMarkdownRenderer_SyntaxHighlightingCSSClasses verifies that fenced code
+// blocks produce CSS class-based highlighting (not inline styles).
+func TestMarkdownRenderer_SyntaxHighlightingCSSClasses(t *testing.T) {
+	dir := t.TempDir()
+	md := "```go\nfmt.Println(\"hello\")\n```\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	_, err := r.Render([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(dir, "doc.html"))
+	require.NoError(t, err)
+	html := string(content)
+
+	// Chroma CSS-class mode emits class="chroma" container
+	assert.Contains(t, html, `class="chroma"`)
+	// must not use inline style attributes for syntax colours
+	assert.NotContains(t, html, `style="color`)
+}
+
 // TestMarkdownRenderer_GFMTable renders a markdown table as an HTML table.
 func TestMarkdownRenderer_GFMTable(t *testing.T) {
 	dir := t.TempDir()

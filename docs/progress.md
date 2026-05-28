@@ -170,10 +170,10 @@
 > Requirements: R3 (fully verified)  
 > Commit: `feat: verify chroma syntax highlighting css classes and stylesheet link`
 
-- [ ] CSS classes emitted (not inline styles), `github` Chroma theme
-- [ ] Stylesheet linked via depth-relative path from Phase 3
-- [ ] Fenced code blocks render with token-level colouring in the browser
-- [ ] `just verify` passes
+- [x] CSS classes emitted (not inline styles), `github` Chroma theme
+- [x] Stylesheet linked via depth-relative path from Phase 3
+- [x] Fenced code blocks render with token-level colouring in the browser
+- [x] `just verify` passes
 
 ### Phase 8: Alerts + Mermaid
 
