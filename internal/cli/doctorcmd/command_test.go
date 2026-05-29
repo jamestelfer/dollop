@@ -51,11 +51,33 @@ func okGet() func(context.Context, string) (*http.Response, error) {
 var _ upload.Uploader = (*fakeUploader)(nil)
 var _ upload.BucketLister = (*fakeLister)(nil)
 
+// doctorOpts captures the configuration inputs that most tests leave at their
+// defaults. Tests that care about a field override it before calling runDoctor.
+type doctorOpts struct {
+	configPath    string
+	authPath      string
+	secureStorage bool
+}
+
+func defaultOpts() doctorOpts {
+	return doctorOpts{
+		configPath:    "/etc/dollop/config.yaml",
+		authPath:      "/etc/dollop/auth.yaml",
+		secureStorage: true,
+	}
+}
+
 func runDoctor(t *testing.T, cfg config.Config, hasKey, hasSecret bool, lister upload.BucketLister, up upload.Uploader, httpGet func(context.Context, string) (*http.Response, error)) (stdout, stderr string, code int) {
+	t.Helper()
+	return runDoctorOpts(t, defaultOpts(), cfg, hasKey, hasSecret, lister, up, httpGet)
+}
+
+func runDoctorOpts(t *testing.T, opts doctorOpts, cfg config.Config, hasKey, hasSecret bool, lister upload.BucketLister, up upload.Uploader, httpGet func(context.Context, string) (*http.Response, error)) (stdout, stderr string, code int) {
 	t.Helper()
 	var outBuf, errBuf bytes.Buffer
 	cmd := doctorcmd.New(
-		cfg, hasKey, hasSecret,
+		cfg, opts.configPath, opts.authPath, opts.secureStorage,
+		hasKey, hasSecret,
 		up, lister,
 		func() (string, error) { return "testid", nil },
 		httpGet,
@@ -191,4 +213,79 @@ func TestDoctor_DownloadContentMismatch(t *testing.T) {
 	)
 	require.NotEqual(t, 0, code)
 	assert.Contains(t, stdout, "✗")
+}
+
+func TestDoctor_GroupHeaders(t *testing.T) {
+	stdout, _, code := runDoctor(t,
+		fullConfig(), true, true,
+		&fakeLister{},
+		&fakeUploader{},
+		okGet(),
+	)
+	require.Equal(t, 0, code)
+	assert.Contains(t, stdout, "config:")
+	assert.Contains(t, stdout, "auth:")
+	assert.Contains(t, stdout, "roundtrip:")
+
+	// groups must appear in order: config, then auth, then roundtrip
+	assert.Less(t, strings.Index(stdout, "config:"), strings.Index(stdout, "auth:"))
+	assert.Less(t, strings.Index(stdout, "auth:"), strings.Index(stdout, "roundtrip:"))
+}
+
+func TestDoctor_ConfigGroupShowsConfigPath(t *testing.T) {
+	opts := defaultOpts()
+	opts.configPath = "/etc/dollop/config.yaml"
+	stdout, _, code := runDoctorOpts(t, opts, fullConfig(), true, true, &fakeLister{}, &fakeUploader{}, okGet())
+	require.Equal(t, 0, code)
+	assert.Contains(t, stdout, "ℹ config file: /etc/dollop/config.yaml")
+}
+
+func TestDoctor_SecureStorage_ShowsOSSecretsStorage(t *testing.T) {
+	opts := defaultOpts()
+	opts.secureStorage = true
+	stdout, _, code := runDoctorOpts(t, opts, fullConfig(), true, true, &fakeLister{}, &fakeUploader{}, okGet())
+	require.Equal(t, 0, code)
+	assert.Contains(t, stdout, "ℹ stored in OS secrets storage")
+	assert.NotContains(t, stdout, "no secure secret storage available")
+}
+
+func TestDoctor_PlaintextStorage_ShowsWarningWithPath(t *testing.T) {
+	opts := defaultOpts()
+	opts.secureStorage = false
+	opts.authPath = "/etc/dollop/auth.yaml"
+	stdout, _, code := runDoctorOpts(t, opts, fullConfig(), true, true, &fakeLister{}, &fakeUploader{}, okGet())
+	require.Equal(t, 0, code)
+	assert.Contains(t, stdout, "⚠ no secure secret storage available, stored in /etc/dollop/auth.yaml")
+	assert.NotContains(t, stdout, "stored in OS secrets storage")
+}
+
+func TestDoctor_HomeDirPathsCollapseToTilde(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	opts := defaultOpts()
+	opts.configPath = home + "/.config/dollop/config.yaml"
+	opts.authPath = home + "/.config/dollop/auth.yaml"
+	opts.secureStorage = false
+
+	stdout, _, code := runDoctorOpts(t, opts, fullConfig(), true, true, &fakeLister{}, &fakeUploader{}, okGet())
+	require.Equal(t, 0, code)
+
+	assert.Contains(t, stdout, "config file: ~/.config/dollop/config.yaml")
+	assert.Contains(t, stdout, "stored in ~/.config/dollop/auth.yaml")
+	// the expanded home directory must not leak into the output
+	assert.NotContains(t, stdout, home)
+}
+
+func TestDoctor_PlaintextWarningShownEvenWhenConfigIncomplete(t *testing.T) {
+	// Informational/auth items are emitted before the incomplete-config exit.
+	opts := defaultOpts()
+	opts.secureStorage = false
+	opts.authPath = "/etc/dollop/auth.yaml"
+	stdout, _, code := runDoctorOpts(t, opts, config.Config{}, false, false, &fakeLister{}, &fakeUploader{}, okGet())
+	require.NotEqual(t, 0, code)
+	assert.Contains(t, stdout, "config file:")
+	assert.Contains(t, stdout, "⚠ no secure secret storage available, stored in /etc/dollop/auth.yaml")
+	// roundtrip must not run when config/auth are incomplete
+	assert.NotContains(t, stdout, "roundtrip:")
 }

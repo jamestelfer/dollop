@@ -42,8 +42,11 @@ func run(ctx context.Context, args []string) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	accessKey, _ := readKr.Get(config.ServiceName, "r2-key")
-	secretKey, _ := readKr.Get(config.ServiceName, "r2-secret")
+	accessKey, accessPlaintext, _ := readKr.GetWithSource(config.ServiceName, "r2-key")
+	secretKey, secretPlaintext, _ := readKr.GetWithSource(config.ServiceName, "r2-secret")
+	// Credentials live in the OS secrets storage unless they were read from the
+	// plain-text fallback file.
+	secureStorage := !accessPlaintext && !secretPlaintext
 
 	var uploader upload.Uploader
 	var lister upload.BucketLister
@@ -66,6 +69,9 @@ func run(ctx context.Context, args []string) error {
 	)
 	doctorCmd := doctorcmd.New(
 		cfg,
+		cfgPath,
+		authPath,
+		secureStorage,
 		accessKey != "",
 		secretKey != "",
 		uploader,
