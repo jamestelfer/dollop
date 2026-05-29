@@ -8,14 +8,17 @@
 <link rel="stylesheet" href="{{.CSSPath}}">
 <link rel="stylesheet" href="{{.HighlightCSSPath}}">
 <style>
-body { margin: 0; background-color: #ffffff; }
+body { margin: 0; padding-top: 2.5rem; background-color: #ffffff; }
 @media (prefers-color-scheme: dark) { body { background-color: #0d1117; } }
 .markdown-body { background-color: transparent; }
 
 .page-header {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 100;
+  box-sizing: border-box;
   display: flex;
   justify-content: flex-end;
   padding: 0.4rem 1rem;
