@@ -16,6 +16,8 @@ type pageData struct {
 	CSSPath          string
 	HighlightCSSPath string
 	MermaidPath      string // empty when no mermaid fence in the document
+	LogoLightPath    string
+	LogoDarkPath     string
 	Body             template.HTML
 	SourcePath       string
 }

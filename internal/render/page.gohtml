@@ -29,7 +29,10 @@ body { margin: 0; padding-top: 2.5rem; background-color: #ffffff; }
   .page-header { background-color: #0d1117; border-bottom-color: #30363d; }
 }
 .page-header img {
-  height: stretch;
+  height: 100%;
+}
+@supports (height: stretch) {
+  .page-header img { height: stretch; }
 }
 .page-header a {
   display: inline-block;
@@ -69,8 +72,8 @@ body { margin: 0; padding-top: 2.5rem; background-color: #ffffff; }
 <body>
 <header class="page-header">
   <a href="https://github.com/jamestelfer/dollop"><picture>
-    <source media="(prefers-color-scheme: dark)" srcset="dollop-dark.svg">
-    <img src="dollop-light.svg" alt="dollop logo">
+    <source media="(prefers-color-scheme: dark)" srcset="{{.LogoDarkPath}}">
+    <img src="{{.LogoLightPath}}" alt="dollop logo">
   </picture></a>
   <a href="{{.SourcePath}}">M&#x2193;</a>
 </header>

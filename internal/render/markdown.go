@@ -253,6 +253,8 @@ func renderMarkdownFile(relPath, sourceDir string, batch map[string]bool) ([]byt
 		CSSPath:          prefix + "github-markdown.css",
 		HighlightCSSPath: prefix + "highlight-github.css",
 		MermaidPath:      mermaidPath,
+		LogoLightPath:    prefix + "dollop-light.svg",
+		LogoDarkPath:     prefix + "dollop-dark.svg",
 		Body:             template.HTML(sanitizeHTML(bodyBuf.String())), //nolint:gosec
 		SourcePath:       filepath.Base(relPath),
 	}
