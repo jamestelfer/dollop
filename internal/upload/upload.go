@@ -78,7 +78,7 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 	}
 
 	if generateIndex {
-		if err := maybeUploadGeneratedIndex(ctx, up, bucket, prefix, sources, stderr); err != nil {
+		if err := maybeUploadGeneratedIndex(ctx, up, bucket, prefix, sources, sharedAssets, stderr); err != nil {
 			return nil, err
 		}
 	}
@@ -98,7 +98,7 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 
 // maybeUploadGeneratedIndex uploads a generated index.html for sources unless
 // one is already present, in which case it warns and skips generation.
-func maybeUploadGeneratedIndex(ctx context.Context, up Uploader, bucket, prefix string, sources []render.Source, stderr io.Writer) error {
+func maybeUploadGeneratedIndex(ctx context.Context, up Uploader, bucket, prefix string, sources []render.Source, assets []render.SharedAsset, stderr io.Writer) error {
 	if containsIndex(sources) {
 		fmt.Fprintln(stderr, "warning: index.html already present, skipping index generation") //nolint:errcheck
 		return nil
@@ -107,7 +107,11 @@ func maybeUploadGeneratedIndex(ctx context.Context, up Uploader, bucket, prefix 
 	for i, src := range sources {
 		srcRelPaths[i] = src.RelPath
 	}
-	return uploadGeneratedIndex(ctx, up, bucket, prefix, srcRelPaths, stderr)
+	supporting := make([]string, len(assets))
+	for i, a := range assets {
+		supporting[i] = a.Name
+	}
+	return uploadGeneratedIndex(ctx, up, bucket, prefix, srcRelPaths, supporting, stderr)
 }
 
 func containsIndex(sources []render.Source) bool {
@@ -151,8 +155,8 @@ func collectRelativePaths(localPath string, isDir bool) ([]string, error) {
 	return paths, err
 }
 
-func uploadGeneratedIndex(ctx context.Context, up Uploader, bucket, prefix string, files []string, stderr io.Writer) error {
-	html, err := generateIndexHTML(files)
+func uploadGeneratedIndex(ctx context.Context, up Uploader, bucket, prefix string, files, supporting []string, stderr io.Writer) error {
+	html, err := generateIndexHTML(files, supporting)
 	if err != nil {
 		return fmt.Errorf("generate index: %w", err)
 	}
