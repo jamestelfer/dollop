@@ -22,6 +22,14 @@ h1 {
   padding-bottom: 0.75rem;
   border-bottom: 2px solid #e5e7eb;
 }
+h2 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #6b7280;
+  margin: 2rem 0 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
 ul {
   list-style: none;
   margin: 0;
@@ -31,19 +39,34 @@ ul {
   border-radius: 0.5rem;
   overflow: hidden;
 }
+li {
+  display: flex;
+  align-items: center;
+}
 li + li {
   border-top: 1px solid #f3f4f6;
 }
 a {
-  display: block;
   padding: 0.65rem 1rem;
   color: #2563eb;
   text-decoration: none;
   font-size: 0.9375rem;
 }
+a.name {
+  flex: 1 1 auto;
+}
 a:hover {
   background: #eff6ff;
   text-decoration: underline;
+}
+a.source {
+  flex: 0 0 auto;
+  color: #6b7280;
+  font-size: 0.8125rem;
+}
+ul.supporting a {
+  color: #6b7280;
+  font-size: 0.875rem;
 }
 </style>
 </head>
@@ -51,8 +74,21 @@ a:hover {
 <h1>Files</h1>
 <ul>
 {{- range .Files}}
-<li><a href="{{.}}">{{.}}</a></li>
+<li>
+<a class="name" href="{{.Name}}">{{.Name}}</a>
+{{- if .SourcePath}}
+<a class="source" href="{{.SourcePath}}">source</a>
+{{- end}}
+</li>
 {{- end}}
 </ul>
+{{- if .Supporting}}
+<h2>Supporting files</h2>
+<ul class="supporting">
+{{- range .Supporting}}
+<li><a class="name" href="{{.}}">{{.}}</a></li>
+{{- end}}
+</ul>
+{{- end}}
 </body>
 </html>

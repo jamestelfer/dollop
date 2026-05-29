@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/jamestelfer/dollop/internal/render"
@@ -128,6 +129,35 @@ func TestUploadFiles_Index_GeneratesAndUploads(t *testing.T) {
 
 	// generated index.html is not in the returned file list
 	assert.ElementsMatch(t, []string{"notes.txt", "report.pdf"}, files)
+}
+
+func TestUploadFiles_Index_FoldsMarkdownSourceAndSupporting(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello"), 0600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	_, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	require.NoError(t, err)
+
+	var indexCall *putCall
+	for i := range up.calls {
+		if up.calls[i].key == "flash/1/abc/index.html" {
+			indexCall = &up.calls[i]
+			break
+		}
+	}
+	require.NotNil(t, indexCall, "a generated index.html should be uploaded")
+	s := string(indexCall.body)
+
+	// the rendered HTML is the primary entry, with the .md folded in as its source
+	assert.Contains(t, s, `href="notes.html"`)
+	assert.Equal(t, 1, strings.Count(s, `href="notes.md"`), "the markdown must only appear as the source link, not as its own item")
+	assert.Contains(t, s, `class="source"`)
+
+	// shared assets are listed in the supporting section, not the main list
+	assert.Contains(t, s, "Supporting files")
+	assert.Contains(t, s, `href="github-markdown.css"`)
 }
 
 func TestUploadFiles_Index_SkipsIfExists(t *testing.T) {
