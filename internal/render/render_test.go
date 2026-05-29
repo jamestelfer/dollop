@@ -252,9 +252,10 @@ func TestMarkdownRenderer_OutputIsFullHTMLDocument(t *testing.T) {
 	assert.Contains(t, html, `class="markdown-body"`)
 }
 
-// TestMarkdownRenderer_SourceFooterLink verifies the rendered HTML includes a
-// link back to the .md source file outside the markdown-body div.
-func TestMarkdownRenderer_SourceFooterLink(t *testing.T) {
+// TestMarkdownRenderer_SourceHeaderLink verifies the rendered HTML includes a
+// link back to the .md source file in the sticky page header, before the
+// markdown-body div.
+func TestMarkdownRenderer_SourceHeaderLink(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("Hello"), 0o600))
 
@@ -264,9 +265,10 @@ func TestMarkdownRenderer_SourceFooterLink(t *testing.T) {
 
 	html := openSource(t, sources, "notes.html")
 	assert.Contains(t, html, `href="notes.md"`)
-	mdBodyClose := strings.Index(html, "</div>")
-	footerLink := strings.Index(html, `href="notes.md"`)
-	assert.Greater(t, footerLink, mdBodyClose, "source link should appear after markdown-body closing tag")
+	assert.Contains(t, html, `class="page-header"`)
+	headerLink := strings.Index(html, `href="notes.md"`)
+	mdBodyOpen := strings.Index(html, `class="markdown-body"`)
+	assert.Greater(t, mdBodyOpen, headerLink, "source link should appear before the markdown-body div")
 }
 
 // TestMarkdownRenderer_Emoji renders :smile: shortcode as the emoji character.

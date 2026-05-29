@@ -101,10 +101,14 @@ func (m *markdownRenderer) Plan(relPaths []string, sourceDir string) ([]Source, 
 	assets := []SharedAsset{
 		{Name: "github-markdown.css", ContentType: "text/css; charset=utf-8", Content: githubMarkdownCSS},
 		{Name: "highlight-github.css", ContentType: "text/css; charset=utf-8", Content: highlightGithubCSS},
+		{Name: "dollop-light.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopLightSVG},
+		{Name: "dollop-dark.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopDarkSVG},
 	}
+
 	if needsMermaid {
 		assets = append(assets, SharedAsset{Name: "mermaid.min.js", ContentType: "application/javascript", Content: mermaidMinJS})
 	}
+
 	return sources, assets, nil
 }
 
@@ -249,6 +253,8 @@ func renderMarkdownFile(relPath, sourceDir string, batch map[string]bool) ([]byt
 		CSSPath:          prefix + "github-markdown.css",
 		HighlightCSSPath: prefix + "highlight-github.css",
 		MermaidPath:      mermaidPath,
+		LogoLightPath:    prefix + "dollop-light.svg",
+		LogoDarkPath:     prefix + "dollop-dark.svg",
 		Body:             template.HTML(sanitizeHTML(bodyBuf.String())), //nolint:gosec
 		SourcePath:       filepath.Base(relPath),
 	}
