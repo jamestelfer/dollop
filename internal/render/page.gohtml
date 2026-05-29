@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>{{.Title}}</title>
+<link rel="stylesheet" href="{{.CSSPath}}">
+<link rel="stylesheet" href="{{.HighlightCSSPath}}">
+<style>
+body { margin: 0; background-color: #ffffff; }
+@media (prefers-color-scheme: dark) { body { background-color: #0d1117; } }
+.markdown-body { background-color: transparent; }
+
+.page-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.4rem 1rem;
+  background-color: #ffffff;
+  border-bottom: 1px solid #d0d7de;
+}
+@media (prefers-color-scheme: dark) {
+  .page-header { background-color: #0d1117; border-bottom-color: #30363d; }
+}
+
+.page-header a {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid #d0d7de;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.85rem;
+  color: #57606a;
+  text-decoration: none;
+  line-height: 1;
+}
+@media (prefers-color-scheme: dark) {
+  .page-header a { border-color: #30363d; color: #8b949e; }
+}
+.page-header a:hover { border-color: #0969da; color: #0969da; }
+@media (prefers-color-scheme: dark) {
+  .page-header a:hover { border-color: #58a6ff; color: #58a6ff; }
+}
+
+.page-content {
+  max-width: 70rem;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+</style>
+</head>
+<body>
+<header class="page-header">
+  <a href="{{.SourcePath}}">M&#x2193;</a>
+</header>
+<div class="page-content">
+<div class="markdown-body">
+{{.Body}}
+</div>
+</div>
+{{- if .MermaidPath}}
+<script src="{{.MermaidPath}}"></script>
+<script>mermaid.initialize({startOnLoad:true});</script>
+{{- end}}
+</body>
+</html>
