@@ -261,6 +261,18 @@ func TestUploadFiles_Render_NoRender_SkipsHTML(t *testing.T) {
 	assert.Equal(t, []string{"notes.md"}, files)
 }
 
+func TestUploadFiles_NilUploader_ReturnsError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f.txt")
+	require.NoError(t, os.WriteFile(path, []byte("x"), 0600))
+
+	var stderr bytes.Buffer
+	// A nil Uploader must produce an error, not a nil pointer panic.
+	_, err := upload.UploadFiles(context.Background(), nil, "b", "p", path, false, &stderr)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "uploader")
+}
+
 func TestHumanSize(t *testing.T) {
 	tests := []struct {
 		n    int64

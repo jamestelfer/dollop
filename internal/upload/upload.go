@@ -39,6 +39,10 @@ func WithRenderer(r FileRenderer) UploadOption {
 // Returns the relative paths of all files uploaded (not including any
 // generated index.html).
 func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath string, generateIndex bool, stderr io.Writer, opts ...UploadOption) ([]string, error) {
+	if up == nil {
+		return nil, fmt.Errorf("uploader is not configured")
+	}
+
 	var o uploadOptions
 	for _, opt := range opts {
 		opt(&o)
@@ -74,16 +78,8 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 	}
 
 	if generateIndex {
-		if containsIndex(sources) {
-			fmt.Fprintln(stderr, "warning: index.html already present, skipping index generation") //nolint:errcheck
-		} else {
-			srcRelPaths := make([]string, len(sources))
-			for i, src := range sources {
-				srcRelPaths[i] = src.RelPath
-			}
-			if err := uploadGeneratedIndex(ctx, up, bucket, prefix, srcRelPaths, stderr); err != nil {
-				return nil, err
-			}
+		if err := maybeUploadGeneratedIndex(ctx, up, bucket, prefix, sources, stderr); err != nil {
+			return nil, err
 		}
 	}
 
@@ -98,6 +94,20 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 		result[i] = src.RelPath
 	}
 	return result, nil
+}
+
+// maybeUploadGeneratedIndex uploads a generated index.html for sources unless
+// one is already present, in which case it warns and skips generation.
+func maybeUploadGeneratedIndex(ctx context.Context, up Uploader, bucket, prefix string, sources []render.Source, stderr io.Writer) error {
+	if containsIndex(sources) {
+		fmt.Fprintln(stderr, "warning: index.html already present, skipping index generation") //nolint:errcheck
+		return nil
+	}
+	srcRelPaths := make([]string, len(sources))
+	for i, src := range sources {
+		srcRelPaths[i] = src.RelPath
+	}
+	return uploadGeneratedIndex(ctx, up, bucket, prefix, srcRelPaths, stderr)
 }
 
 func containsIndex(sources []render.Source) bool {
