@@ -28,7 +28,9 @@ body { margin: 0; padding-top: 2.5rem; background-color: #ffffff; }
 @media (prefers-color-scheme: dark) {
   .page-header { background-color: #0d1117; border-bottom-color: #30363d; }
 }
-
+.page-header img {
+  height: stretch;
+}
 .page-header a {
   display: inline-block;
   padding: 0.2rem 0.5rem;
@@ -38,7 +40,10 @@ body { margin: 0; padding-top: 2.5rem; background-color: #ffffff; }
   font-size: 0.85rem;
   color: #57606a;
   text-decoration: none;
-  line-height: 1;
+  line-height: 1.4em;
+  height: 1.4em;
+  vertical-align: baseline;
+  font-weight: 900;
 }
 @media (prefers-color-scheme: dark) {
   .page-header a { border-color: #30363d; color: #8b949e; }
@@ -63,6 +68,10 @@ body { margin: 0; padding-top: 2.5rem; background-color: #ffffff; }
 </head>
 <body>
 <header class="page-header">
+  <a href="https://github.com/jamestelfer/dollop"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="dollop-dark.svg">
+    <img src="dollop-light.svg" alt="dollop logo">
+  </picture></a>
   <a href="{{.SourcePath}}">M&#x2193;</a>
 </header>
 <div class="page-content">

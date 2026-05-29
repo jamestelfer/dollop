@@ -1,6 +1,6 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/dollop-dark.svg">
-  <img src="docs/dollop-light.svg" alt="dollop logo" width="200">
+  <source media="(prefers-color-scheme: dark)" srcset="internal/render/assets/dollop-dark.svg">
+  <img src="internal/render/assets/dollop-light.svg" alt="dollop logo" width="200">
 </picture>
 
 _Share files and directories quickly and easily_

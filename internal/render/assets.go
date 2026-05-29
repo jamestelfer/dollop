@@ -19,6 +19,12 @@ var highlightGithubCSS []byte
 //go:embed assets/mermaid.min.js
 var mermaidMinJS []byte
 
+//go:embed assets/dollop-light.svg
+var dollopLightSVG []byte
+
+//go:embed assets/dollop-dark.svg
+var dollopDarkSVG []byte
+
 // SharedAsset is a file that should be uploaded at the prefix root with
 // cache headers, separate from the per-file relPaths list.
 type SharedAsset struct {
