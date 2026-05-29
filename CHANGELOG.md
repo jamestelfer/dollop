@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.5.0](https://github.com/jamestelfer/dollop/compare/v1.4.0...v1.5.0) (2026-05-29)
+
+
+### Features
+
+* enhance doctor command with grouped output and storage info ([#30](https://github.com/jamestelfer/dollop/issues/30)) ([05abda5](https://github.com/jamestelfer/dollop/commit/05abda5832635a1cfa5ff601d1526a4a3f7d8718))
+* group doctor checks into config, auth, and roundtrip ([05abda5](https://github.com/jamestelfer/dollop/commit/05abda5832635a1cfa5ff601d1526a4a3f7d8718))
+
+
+### Bug Fixes
+
+* prevent nil pointer crash when R2 credentials are unconfigured ([#28](https://github.com/jamestelfer/dollop/issues/28)) ([524426f](https://github.com/jamestelfer/dollop/commit/524426f6444cc869f10e2c3c9014677fe60aa0a6))
+
 ## [1.4.0](https://github.com/jamestelfer/dollop/compare/v1.3.0...v1.4.0) (2026-05-28)
 
 
