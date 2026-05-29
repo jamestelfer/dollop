@@ -82,6 +82,9 @@ func TestUploadFiles_Directory(t *testing.T) {
 		"keep/friendly-cat/sub/data.json",
 	}, keys)
 	assert.ElementsMatch(t, []string{"index.html", "sub/data.json"}, files)
+
+	// nested files show their path relative to the upload root, not just the basename
+	assert.Contains(t, stderr.String(), "uploading [sub/data.json]")
 }
 
 func TestUploadFiles_UploaderError(t *testing.T) {
@@ -271,6 +274,11 @@ func TestUploadFiles_Render_MarkdownProducesHTML(t *testing.T) {
 	assert.Contains(t, keys, "flash/1/abc/notes.md")
 	assert.Contains(t, keys, "flash/1/abc/notes.html")
 	assert.ElementsMatch(t, []string{"notes.md", "notes.html"}, files)
+
+	// the rendered file's size is unknown up front, so it is reported after the
+	// ellipsis once the body is produced (e.g. "rendering [notes.html]...1.2 KB")
+	assert.Regexp(t, `rendering \[notes\.html\]\.\.\.[0-9.]+ ?[KMG]?B`, stderr.String())
+	assert.NotContains(t, stderr.String(), "rendering [notes.html]...done")
 }
 
 func TestUploadFiles_Render_NoRender_SkipsHTML(t *testing.T) {
