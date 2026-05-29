@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.6.0](https://github.com/jamestelfer/dollop/compare/v1.5.0...v1.6.0) (2026-05-29)
+
+
+### Features
+
+* fold markdown source links into rendered index entries ([#31](https://github.com/jamestelfer/dollop/issues/31)) ([c624ec2](https://github.com/jamestelfer/dollop/commit/c624ec295a86c89833a60d63e0edcb3960432b2d))
+* page header with logo and source link, embedded template ([#35](https://github.com/jamestelfer/dollop/issues/35)) ([22118c9](https://github.com/jamestelfer/dollop/commit/22118c97254b7d935aa2c81cc4a09f0921f7f171))
+* show relative path and rendered size in upload progress ([#33](https://github.com/jamestelfer/dollop/issues/33)) ([0a5cfa3](https://github.com/jamestelfer/dollop/commit/0a5cfa325a10f5764b37a4dff21b271db2144c2f))
+
+
+### Bug Fixes
+
+* fold markdown source links into rendered index entries ([c624ec2](https://github.com/jamestelfer/dollop/commit/c624ec295a86c89833a60d63e0edcb3960432b2d))
+
 ## [1.5.0](https://github.com/jamestelfer/dollop/compare/v1.4.0...v1.5.0) (2026-05-29)
 
 
