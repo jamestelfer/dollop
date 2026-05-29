@@ -176,9 +176,10 @@ func uploadSource(ctx context.Context, up Uploader, bucket, prefix string, src r
 		ct = ContentType(src.RelPath)
 	}
 	key := prefix + "/" + src.RelPath
-	name := filepath.Base(src.RelPath)
+	name := src.RelPath
 
-	if src.Size >= 0 {
+	known := src.Size >= 0
+	if known {
 		fmt.Fprintf(stderr, "uploading [%s] %s...", name, HumanSize(src.Size)) //nolint:errcheck
 	} else {
 		fmt.Fprintf(stderr, "rendering [%s]...", name) //nolint:errcheck
@@ -194,6 +195,16 @@ func uploadSource(ctx context.Context, up Uploader, bucket, prefix string, src r
 	if err := up.PutObject(ctx, bucket, key, ct, body); err != nil {
 		fmt.Fprintln(stderr, "failed") //nolint:errcheck
 		return fmt.Errorf("upload %s: %w", key, err)
+	}
+
+	// For rendered sources the size is unknown until the body is produced, so
+	// report it after the ellipsis. body is seekable (the S3 SDK relies on it),
+	// so seeking to the end yields the number of bytes uploaded.
+	if !known {
+		if size, serr := body.Seek(0, io.SeekEnd); serr == nil {
+			fmt.Fprintln(stderr, HumanSize(size)) //nolint:errcheck
+			return nil
+		}
 	}
 	fmt.Fprintln(stderr, "done") //nolint:errcheck
 	return nil
