@@ -80,6 +80,26 @@ func TestDirUploader_ListObjects_MultiFilePrefix(t *testing.T) {
 	}, keys, "keys are full and lexically ordered; siblings excluded")
 }
 
+func TestDirUploader_ListObjects_LexicalOrderAcrossDirBoundary(t *testing.T) {
+	root := t.TempDir()
+	up := &upload.DirUploader{Root: root}
+	ctx := context.Background()
+
+	// A file and a directory sharing a name stem expose the difference between
+	// per-directory walk order and full-key byte-lexical order: '.' (0x2E) sorts
+	// before '/' (0x2F), so "sub.txt" must precede "sub/page.html" — matching
+	// what S3 returns. filepath.WalkDir alone would yield the reverse.
+	require.NoError(t, up.PutObject(ctx, "b", "flash/7/abc/sub/page.html", "text/html", bytes.NewReader([]byte("x"))))
+	require.NoError(t, up.PutObject(ctx, "b", "flash/7/abc/sub.txt", "text/plain", bytes.NewReader([]byte("x"))))
+
+	keys, err := up.ListObjects(ctx, "b", "flash/7/abc")
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		"flash/7/abc/sub.txt",
+		"flash/7/abc/sub/page.html",
+	}, keys, "keys are byte-lexical over full keys, matching S3")
+}
+
 func TestDirUploader_ListObjects_TrailingSlashPrefix(t *testing.T) {
 	root := t.TempDir()
 	up := &upload.DirUploader{Root: root}

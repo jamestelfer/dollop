@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -50,6 +51,10 @@ func (d *DirUploader) ListObjects(_ context.Context, _, prefix string) ([]string
 	if err != nil {
 		return nil, fmt.Errorf("walk %s: %w", dir, err)
 	}
+	// WalkDir visits per directory entry and descends inline, so its order is not
+	// byte-lexical over full keys (e.g. it yields "sub/page.html" before
+	// "sub.txt"). Sort to honor the ObjectLister contract and match S3's order.
+	sort.Strings(keys)
 	return keys, nil
 }
 
