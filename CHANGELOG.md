@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/jamestelfer/dollop/compare/v1.6.0...v1.7.0) (2026-05-30)
+
+
+### Features
+
+* add update subcommand to publish and overwrite content ([#36](https://github.com/jamestelfer/dollop/issues/36)) ([#38](https://github.com/jamestelfer/dollop/issues/38)) ([7106a80](https://github.com/jamestelfer/dollop/commit/7106a801ba8719b33bd5bd0fcec60c7e348bcd06))
+
 ## [1.6.0](https://github.com/jamestelfer/dollop/compare/v1.5.0...v1.6.0) (2026-05-29)
 
 
