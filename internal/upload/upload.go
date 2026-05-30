@@ -23,6 +23,18 @@ type uploadOptions struct {
 // UploadOption configures optional behaviour for UploadFiles.
 type UploadOption func(*uploadOptions)
 
+// UploadResult reports what UploadFiles wrote.
+type UploadResult struct {
+	// SourceRelPaths holds the relative paths of the uploaded source files (not
+	// the generated index, not shared assets). It is used to choose the public
+	// URL suffix.
+	SourceRelPaths []string
+	// WrittenKeys is the complete set of object keys written this run: every
+	// source, every shared asset, and any generated index. The update touch pass
+	// uses it to tell freshly-written objects from untouched pre-existing ones.
+	WrittenKeys []string
+}
+
 // WithRenderer sets a FileRenderer that is invoked after path collection and
 // before uploading. When no renderer is supplied, files are uploaded as-is.
 func WithRenderer(r FileRenderer) UploadOption {
@@ -36,9 +48,9 @@ func WithRenderer(r FileRenderer) UploadOption {
 // If generateIndex is true and no index.html is present in the upload, a
 // generated index page is uploaded first; if index.html already exists a
 // warning is written to stderr and generation is skipped.
-// Returns the relative paths of all files uploaded (not including any
-// generated index.html).
-func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath string, generateIndex bool, stderr io.Writer, opts ...UploadOption) ([]string, error) {
+// Returns an UploadResult reporting the relative paths of the uploaded sources
+// (not including any generated index.html) and the complete set of keys written.
+func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath string, generateIndex bool, stderr io.Writer, opts ...UploadOption) (*UploadResult, error) {
 	if up == nil {
 		return nil, fmt.Errorf("uploader is not configured")
 	}
@@ -73,13 +85,37 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 		return nil, fmt.Errorf("plan: %w", err)
 	}
 
-	if err := uploadSharedAssets(ctx, up, bucket, prefix, sharedAssets, stderr); err != nil {
+	writtenKeys, err := uploadPlan(ctx, up, bucket, prefix, sources, sharedAssets, generateIndex, stderr)
+	if err != nil {
 		return nil, err
 	}
 
+	sourceRelPaths := make([]string, len(sources))
+	for i, src := range sources {
+		sourceRelPaths[i] = src.RelPath
+	}
+	return &UploadResult{SourceRelPaths: sourceRelPaths, WrittenKeys: writtenKeys}, nil
+}
+
+// uploadPlan uploads the shared assets, an optional generated index, and the
+// sources, returning the full set of object keys written (in that order).
+func uploadPlan(ctx context.Context, up Uploader, bucket, prefix string, sources []render.Source, sharedAssets []render.SharedAsset, generateIndex bool, stderr io.Writer) ([]string, error) {
+	var writtenKeys []string
+
+	if err := uploadSharedAssets(ctx, up, bucket, prefix, sharedAssets, stderr); err != nil {
+		return nil, err
+	}
+	for _, asset := range sharedAssets {
+		writtenKeys = append(writtenKeys, prefix+"/"+asset.Name)
+	}
+
 	if generateIndex {
-		if err := maybeUploadGeneratedIndex(ctx, up, bucket, prefix, sources, sharedAssets, stderr); err != nil {
+		indexKey, err := maybeUploadGeneratedIndex(ctx, up, bucket, prefix, sources, sharedAssets, stderr)
+		if err != nil {
 			return nil, err
+		}
+		if indexKey != "" {
+			writtenKeys = append(writtenKeys, indexKey)
 		}
 	}
 
@@ -87,21 +123,19 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 		if err := uploadSource(ctx, up, bucket, prefix, src, stderr); err != nil {
 			return nil, err
 		}
+		writtenKeys = append(writtenKeys, prefix+"/"+src.RelPath)
 	}
 
-	result := make([]string, len(sources))
-	for i, src := range sources {
-		result[i] = src.RelPath
-	}
-	return result, nil
+	return writtenKeys, nil
 }
 
 // maybeUploadGeneratedIndex uploads a generated index.html for sources unless
-// one is already present, in which case it warns and skips generation.
-func maybeUploadGeneratedIndex(ctx context.Context, up Uploader, bucket, prefix string, sources []render.Source, assets []render.SharedAsset, stderr io.Writer) error {
+// one is already present, in which case it warns and skips generation. It
+// returns the key of the generated index, or "" when generation was skipped.
+func maybeUploadGeneratedIndex(ctx context.Context, up Uploader, bucket, prefix string, sources []render.Source, assets []render.SharedAsset, stderr io.Writer) (string, error) {
 	if containsIndex(sources) {
 		fmt.Fprintln(stderr, "warning: index.html already present, skipping index generation") //nolint:errcheck
-		return nil
+		return "", nil
 	}
 	srcRelPaths := make([]string, len(sources))
 	for i, src := range sources {
@@ -111,7 +145,10 @@ func maybeUploadGeneratedIndex(ctx context.Context, up Uploader, bucket, prefix 
 	for i, a := range assets {
 		supporting[i] = a.Name
 	}
-	return uploadGeneratedIndex(ctx, up, bucket, prefix, srcRelPaths, supporting, stderr)
+	if err := uploadGeneratedIndex(ctx, up, bucket, prefix, srcRelPaths, supporting, stderr); err != nil {
+		return "", err
+	}
+	return prefix + "/index.html", nil
 }
 
 func containsIndex(sources []render.Source) bool {

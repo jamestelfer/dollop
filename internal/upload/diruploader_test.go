@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/jamestelfer/dollop/internal/upload"
 	"github.com/stretchr/testify/assert"
@@ -51,6 +52,104 @@ func TestDirUploader_MultipleObjects(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join(root, "prefix", "b.txt"))
 	require.NoError(t, err)
 	assert.Equal(t, "bbb", string(b))
+}
+
+func TestDirUploader_ListObjects_MultiFilePrefix(t *testing.T) {
+	root := t.TempDir()
+	up := &upload.DirUploader{Root: root}
+	ctx := context.Background()
+
+	// Populate a prefix with files in nested directories, plus a sibling prefix
+	// and a name-stem sibling that must NOT be returned.
+	put := func(key string) {
+		require.NoError(t, up.PutObject(ctx, "b", key, "text/plain", bytes.NewReader([]byte("x"))))
+	}
+	put("flash/7/abc/index.html")
+	put("flash/7/abc/style.css")
+	put("flash/7/abc/sub/page.html")
+	put("flash/7/abcdef/other.txt") // name-stem sibling, must be excluded
+	put("keep/happy-cat/notes.md")  // unrelated prefix
+
+	keys, err := up.ListObjects(ctx, "b", "flash/7/abc")
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{
+		"flash/7/abc/index.html",
+		"flash/7/abc/style.css",
+		"flash/7/abc/sub/page.html",
+	}, keys, "keys are full and lexically ordered; siblings excluded")
+}
+
+func TestDirUploader_ListObjects_LexicalOrderAcrossDirBoundary(t *testing.T) {
+	root := t.TempDir()
+	up := &upload.DirUploader{Root: root}
+	ctx := context.Background()
+
+	// A file and a directory sharing a name stem expose the difference between
+	// per-directory walk order and full-key byte-lexical order: '.' (0x2E) sorts
+	// before '/' (0x2F), so "sub.txt" must precede "sub/page.html" — matching
+	// what S3 returns. filepath.WalkDir alone would yield the reverse.
+	require.NoError(t, up.PutObject(ctx, "b", "flash/7/abc/sub/page.html", "text/html", bytes.NewReader([]byte("x"))))
+	require.NoError(t, up.PutObject(ctx, "b", "flash/7/abc/sub.txt", "text/plain", bytes.NewReader([]byte("x"))))
+
+	keys, err := up.ListObjects(ctx, "b", "flash/7/abc")
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		"flash/7/abc/sub.txt",
+		"flash/7/abc/sub/page.html",
+	}, keys, "keys are byte-lexical over full keys, matching S3")
+}
+
+func TestDirUploader_ListObjects_TrailingSlashPrefix(t *testing.T) {
+	root := t.TempDir()
+	up := &upload.DirUploader{Root: root}
+	ctx := context.Background()
+	require.NoError(t, up.PutObject(ctx, "b", "flash/1/xyz/a.txt", "text/plain", bytes.NewReader([]byte("a"))))
+
+	// A trailing slash on the prefix argument is tolerated.
+	keys, err := up.ListObjects(ctx, "b", "flash/1/xyz/")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"flash/1/xyz/a.txt"}, keys)
+}
+
+func TestDirUploader_ListObjects_MissingPrefixEmpty(t *testing.T) {
+	root := t.TempDir()
+	up := &upload.DirUploader{Root: root}
+
+	keys, err := up.ListObjects(context.Background(), "b", "flash/7/nonexistent")
+	require.NoError(t, err)
+	assert.Empty(t, keys, "a missing prefix yields no keys and no error")
+}
+
+func TestDirUploader_CopyObject_AdvancesModTimePreservingContent(t *testing.T) {
+	root := t.TempDir()
+	up := &upload.DirUploader{Root: root}
+	ctx := context.Background()
+
+	require.NoError(t, up.PutObject(ctx, "b", "flash/7/abc/index.html", "text/html", bytes.NewReader([]byte("<h1>hi</h1>"))))
+
+	// Backdate the file so the touch has an unambiguous timestamp to advance past.
+	path := filepath.Join(root, "flash", "7", "abc", "index.html")
+	old := time.Now().Add(-time.Hour)
+	require.NoError(t, os.Chtimes(path, old, old))
+
+	require.NoError(t, up.CopyObject(ctx, "b", "flash/7/abc/index.html"))
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.True(t, info.ModTime().After(old), "self-copy advances the modification time")
+
+	got, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "<h1>hi</h1>", string(got), "self-copy preserves content")
+}
+
+func TestDirUploader_CopyObject_MissingKeyErrors(t *testing.T) {
+	root := t.TempDir()
+	up := &upload.DirUploader{Root: root}
+
+	err := up.CopyObject(context.Background(), "b", "flash/7/nope/index.html")
+	require.Error(t, err, "touching a nonexistent key is an error, as on R2")
 }
 
 func TestDirUploader_OverwritesExistingFile(t *testing.T) {

@@ -11,6 +11,7 @@ import (
 	"github.com/jamestelfer/dollop/internal/cli/configcmd"
 	"github.com/jamestelfer/dollop/internal/cli/createcmd"
 	"github.com/jamestelfer/dollop/internal/cli/doctorcmd"
+	"github.com/jamestelfer/dollop/internal/cli/updatecmd"
 	"github.com/jamestelfer/dollop/internal/config"
 	"github.com/jamestelfer/dollop/internal/upload"
 	nanoid "github.com/matoous/go-nanoid/v2"
@@ -67,6 +68,11 @@ func run(ctx context.Context, args []string) error {
 		func() (string, error) { return nanoid.New() },
 		func() string { return petname.Generate(2, "-") },
 	)
+	updateCmd := updatecmd.New(
+		uploader,
+		cfg.Bucket,
+		cfg.BaseURL,
+	)
 	doctorCmd := doctorcmd.New(
 		cfg,
 		cfgPath,
@@ -109,7 +115,7 @@ Quick start:
   dollop create photo.jpg              # share a file; link expires in 1 day
   dollop create --days 7 archive.zip   # share a file; link expires in 7 days
   dollop create --keep project/        # share a directory with a permanent link`,
-		Commands: []*cli.Command{&cfgCmd, &createCmd, &doctorCmd},
+		Commands: []*cli.Command{&cfgCmd, &createCmd, &updateCmd, &doctorCmd},
 	}
 	return app.Run(ctx, args)
 }

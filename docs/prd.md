@@ -96,6 +96,59 @@ Sharing files and directories temporarily or permanently from the command line r
 - Progress bars or transfer rate display.
 - Compression of uploads.
 
+## Update Command Reconciliation
+
+Section 4 was specified when `create` performed a plain 1:1 file→object copy.
+`create` has since gained a rendering pipeline: markdown files render to HTML,
+shared assets (`github-markdown.css`, `highlight-github.css`, `mermaid.min.js`)
+upload once at the prefix root with a `Cache-Control` header, and `--index`
+generates an `index.html`. This section reconciles §4 with that pipeline. It
+amends the interpretation of §4; the numbered requirements stand.
+
+- **§4.2 source set**: "all files from the source" means the full upload set the
+  pipeline produces — planned source objects, rendered HTML, shared assets, and
+  any generated index — not the raw source bytes. `update` reuses the `create`
+  pipeline and honours `--no-render` and `--index`. Rendering is on by default.
+- **§4.3 touch scope**: the self-copy pass resets the lifecycle expiry clock,
+  which exists only on `flash/`. `update` runs the touch pass for directory
+  updates on `flash/` prefixes only. `keep/` prefixes (no lifecycle) and
+  single-file updates skip it. This narrows the literal "every pre-existing
+  object" to preserve the requirement's intent without redundant `CopyObject`
+  calls.
+- **§4.3 exclusion set**: "objects not part of the current upload set" is every
+  key listed under the prefix minus every key written during the run (sources,
+  rendered HTML, shared assets, generated index). The upload pipeline reports its
+  full written-key set so `update` can compute the difference.
+- **§4.1 prefix resolution**: the bare prefix is recovered as the inverse of
+  public URL construction — strip `base_url`, then strip any trailing filename,
+  `index.html`, or slash. A bare prefix argument is accepted verbatim.
+- **New capabilities required**: §4.3 and §4.4 need two S3 operations the tool
+  does not yet have — listing every key under a prefix (paginated) and a
+  single-key `CopyObject` self-copy with `MetadataDirective: COPY`. Both are added
+  as injected interfaces alongside the existing uploader.
+- **Stale objects** (consistent with Out of Scope: no diffing/deletion): source
+  files removed between `create` and `update` leave orphaned objects under the
+  prefix. `update` neither deletes them nor — because the touch pass runs on the
+  whole prefix — exempts them from the expiry-clock reset. This is accepted.
+
+### Spike gate
+
+The touch behaviour depends on R2 advancing an object's `Last-Modified` when it is
+self-copied with `MetadataDirective: COPY`. This is validated empirically by a
+throwaway spike before interface or core work begins. The spike ends with a
+stop-and-go assessment: if the self-copy does not reset `Last-Modified`, this
+reconciliation and the touch approach are revised before implementation proceeds.
+
+**Result (2026-05-30): PASS.** The spike ran against a real R2 bucket. R2 accepts
+a self-copy under every directive tested (`COPY`, `REPLACE`, `MERGE`, and both
+`+meta` variants) with no rejection, and every variant advances `Last-Modified`.
+Bare `MetadataDirective: COPY` — the PRD's literal choice — works; unlike standard
+S3, R2 does not require a metadata change to permit a self-copy, so no `+meta`
+workaround or `REPLACE`/`MERGE` contingency is needed. One constraint surfaced:
+R2's `Last-Modified` has **1-second resolution**, so the touch must treat a
+successful `CopyObject` response as the authoritative success signal rather than
+re-reading and diffing `Last-Modified`. Phase 2 may begin.
+
 ## Further Notes
 
 - The URL composability requirement (stdout-only URL) enables patterns like `open "$(dollop create file.zip)"` and `curl "$(dollop create --days 7 dir/)"`.

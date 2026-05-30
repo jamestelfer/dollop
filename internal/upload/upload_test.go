@@ -47,7 +47,8 @@ func TestUploadFiles_SingleFile(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	files, err := upload.UploadFiles(context.Background(), up, "my-bucket", "dollop/1/abc", path, false, &stderr)
+	res, err := upload.UploadFiles(context.Background(), up, "my-bucket", "dollop/1/abc", path, false, &stderr)
+	files := res.SourceRelPaths
 	require.NoError(t, err)
 
 	require.Len(t, up.calls, 1)
@@ -68,7 +69,8 @@ func TestUploadFiles_Directory(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	files, err := upload.UploadFiles(context.Background(), up, "bucket", "keep/friendly-cat", dir, false, &stderr)
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "keep/friendly-cat", dir, false, &stderr)
+	files := res.SourceRelPaths
 	require.NoError(t, err)
 
 	require.Len(t, up.calls, 2)
@@ -106,7 +108,8 @@ func TestUploadFiles_Index_GeneratesAndUploads(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr)
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr)
+	files := res.SourceRelPaths
 	require.NoError(t, err)
 
 	keys := make([]string, len(up.calls))
@@ -170,7 +173,8 @@ func TestUploadFiles_Index_SkipsIfExists(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/xyz", dir, true, &stderr)
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/xyz", dir, true, &stderr)
+	files := res.SourceRelPaths
 	require.NoError(t, err)
 
 	// only the two real files, no generated index
@@ -187,7 +191,8 @@ func TestUploadFiles_Index_SingleFile_IsIndex(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/xyz", path, true, &stderr)
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/xyz", path, true, &stderr)
+	files := res.SourceRelPaths
 	require.NoError(t, err)
 
 	require.Len(t, up.calls, 1) // only the file itself, no generated index
@@ -222,7 +227,8 @@ func TestUploadFiles_Render_SharedAssetsUploadedOnce(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	files := res.SourceRelPaths
 	require.NoError(t, err)
 
 	// count CSS uploads
@@ -239,6 +245,31 @@ func TestUploadFiles_Render_SharedAssetsUploadedOnce(t *testing.T) {
 	assert.NotContains(t, files, "highlight-github.css")
 }
 
+func TestUploadFiles_WrittenKeys_CoverSourcesAssetsAndIndex(t *testing.T) {
+	dir := t.TempDir()
+	// A markdown source produces a rendered .html plus shared CSS assets; --index
+	// adds a generated index.html. WrittenKeys must report every key written.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hi"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "data.csv"), []byte("a,b"), 0o600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/7/abc", dir, true, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	require.NoError(t, err)
+
+	// Every PutObject key — sources, rendered HTML, shared assets, generated
+	// index — must be reported, with no extras and no omissions.
+	putKeys := make([]string, len(up.calls))
+	for i, c := range up.calls {
+		putKeys[i] = c.key
+	}
+	assert.ElementsMatch(t, putKeys, res.WrittenKeys,
+		"WrittenKeys must be exactly the set of object keys written this run")
+	assert.Contains(t, res.WrittenKeys, "flash/7/abc/index.html", "generated index is reported")
+	assert.Contains(t, res.WrittenKeys, "flash/7/abc/notes.html", "rendered source is reported")
+	assert.Contains(t, res.WrittenKeys, "flash/7/abc/github-markdown.css", "shared asset is reported")
+}
+
 func TestUploadFiles_Render_IndexMdSetsHasIndex(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.md"), []byte("# Home"), 0600))
@@ -246,7 +277,8 @@ func TestUploadFiles_Render_IndexMdSetsHasIndex(t *testing.T) {
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
 	// generateIndex=true so we can observe the hasIndex collision warning
-	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	files := res.SourceRelPaths
 	require.NoError(t, err)
 
 	// rendered index.html triggers the "already present" warning, not a generated one
@@ -264,7 +296,8 @@ func TestUploadFiles_Render_MarkdownProducesHTML(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	files := res.SourceRelPaths
 	require.NoError(t, err)
 
 	keys := make([]string, len(up.calls))
@@ -287,7 +320,8 @@ func TestUploadFiles_Render_NoRender_SkipsHTML(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	files, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr)
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr)
+	files := res.SourceRelPaths
 	require.NoError(t, err)
 
 	keys := make([]string, len(up.calls))
