@@ -5,6 +5,7 @@ import (
 
 	"github.com/jamestelfer/dollop/internal/upload"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEphemeralPrefix(t *testing.T) {
@@ -33,6 +34,87 @@ func TestPublicURL(t *testing.T) {
 	}
 	for _, tc := range tests {
 		assert.Equal(t, tc.want, upload.PublicURL(tc.baseURL, tc.prefix, tc.suffix))
+	}
+}
+
+func TestResolvePrefix(t *testing.T) {
+	const base = "https://drop.example.com"
+	tests := []struct {
+		name    string
+		baseURL string
+		input   string
+		want    string
+	}{
+		// A full URL and the bare prefix it was built from resolve identically.
+		{"full url ephemeral root", base, "https://drop.example.com/flash/7/abc123/", "flash/7/abc123"},
+		{"bare ephemeral prefix", base, "flash/7/abc123", "flash/7/abc123"},
+		{"bare ephemeral prefix trailing slash", base, "flash/7/abc123/", "flash/7/abc123"},
+
+		// Trailing filename / index.html / nested path are stripped.
+		{"full url with filename", base, "https://drop.example.com/flash/1/xyz/photo.jpg", "flash/1/xyz"},
+		{"full url with index.html", base, "https://drop.example.com/flash/14/id99/index.html", "flash/14/id99"},
+		{"full url with nested file", base, "https://drop.example.com/flash/7/abc/sub/file.txt", "flash/7/abc"},
+		{"bare prefix with filename", base, "flash/1/xyz/photo.jpg", "flash/1/xyz"},
+
+		// keep prefixes have two segments.
+		{"full url keep root", base, "https://drop.example.com/keep/happy-cat/", "keep/happy-cat"},
+		{"bare keep prefix", base, "keep/happy-cat", "keep/happy-cat"},
+		{"full url keep with file", base, "https://drop.example.com/keep/happy-cat/notes.html", "keep/happy-cat"},
+
+		// base_url variations: no scheme, trailing slash, sub-path.
+		{"base without scheme", "drop.example.com", "https://drop.example.com/flash/7/abc/", "flash/7/abc"},
+		{"base with trailing slash", "https://drop.example.com/", "https://drop.example.com/keep/cool-fox/", "keep/cool-fox"},
+		{"base with subpath, full url", "https://cdn.example.com/files", "https://cdn.example.com/files/flash/7/abc/x.png", "flash/7/abc"},
+		{"base with subpath, bare prefix", "https://cdn.example.com/files", "flash/7/abc", "flash/7/abc"},
+
+		// Empty base still resolves a full URL via its path.
+		{"empty base, full url", "", "https://anything.example/flash/7/abc/x.png", "flash/7/abc"},
+		{"empty base, bare prefix", "", "keep/happy-cat", "keep/happy-cat"},
+
+		// Surrounding whitespace is tolerated (copy/paste).
+		{"whitespace trimmed", base, "  flash/7/abc123/  ", "flash/7/abc123"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := upload.ResolvePrefix(tc.baseURL, tc.input)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestResolvePrefix_Errors(t *testing.T) {
+	const base = "https://drop.example.com"
+	tests := []struct {
+		name    string
+		baseURL string
+		input   string
+	}{
+		{"empty input", base, ""},
+		{"whitespace only", base, "   "},
+		{"unknown prefix root", base, "https://drop.example.com/bogus/thing/"},
+		{"bare unknown prefix", base, "random/path"},
+		{"incomplete flash prefix", base, "flash/7"},
+		{"incomplete keep prefix", base, "keep"},
+		{"base only, no prefix", base, "https://drop.example.com/"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := upload.ResolvePrefix(tc.baseURL, tc.input)
+			assert.Error(t, err)
+		})
+	}
+}
+
+func TestResolvePrefix_RoundTripsPublicURL(t *testing.T) {
+	// ResolvePrefix is the inverse of PublicURL: a URL built from a prefix must
+	// resolve back to that prefix.
+	base := "https://drop.example.com"
+	for _, prefix := range []string{"flash/1/abc", "flash/7/xyz123", "flash/14/id", "keep/happy-cat"} {
+		url := upload.PublicURL(base, prefix, "photo.jpg")
+		got, err := upload.ResolvePrefix(base, url)
+		require.NoError(t, err)
+		assert.Equal(t, prefix, got)
 	}
 }
 

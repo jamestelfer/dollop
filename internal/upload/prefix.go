@@ -32,6 +32,76 @@ func PublicURL(baseURL, prefix, suffix string) string {
 	return base + "/" + prefix + "/"
 }
 
+// ResolvePrefix recovers the bare R2 prefix from an update argument. The
+// argument may be a full public URL (as printed by create/update) or a bare
+// prefix path. It is the inverse of PublicURL: the base URL and any trailing
+// filename, index.html, or slash are discarded, leaving the canonical prefix
+// (flash/<days>/<id> or keep/<name>).
+func ResolvePrefix(baseURL, input string) (string, error) {
+	s := strings.TrimSpace(input)
+	if s == "" {
+		return "", fmt.Errorf("empty upload reference")
+	}
+
+	// Reduce a full URL to its path component; bare prefixes pass through
+	// unchanged (url.Parse leaves Host empty for them).
+	if u, err := url.Parse(s); err == nil && u.Host != "" {
+		s = u.Path
+	}
+
+	// Drop the base URL's own path component when present: base_url may carry a
+	// sub-path (e.g. https://cdn.example.com/files), which would otherwise be
+	// mistaken for the prefix root.
+	if _, basePath := splitBaseURL(baseURL); basePath != "" {
+		t := strings.TrimLeft(s, "/")
+		switch {
+		case t == basePath:
+			t = ""
+		case strings.HasPrefix(t, basePath+"/"):
+			t = t[len(basePath)+1:]
+		}
+		s = t
+	}
+
+	s = strings.Trim(s, "/")
+	if s == "" {
+		return "", fmt.Errorf("no prefix in %q", input)
+	}
+	segments := strings.Split(s, "/")
+
+	switch segments[0] {
+	case "flash":
+		if len(segments) < 3 {
+			return "", fmt.Errorf("incomplete flash prefix %q: expected flash/<days>/<id>", s)
+		}
+		return strings.Join(segments[:3], "/"), nil
+	case "keep":
+		if len(segments) < 2 {
+			return "", fmt.Errorf("incomplete keep prefix %q: expected keep/<name>", s)
+		}
+		return strings.Join(segments[:2], "/"), nil
+	default:
+		return "", fmt.Errorf("unrecognised prefix in %q: expected flash/<days>/<id> or keep/<name>", input)
+	}
+}
+
+// splitBaseURL returns the host and trimmed path of baseURL, normalising a
+// missing scheme the same way PublicURL does (https:// is assumed).
+func splitBaseURL(baseURL string) (host, path string) {
+	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if base == "" {
+		return "", ""
+	}
+	if u, err := url.Parse(base); err != nil || u.Scheme == "" {
+		base = "https://" + base
+	}
+	u, err := url.Parse(base)
+	if err != nil {
+		return "", ""
+	}
+	return u.Host, strings.Trim(u.Path, "/")
+}
+
 // URLSuffix returns the filename component to append to the public URL based
 // on the upload contents and whether --index was requested:
 //

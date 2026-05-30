@@ -1,4 +1,4 @@
-package createcmd
+package updatecmd
 
 import (
 	"context"
@@ -10,38 +10,33 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-// New returns the create command.
+// New returns the update command.
 // uploader, bucket, and baseURL are injected so tests can supply fakes.
-// newID generates the nanoid for ephemeral uploads; newName generates the
-// petname for permanent uploads.
 func New(
 	uploader upload.Uploader,
 	bucket string,
 	baseURL string,
-	newID func() (string, error),
-	newName func() string,
 ) cli.Command {
 	return cli.Command{
-		Name:      "create",
-		Usage:     "publish a file or directory as a shareable browser link",
-		ArgsUsage: "<path>",
-		Description: `Publishes a local file or directory and prints the shareable URL to
-stdout. The link is immediately accessible in a browser. Upload progress
-is written to stderr.
+		Name:      "update",
+		Usage:     "publish new content into an existing upload's link",
+		ArgsUsage: "<url-or-prefix> <path>",
+		Description: `Publishes a local file or directory into an existing upload, reusing its
+link. The first argument identifies the existing upload: either the full
+URL printed by 'create' or its bare prefix (e.g. flash/7/<id> or
+keep/<name>). The second argument is the local file or directory to
+publish into it.
 
-By default, links expire after 1 day. Use --days to extend the window;
-allowed values are 1, 7, and 14.
+Files are uploaded into the existing prefix, overwriting any objects with
+matching keys. The shareable URL is printed to stdout; upload progress is
+written to stderr.
 
-  dollop create report.pdf               # link expires in 1 day
-  dollop create --days 7 archive.zip     # link expires in 7 days
-  dollop create --days 14 backup/        # directory; link expires in 14 days
+  dollop update https://drop.example.com/flash/7/abc123/ report.pdf
+  dollop update flash/7/abc123 site/
+  dollop update keep/happy-cat notes.md
 
-Use --keep when the link should never expire. The URL will contain a
-memorable two-word petname instead of a random ID. --keep and --days
-are mutually exclusive.
-
-  dollop create --keep notes.txt
-  dollop create --keep project/`,
+Rendering of .md files and shared assets works exactly as in 'create';
+use --no-render to disable it and --index to generate an index.html.`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:  "index",
@@ -57,36 +52,21 @@ are mutually exclusive.
 				Hidden: true,
 			},
 		},
-		MutuallyExclusiveFlags: []cli.MutuallyExclusiveFlags{
-			{
-				Flags: [][]cli.Flag{
-					{
-						&cli.IntFlag{
-							Name:  "days",
-							Usage: "number of days before the link expires; allowed values: 1, 7, 14",
-							Value: 1,
-						},
-					},
-					{
-						&cli.BoolFlag{
-							Name:  "keep",
-							Usage: "publish to a permanent link with a memorable petname (no expiry)",
-						},
-					},
-				},
-			},
-		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			if cmd.Args().Len() != 1 {
-				return cli.Exit("usage: create [--days N | --keep] <path>", 1)
+			if cmd.Args().Len() != 2 {
+				return cli.Exit("usage: update <url-or-prefix> <path>", 1)
 			}
 
-			days := cmd.Int("days")
-			keep := cmd.Bool("keep")
 			genIndex := cmd.Bool("index")
 			noRender := cmd.Bool("no-render")
 			copyDir := cmd.String("copy-dir")
-			localPath := cmd.Args().Get(0)
+			ref := cmd.Args().Get(0)
+			localPath := cmd.Args().Get(1)
+
+			prefix, err := upload.ResolvePrefix(baseURL, ref)
+			if err != nil {
+				return cli.Exit(fmt.Sprintf("resolve upload reference: %v", err), 1)
+			}
 
 			activeUploader := uploader
 			if copyDir != "" {
@@ -97,22 +77,6 @@ are mutually exclusive.
 			if activeUploader == nil {
 				return cli.Exit("no R2 credentials configured; run 'dollop config set account-id <id>', "+
 					"'dollop config auth r2-key <key>', and 'dollop config auth r2-secret <secret>' (or use --copy-dir)", 1)
-			}
-
-			var prefix string
-			if keep {
-				prefix = upload.PermanentPrefix(newName())
-			} else {
-				switch days {
-				case 1, 7, 14:
-				default:
-					return cli.Exit("--days must be 1, 7, or 14", 1)
-				}
-				id, err := newID()
-				if err != nil {
-					return cli.Exit(fmt.Sprintf("generate id: %v", err), 1)
-				}
-				prefix = upload.EphemeralPrefix(days, id)
 			}
 
 			var uploadOpts []upload.UploadOption

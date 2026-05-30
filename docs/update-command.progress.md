@@ -23,15 +23,26 @@ checked. Tick the phase last, once its criteria are all complete.
         change needed. Phase 2 unblocked.
   - [x] Spike code (`cmd/spike/`) removed.
 
-- [ ] **Phase 2 — Minimal `update`: resolve prefix + overwrite**
-  - [ ] `update <full-url> <source>` and `update <bare-prefix> <source>` resolve
-        to the same prefix (unit-tested, both inputs).
-  - [ ] Resolution strips a trailing filename / `index.html` / slash correctly.
-  - [ ] Source uploaded into the existing prefix, overwriting matching keys.
-  - [ ] Rendering, shared assets, and `--index`/`--no-render` behave as in `create`.
-  - [ ] Final public URL to stdout; progress to stderr.
-  - [ ] Any upload failure prints to stderr and exits non-zero.
-  - [ ] Verifiable end-to-end with `--copy-dir`.
+- [x] **Phase 2 — Minimal `update`: resolve prefix + overwrite** _(complete)_
+  - [x] `update <full-url> <source>` and `update <bare-prefix> <source>` resolve
+        to the same prefix (unit-tested, both inputs). `upload.ResolvePrefix`
+        added as the pure inverse of `PublicURL`; covered in
+        `internal/upload/prefix_test.go` (incl. a `PublicURL` round-trip) and
+        `internal/cli/updatecmd/command_test.go`.
+  - [x] Resolution strips a trailing filename / `index.html` / slash correctly.
+        Recovers the canonical prefix by segment count (`flash/<days>/<id>`,
+        `keep/<name>`), so any trailing filename, nested path, or slash is
+        discarded; base URLs with a sub-path are handled.
+  - [x] Source uploaded into the existing prefix, overwriting matching keys —
+        `update` reuses `upload.UploadFiles`, so matching keys are overwritten.
+  - [x] Rendering, shared assets, and `--index`/`--no-render` behave as in
+        `create` (same pipeline + flags; verified by unit tests).
+  - [x] Final public URL to stdout; progress to stderr. URL formatting now lives
+        in the shared `internal/cli/urlout` package (deduplicated from
+        `createcmd`).
+  - [x] Any upload failure prints to stderr and exits non-zero.
+  - [x] Verifiable end-to-end with `--copy-dir` (ran against a temp dir: full URL
+        resolved to `flash/7/abc123`, markdown rendered, shared assets uploaded).
 
 - [ ] **Phase 3 — List-by-prefix capability**
   - [ ] `ObjectLister` interface added alongside `Uploader` / `BucketLister`,
