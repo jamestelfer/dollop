@@ -6,21 +6,22 @@
 A phase is checked off only when **every** acceptance criterion beneath it is
 checked. Tick the phase last, once its criteria are all complete.
 
-- [ ] **Phase 1 — Spike: throwaway copier/touch prototype** _(code built & pushed; empirical run handed off — see `docs/update-command.spike-instructions.md`)_
+- [x] **Phase 1 — Spike: throwaway copier/touch prototype** _(complete — PASS; results in `docs/update-command.spike-results.md`)_
   - [x] Spike implemented as `cmd/spike/main.go`, reusing the `config` package
         wiring; builds and `just verify` passes. Probes `COPY`, `REPLACE`, and
-        `MERGE` directives in one run so the gate is informed even if `COPY` is
-        rejected (as it is on AWS S3 for a no-op self-copy).
-  - [ ] Spike runs against real R2 using keys sourced via the `config` package.
-        **Handed off**: the authoring environment has no R2 credentials; an
-        executing agent runs it per `docs/update-command.spike-instructions.md`
-        and records output in `docs/update-command.spike-results.md`.
-  - [ ] Self-copy advances `Last-Modified` (T1 > T0) for at least one directive.
-  - [ ] Stop-and-go gate: result assessed; decision on whether the PRD
-        reconciliation or touch approach needs revising recorded in `docs/prd.md`
-        (revised there if no self-copy directive resets `Last-Modified`). Phase 2
-        does not start until this gate passes.
-  - [ ] Spike code (`cmd/spike/`) removed before merge.
+        `MERGE` directives (plus `+meta` variants) in one run so the gate is
+        informed even if `COPY` is rejected (as it is on AWS S3 for a no-op
+        self-copy).
+  - [x] Spike runs against real R2 using keys sourced via the `config` package.
+        Ran 2026-05-30 against the configured bucket; output captured in
+        `docs/update-command.spike-results.md`.
+  - [x] Self-copy advances `Last-Modified` (T1 > T0) for at least one directive.
+        All five variants advance it when measured against a fresh per-probe
+        baseline; bare `COPY` works. (R2 `Last-Modified` is 1-second resolution.)
+  - [x] Stop-and-go gate: **PASS**. Decision recorded in `docs/prd.md` ("Spike
+        gate"): touch ships as a bare no-op `COPY` self-copy; no reconciliation
+        change needed. Phase 2 unblocked.
+  - [x] Spike code (`cmd/spike/`) removed.
 
 - [ ] **Phase 2 — Minimal `update`: resolve prefix + overwrite**
   - [ ] `update <full-url> <source>` and `update <bare-prefix> <source>` resolve

@@ -139,6 +139,17 @@ throwaway spike before interface or core work begins. The spike ends with a
 stop-and-go assessment: if the self-copy does not reset `Last-Modified`, this
 reconciliation and the touch approach are revised before implementation proceeds.
 
+**Result (2026-05-30): PASS.** The spike ran against a real R2 bucket. R2 accepts
+a self-copy under every directive tested (`COPY`, `REPLACE`, `MERGE`, and both
+`+meta` variants) with no rejection, and every variant advances `Last-Modified`.
+Bare `MetadataDirective: COPY` — the PRD's literal choice — works; unlike standard
+S3, R2 does not require a metadata change to permit a self-copy, so no `+meta`
+workaround or `REPLACE`/`MERGE` contingency is needed. One constraint surfaced:
+R2's `Last-Modified` has **1-second resolution**, so the touch must treat a
+successful `CopyObject` response as the authoritative success signal rather than
+re-reading and diffing `Last-Modified`. Phase 2 may begin. Full results:
+`docs/update-command.spike-results.md`.
+
 ## Further Notes
 
 - The URL composability requirement (stdout-only URL) enables patterns like `open "$(dollop create file.zip)"` and `curl "$(dollop create --days 7 dir/)"`.
