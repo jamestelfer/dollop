@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // DirUploader implements Uploader by writing objects to a local directory
@@ -50,6 +51,26 @@ func (d *DirUploader) ListObjects(_ context.Context, _, prefix string) ([]string
 		return nil, fmt.Errorf("walk %s: %w", dir, err)
 	}
 	return keys, nil
+}
+
+// CopyObject is the DirUploader equivalent of an R2 self-copy touch: it advances
+// the modification time of the file at key without altering its contents, so an
+// integration round-trip can observe the lifecycle clock reset. A missing key is
+// an error, mirroring R2 returning 404 for a copy of a nonexistent object.
+func (d *DirUploader) CopyObject(_ context.Context, _, key string) error {
+	dest := filepath.Join(d.Root, filepath.FromSlash(key))
+	info, err := os.Stat(dest)
+	if err != nil {
+		return fmt.Errorf("stat %s: %w", dest, err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("cannot touch directory %s", dest)
+	}
+	now := time.Now()
+	if err := os.Chtimes(dest, now, now); err != nil {
+		return fmt.Errorf("touch %s: %w", dest, err)
+	}
+	return nil
 }
 
 func (d *DirUploader) PutObject(_ context.Context, _, key, _ string, body io.Reader, _ ...PutOption) error {

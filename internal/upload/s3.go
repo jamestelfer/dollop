@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 // S3Uploader implements Uploader against Cloudflare R2 via the S3-compatible API.
@@ -69,6 +71,34 @@ func (u *S3Uploader) ListObjects(ctx context.Context, bucket, prefix string) ([]
 		}
 	}
 	return keys, nil
+}
+
+// CopyObject touches key in bucket by self-copying it in place with
+// MetadataDirective COPY, preserving its content and metadata while resetting
+// its modification time (and thus the R2 lifecycle expiry clock). A successful
+// CopyObject response is the authoritative signal that the object was rewritten;
+// the Last-Modified timestamp is deliberately not re-read (R2 reports it at
+// 1-second resolution, so two touches within the same second are
+// indistinguishable).
+func (u *S3Uploader) CopyObject(ctx context.Context, bucket, key string) error {
+	input := &s3.CopyObjectInput{
+		Bucket:            aws.String(bucket),
+		Key:               aws.String(key),
+		CopySource:        aws.String(copySource(bucket, key)),
+		MetadataDirective: types.MetadataDirectiveCopy,
+	}
+	if _, err := u.client.CopyObject(ctx, input); err != nil {
+		return fmt.Errorf("failed to touch %s in bucket %s: %w", key, bucket, err)
+	}
+	return nil
+}
+
+// copySource builds the x-amz-copy-source header value for a self-copy: the
+// bucket and key joined by a slash, with the key URL-encoded so reserved and
+// special characters survive transport. Path separators within the key are
+// preserved.
+func copySource(bucket, key string) string {
+	return bucket + "/" + (&url.URL{Path: key}).EscapedPath()
 }
 
 // ListBucket verifies that bucket is accessible by listing at most one object.

@@ -57,13 +57,23 @@ checked. Tick the phase last, once its criteria are all complete.
         nested files, a name-stem sibling that must be excluded, a trailing-slash
         prefix, and a missing prefix.
 
-- [ ] **Phase 4 — Self-copy capability** _(bare `COPY` confirmed by Phase 1; success = `CopyObject` 200, not a `Last-Modified` diff)_
-  - [ ] `ObjectCopier` interface added and injected per the existing pattern.
-  - [ ] `S3Uploader` builds a correct, URL-encoded `CopySource` for R2 and sets
-        `MetadataDirective: COPY`.
-  - [ ] Success determined from the `CopyObject` response, not a `Last-Modified` diff.
-  - [ ] `DirUploader` provides an equivalent touch for integration use.
-  - [ ] Unit-tested via `DirUploader`.
+- [x] **Phase 4 — Self-copy capability** _(complete — bare `COPY` confirmed by Phase 1; success = `CopyObject` 200, not a `Last-Modified` diff)_
+  - [x] `ObjectCopier` interface added alongside `Uploader` / `ObjectLister`
+        (`internal/upload/uploader.go`); compile-time assertions in `s3_test.go`
+        confirm both `S3Uploader` and `DirUploader` satisfy it. Not yet wired
+        into `update` (lands in Phase 5), per the existing capability pattern.
+  - [x] `S3Uploader.CopyObject` builds a URL-encoded `CopySource` via the pure
+        `copySource` helper (`bucket/<url-encoded-key>`, slashes preserved) and
+        sets `MetadataDirective: COPY`. Encoding white-box-tested in
+        `s3_internal_test.go` (plain key, plus spaces/`#` escaped while slashes stay
+        literal).
+  - [x] Success determined from the `CopyObject` response: no follow-up
+        `HeadObject`/`Last-Modified` diff (1-second resolution; see Phase 1).
+  - [x] `DirUploader.CopyObject` provides the equivalent touch — advances the
+        file's mod time without altering content; a missing key errors (mirrors
+        R2 404).
+  - [x] Unit-tested via `DirUploader`: advances mod time while preserving content,
+        and errors on a missing key (`diruploader_test.go`).
 
 - [ ] **Phase 5 — Wire touch into `update`**
   - [ ] Upload pipeline returns the complete set of keys written this run.

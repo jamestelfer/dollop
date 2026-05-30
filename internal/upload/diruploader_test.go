@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/jamestelfer/dollop/internal/upload"
 	"github.com/stretchr/testify/assert"
@@ -98,6 +99,37 @@ func TestDirUploader_ListObjects_MissingPrefixEmpty(t *testing.T) {
 	keys, err := up.ListObjects(context.Background(), "b", "flash/7/nonexistent")
 	require.NoError(t, err)
 	assert.Empty(t, keys, "a missing prefix yields no keys and no error")
+}
+
+func TestDirUploader_CopyObject_AdvancesModTimePreservingContent(t *testing.T) {
+	root := t.TempDir()
+	up := &upload.DirUploader{Root: root}
+	ctx := context.Background()
+
+	require.NoError(t, up.PutObject(ctx, "b", "flash/7/abc/index.html", "text/html", bytes.NewReader([]byte("<h1>hi</h1>"))))
+
+	// Backdate the file so the touch has an unambiguous timestamp to advance past.
+	path := filepath.Join(root, "flash", "7", "abc", "index.html")
+	old := time.Now().Add(-time.Hour)
+	require.NoError(t, os.Chtimes(path, old, old))
+
+	require.NoError(t, up.CopyObject(ctx, "b", "flash/7/abc/index.html"))
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.True(t, info.ModTime().After(old), "self-copy advances the modification time")
+
+	got, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "<h1>hi</h1>", string(got), "self-copy preserves content")
+}
+
+func TestDirUploader_CopyObject_MissingKeyErrors(t *testing.T) {
+	root := t.TempDir()
+	up := &upload.DirUploader{Root: root}
+
+	err := up.CopyObject(context.Background(), "b", "flash/7/nope/index.html")
+	require.Error(t, err, "touching a nonexistent key is an error, as on R2")
 }
 
 func TestDirUploader_OverwritesExistingFile(t *testing.T) {

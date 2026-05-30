@@ -37,3 +37,13 @@ type BucketLister interface {
 type ObjectLister interface {
 	ListObjects(ctx context.Context, bucket, prefix string) ([]string, error)
 }
+
+// ObjectCopier touches a single object by self-copying it in place: the source
+// and destination key are the same, content and metadata are preserved, and the
+// object's modification time is reset. On R2 this resets the lifecycle expiry
+// clock. Success is determined from the copy response, not a Last-Modified diff
+// (R2's Last-Modified has 1-second resolution, so two touches within the same
+// second are indistinguishable).
+type ObjectCopier interface {
+	CopyObject(ctx context.Context, bucket, key string) error
+}
