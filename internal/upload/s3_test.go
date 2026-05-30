@@ -10,8 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Compile-time assertion: *S3Uploader must implement BucketLister.
-var _ upload.BucketLister = (*upload.S3Uploader)(nil)
+// Compile-time assertions: *S3Uploader implements the listing interfaces, and
+// *DirUploader provides an equivalent ObjectLister for integration use.
+var (
+	_ upload.BucketLister = (*upload.S3Uploader)(nil)
+	_ upload.ObjectLister = (*upload.S3Uploader)(nil)
+	_ upload.ObjectLister = (*upload.DirUploader)(nil)
+)
 
 // fakeUploaderWithOptions records PutObject calls including any options.
 type fakeUploaderWithOptions struct {

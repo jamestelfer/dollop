@@ -53,6 +53,53 @@ func TestDirUploader_MultipleObjects(t *testing.T) {
 	assert.Equal(t, "bbb", string(b))
 }
 
+func TestDirUploader_ListObjects_MultiFilePrefix(t *testing.T) {
+	root := t.TempDir()
+	up := &upload.DirUploader{Root: root}
+	ctx := context.Background()
+
+	// Populate a prefix with files in nested directories, plus a sibling prefix
+	// and a name-stem sibling that must NOT be returned.
+	put := func(key string) {
+		require.NoError(t, up.PutObject(ctx, "b", key, "text/plain", bytes.NewReader([]byte("x"))))
+	}
+	put("flash/7/abc/index.html")
+	put("flash/7/abc/style.css")
+	put("flash/7/abc/sub/page.html")
+	put("flash/7/abcdef/other.txt") // name-stem sibling, must be excluded
+	put("keep/happy-cat/notes.md")  // unrelated prefix
+
+	keys, err := up.ListObjects(ctx, "b", "flash/7/abc")
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{
+		"flash/7/abc/index.html",
+		"flash/7/abc/style.css",
+		"flash/7/abc/sub/page.html",
+	}, keys, "keys are full and lexically ordered; siblings excluded")
+}
+
+func TestDirUploader_ListObjects_TrailingSlashPrefix(t *testing.T) {
+	root := t.TempDir()
+	up := &upload.DirUploader{Root: root}
+	ctx := context.Background()
+	require.NoError(t, up.PutObject(ctx, "b", "flash/1/xyz/a.txt", "text/plain", bytes.NewReader([]byte("a"))))
+
+	// A trailing slash on the prefix argument is tolerated.
+	keys, err := up.ListObjects(ctx, "b", "flash/1/xyz/")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"flash/1/xyz/a.txt"}, keys)
+}
+
+func TestDirUploader_ListObjects_MissingPrefixEmpty(t *testing.T) {
+	root := t.TempDir()
+	up := &upload.DirUploader{Root: root}
+
+	keys, err := up.ListObjects(context.Background(), "b", "flash/7/nonexistent")
+	require.NoError(t, err)
+	assert.Empty(t, keys, "a missing prefix yields no keys and no error")
+}
+
 func TestDirUploader_OverwritesExistingFile(t *testing.T) {
 	root := t.TempDir()
 	up := &upload.DirUploader{Root: root}

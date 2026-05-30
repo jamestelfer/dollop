@@ -44,12 +44,18 @@ checked. Tick the phase last, once its criteria are all complete.
   - [x] Verifiable end-to-end with `--copy-dir` (ran against a temp dir: full URL
         resolved to `flash/7/abc123`, markdown rendered, shared assets uploaded).
 
-- [ ] **Phase 3 — List-by-prefix capability**
-  - [ ] `ObjectLister` interface added alongside `Uploader` / `BucketLister`,
-        injected per the existing pattern.
-  - [ ] `S3Uploader` paginates beyond a single `ListObjectsV2` page.
-  - [ ] `DirUploader` lists keys consistently for integration use.
-  - [ ] Unit-tested via `DirUploader` with a multi-file prefix.
+- [x] **Phase 3 — List-by-prefix capability** _(complete)_
+  - [x] `ObjectLister` interface added alongside `Uploader` / `BucketLister`
+        (`internal/upload/uploader.go`); compile-time assertions in `s3_test.go`
+        confirm both `S3Uploader` and `DirUploader` satisfy it.
+  - [x] `S3Uploader.ListObjects` paginates beyond a single `ListObjectsV2` page
+        via `s3.NewListObjectsV2Paginator`, scoping the prefix to a path segment
+        (trailing slash) and returning full keys.
+  - [x] `DirUploader.ListObjects` walks the prefix subtree, returning the same
+        full keys in lexical order (missing prefix → no keys, no error).
+  - [x] Unit-tested via `DirUploader` with a multi-file prefix, including
+        nested files, a name-stem sibling that must be excluded, a trailing-slash
+        prefix, and a missing prefix.
 
 - [ ] **Phase 4 — Self-copy capability** _(bare `COPY` confirmed by Phase 1; success = `CopyObject` 200, not a `Last-Modified` diff)_
   - [ ] `ObjectCopier` interface added and injected per the existing pattern.

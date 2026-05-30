@@ -29,3 +29,11 @@ type Uploader interface {
 type BucketLister interface {
 	ListBucket(ctx context.Context, bucket string) error
 }
+
+// ObjectLister lists the full keys of every object stored under a prefix.
+// The prefix is matched as a path segment (a trailing slash is implied), so
+// listing "flash/7/abc" returns keys under "flash/7/abc/" and never matches a
+// sibling such as "flash/7/abcdef/...". Keys are returned in lexical order.
+type ObjectLister interface {
+	ListObjects(ctx context.Context, bucket, prefix string) ([]string, error)
+}
