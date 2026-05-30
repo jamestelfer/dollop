@@ -30,9 +30,24 @@ encryption / tags). R2's behaviour for this exact case is **undocumented** — t
 [R2 S3 extensions](https://developers.cloudflare.com/r2/api/s3/extensions/) and
 [object lifecycle](https://developers.cloudflare.com/r2/buckets/object-lifecycles/)
 docs are silent on self-copy and on what resets the expiry clock. R2 does add a
-third `MERGE` directive value. The spike therefore probes **all three** directives
-(`COPY`, `REPLACE`, `MERGE`) in a single run, so the gate is decidable even if
-`COPY` is rejected the way it is on S3.
+third `MERGE` directive value.
+
+The spike probes **five variants** in a single run, so the gate is decidable even
+if `COPY` is rejected the way it is on S3:
+
+| Variant | Directive | Metadata change | Notes |
+|---|---|---|---|
+| `COPY` | `COPY` | none (no-op) | the PRD's literal choice; S3 rejects this |
+| `REPLACE` | `REPLACE` | none, Content-Type re-sent | S3 rejects (resulting metadata identical) |
+| `MERGE` | `MERGE` (R2 ext) | none (no-op) | preserves source metadata |
+| `REPLACE+meta` | `REPLACE` | `x-amz-meta-dollop-touched-at` (changes each run), Content-Type re-sent | the realistic, shippable touch |
+| `MERGE+meta` | `MERGE` | `x-amz-meta-dollop-touched-at` (changes each run) | shippable touch, preserves other metadata |
+
+The `+meta` variants carry a **benign user-metadata key** with a value that
+differs every call. It is invisible to browsers/`curl` (it only returns as an
+`x-amz-meta-*` response header) but it makes the self-copy legal under S3
+semantics. These are the variants the real `update` touch would use; the bare
+directives establish whether R2 even needs the workaround.
 
 ## Prerequisites
 
@@ -73,15 +88,20 @@ and copy the verdict into the locations listed under "Gate" below:
    ```
    bucket=<bucket> key=spike/touch-probe sleep=3s
    T0 Last-Modified: <RFC3339Nano>
-     directive COPY    <accepted|REJECTED> ...
-     directive REPLACE <accepted|REJECTED> ...
-     directive MERGE   <accepted|REJECTED> ...
+     COPY          <accepted|REJECTED> ...
+     REPLACE       <accepted|REJECTED> ...
+     MERGE         <accepted|REJECTED> ...
+     REPLACE+meta  <accepted|REJECTED> ...
+     MERGE+meta    <accepted|REJECTED> ...
    === SPIKE RESULT ===
    <PASS|FAIL>: ...
    ```
-2. **Per-directive table** — for each of `COPY`, `REPLACE`, `MERGE`:
-   accepted vs rejected; if rejected, the R2 error message; if accepted, whether
-   `Last-Modified` advanced and by roughly how much.
+2. **Per-variant table** — for each of the five variants
+   (`COPY`, `REPLACE`, `MERGE`, `REPLACE+meta`, `MERGE+meta`): accepted vs
+   rejected; if rejected, the R2 error message; if accepted, whether
+   `Last-Modified` advanced and by roughly how much. Call out explicitly whether
+   any **bare** (no-op) directive works — if so, the touch needs no metadata
+   workaround; if not, identify the cheapest **+meta** variant that does.
 3. **Environment notes** — R2 region/jurisdiction if non-default, account/bucket
    used (no secrets), and any retries or anomalies.
 4. **Clock-reset interpretation** — does an advanced `Last-Modified` actually move
@@ -94,16 +114,18 @@ and copy the verdict into the locations listed under "Gate" below:
 
 Resolve the stop-and-go gate based on the run:
 
-- **PASS** (at least one directive advances `Last-Modified`):
-  - In `docs/prd.md`, under the "Spike gate" note, record **which directive(s)**
+- **PASS** (at least one variant advances `Last-Modified`):
+  - In `docs/prd.md`, under the "Spike gate" note, record **which variant(s)**
     work and that the touch approach is validated.
-  - If `COPY` is **rejected** but `REPLACE`/`MERGE` works, update PRD **§4.4** to
-    use the accepted directive. Note that `REPLACE` drops unspecified system
-    metadata, so the implementation must re-send `Content-Type` (the spike does
-    this); `MERGE` preserves source metadata and is the closest analogue to the
-    original `COPY` intent — prefer `MERGE` if it works.
+  - If a **bare** directive works, the touch is a plain no-op self-copy — record
+    that and prefer it (no metadata churn).
+  - If only the **+meta** variants work, update PRD **§4.4**: the touch is a
+    self-copy carrying a changing `x-amz-meta-dollop-touched-at`. Prefer
+    `MERGE+meta` (preserves all other metadata); fall back to `REPLACE+meta`,
+    which must re-send `Content-Type` (and `Cache-Control` where set) because
+    `REPLACE` drops unspecified system metadata.
   - Phase 2 may then begin.
-- **FAIL** (no directive advances `Last-Modified`):
+- **FAIL** (no variant advances `Last-Modified`):
   - Do **not** start Phase 2. Revise the PRD reconciliation. Candidate
     alternatives to document: re-`PutObject` the object bytes (read-modify-write
     per object), or drop the touch pass and accept per-object expiry variance.

@@ -87,59 +87,86 @@ func run(ctx context.Context) error {
 	// 3. Wait long enough for a measurable delta.
 	time.Sleep(*sleep)
 
-	// 4. Probe each metadata directive in turn, reporting which R2 accepts and
-	//    whether each advances Last-Modified. COPY is the directive the PRD
-	//    chose; REPLACE and MERGE are the contingencies if COPY is rejected.
-	directives := []types.MetadataDirective{
-		types.MetadataDirectiveCopy,
-		types.MetadataDirectiveReplace,
+	// 4. Probe each self-copy variant in turn, reporting which R2 accepts and
+	//    whether each advances Last-Modified.
+	//
+	//    The bare COPY/REPLACE/MERGE probes are no-op self-copies: COPY is the
+	//    directive the PRD chose, REPLACE and MERGE its contingencies. AWS S3
+	//    rejects all three as "illegal" because nothing changes.
+	//
+	//    The "+meta" probes carry a changing x-amz-meta-dollop-touched-at — a
+	//    benign user-metadata change that is invisible to browsers/curl but
+	//    makes the self-copy legal under S3 semantics. This is the variant the
+	//    real `update` touch would ship; it is the most likely to succeed.
+	probes := []probe{
+		{name: "COPY", directive: types.MetadataDirectiveCopy},
+		{name: "REPLACE", directive: types.MetadataDirectiveReplace, sendContentType: true},
 		// MERGE is an R2 extension; the SDK enum has no constant for it.
-		types.MetadataDirective("MERGE"),
+		{name: "MERGE", directive: types.MetadataDirective("MERGE")},
+		{name: "REPLACE+meta", directive: types.MetadataDirectiveReplace, sendContentType: true, touchMeta: true},
+		{name: "MERGE+meta", directive: types.MetadataDirective("MERGE"), touchMeta: true},
 	}
 
 	prev := t0
 	anyAdvanced := false
-	for _, dir := range directives {
-		t, advanced, err := selfCopyAndHead(ctx, client, bucket, *key, dir, prev)
+	for _, p := range probes {
+		t, advanced, err := p.run(ctx, client, bucket, *key, prev)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "  directive %-7s REJECTED: %s\n", dir, summariseErr(err))
+			fmt.Fprintf(os.Stderr, "  %-13s REJECTED: %s\n", p.name, summariseErr(err))
 			continue
 		}
 		anyAdvanced = anyAdvanced || advanced
-		fmt.Fprintf(os.Stderr, "  directive %-7s accepted; Last-Modified=%s advanced=%t\n",
-			dir, t.Format(time.RFC3339Nano), advanced)
+		fmt.Fprintf(os.Stderr, "  %-13s accepted; Last-Modified=%s advanced=%t\n",
+			p.name, t.Format(time.RFC3339Nano), advanced)
 		prev = t
 	}
 
 	// 5. Verdict.
 	fmt.Println("=== SPIKE RESULT ===")
 	if anyAdvanced {
-		fmt.Println("PASS: at least one self-copy directive advanced Last-Modified on R2.")
-		fmt.Println("Record the accepted directive(s) above in docs/prd.md (spike gate).")
+		fmt.Println("PASS: at least one self-copy variant advanced Last-Modified on R2.")
+		fmt.Println("Record the accepted variant(s) above in docs/prd.md (spike gate);")
+		fmt.Println("prefer a +meta variant for the real touch if a bare directive is rejected.")
 	} else {
-		fmt.Println("FAIL: no self-copy directive advanced Last-Modified.")
+		fmt.Println("FAIL: no self-copy variant advanced Last-Modified.")
 		fmt.Println("The touch approach does not reset the expiry clock as designed —")
 		fmt.Println("revise the PRD reconciliation before starting Phase 2.")
 	}
 	return nil
 }
 
-// selfCopyAndHead issues a self-copy with the given directive, then heads the
-// object and reports whether Last-Modified advanced past prev. When the
-// directive is REPLACE the content-type is re-sent, since REPLACE drops
-// unspecified system metadata.
-func selfCopyAndHead(
-	ctx context.Context, client *s3.Client, bucket, key string,
-	dir types.MetadataDirective, prev time.Time,
+// probe is one self-copy variant: a metadata directive plus optional toggles for
+// re-sending Content-Type (REPLACE drops unspecified system metadata) and
+// attaching a changing x-amz-meta-dollop-touched-at (a benign metadata change
+// that makes an otherwise no-op self-copy legal under S3 semantics).
+type probe struct {
+	name            string
+	directive       types.MetadataDirective
+	sendContentType bool
+	touchMeta       bool
+}
+
+// run issues the self-copy, then heads the object and reports whether
+// Last-Modified advanced past prev.
+func (p probe) run(
+	ctx context.Context, client *s3.Client, bucket, key string, prev time.Time,
 ) (time.Time, bool, error) {
 	input := &s3.CopyObjectInput{
 		Bucket:            aws.String(bucket),
 		Key:               aws.String(key),
 		CopySource:        aws.String(bucket + "/" + key),
-		MetadataDirective: dir,
+		MetadataDirective: p.directive,
 	}
-	if dir == types.MetadataDirectiveReplace {
+	if p.sendContentType {
 		input.ContentType = aws.String("text/plain")
+	}
+	if p.touchMeta {
+		// A value that differs on every call: S3 rejects a self-copy whose
+		// resulting metadata is byte-identical to the source. The SDK adds the
+		// x-amz-meta- prefix to map keys.
+		input.Metadata = map[string]string{
+			"dollop-touched-at": time.Now().UTC().Format(time.RFC3339Nano),
+		}
 	}
 	if _, err := client.CopyObject(ctx, input); err != nil {
 		return time.Time{}, false, err
