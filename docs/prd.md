@@ -147,8 +147,7 @@ S3, R2 does not require a metadata change to permit a self-copy, so no `+meta`
 workaround or `REPLACE`/`MERGE` contingency is needed. One constraint surfaced:
 R2's `Last-Modified` has **1-second resolution**, so the touch must treat a
 successful `CopyObject` response as the authoritative success signal rather than
-re-reading and diffing `Last-Modified`. Phase 2 may begin. Full results:
-`docs/update-command.spike-results.md`.
+re-reading and diffing `Last-Modified`. Phase 2 may begin.
 
 ## Further Notes
 

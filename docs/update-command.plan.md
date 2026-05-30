@@ -54,8 +54,8 @@ Durable decisions that apply across all phases:
 ---
 
 > **Reconciliation and spike gate are resolved.** Phase 1 ran against real R2 and
-> **passed** — see `docs/prd.md` "Spike gate" and `docs/update-command.spike-results.md`.
-> The reconciliation stands unchanged; Phases 2–7 below are cleared to implement.
+> **passed** — see `docs/prd.md` "Spike gate". The reconciliation stands
+> unchanged; Phases 2–7 below are cleared to implement.
 
 ## Phase 1: Spike — throwaway copier/touch prototype ✅ DONE (PASS)
 
@@ -63,8 +63,8 @@ Durable decisions that apply across all phases:
 > self-copy and advances `Last-Modified`; all five probed variants passed. The
 > touch ships as a bare `COPY`. One constraint for downstream phases: R2's
 > `Last-Modified` is 1-second resolution — rely on the `CopyObject` 200, not a
-> timestamp diff. Spike code removed. Full results:
-> `docs/update-command.spike-results.md`.
+> timestamp diff. Spike code and the throwaway spike docs have been removed; the
+> outcome above and in `docs/prd.md` ("Spike gate") is the durable record.
 
 **User stories**: de-risks §4.3, §4.4 (no requirement delivered).
 
