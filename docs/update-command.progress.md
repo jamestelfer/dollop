@@ -99,6 +99,25 @@ checked. Tick the phase last, once its criteria are all complete.
   - [ ] Test asserts an unreferenced pre-existing object is touched (the
         `CopyObject` succeeds; `Last-Modified` advances after a ≥1 s gap).
   - [ ] Skipped cleanly when no R2/minio endpoint is configured.
+  - Manual verification (2026-05-30, built CLI against real R2; not yet an
+        automated test):
+    - `just build` and `./dist/dollop doctor` passed.
+    - Created a `flash/1/...` directory upload containing `page.md` and
+          `zzz-old.txt`; fetched the resulting public URL with `curl` and
+          confirmed rendered `page.html` contained the initial markdown content
+          while `zzz-old.txt` remained directly downloadable.
+    - Ran `./dist/dollop update <full-create-url> <dir>` with a changed
+          `page.md`; fetched `page.html` with `curl` and confirmed the overwrite,
+          while stderr showed `touching [flash/.../zzz-old.txt]...done` and did
+          not touch freshly-written `page.html`.
+    - Read response headers with `curl -D - -o /dev/null` and confirmed
+          `zzz-old.txt` `Last-Modified` advanced from
+          `Sat, 30 May 2026 09:02:43 GMT` to `Sat, 30 May 2026 09:02:47 GMT`.
+    - Ran `./dist/dollop update <bare-prefix> <dir>` with another changed
+          `page.md`; fetched `page.html` and confirmed the second overwrite,
+          with stderr again showing `touching [flash/.../zzz-old.txt]...done`.
+    - Confirmed `zzz-old.txt` `Last-Modified` advanced again to
+          `Sat, 30 May 2026 09:02:51 GMT`.
 
 - [ ] **Phase 7 — Documentation & help text**
   - [ ] `update` help text documents both positional args, `--no-render`, `--index`.
