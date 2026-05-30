@@ -31,6 +31,42 @@ func (f *fakeUploader) PutObject(_ context.Context, _, key, _ string, _ io.Reade
 	return nil
 }
 
+// fakeFullUploader implements Uploader, ObjectLister, and ObjectCopier so the
+// flash/ touch pass can be exercised. existing seeds objects already under the
+// prefix; ListObjects reports those plus everything PutObject wrote this run.
+type fakeFullUploader struct {
+	existing []string // pre-existing keys under the prefix
+	put      []string // keys written this run
+	copied   []string // keys touched (self-copied)
+	copyErr  error
+}
+
+func (f *fakeFullUploader) PutObject(_ context.Context, _, key, _ string, _ io.Reader, _ ...upload.PutOption) error {
+	f.put = append(f.put, key)
+	return nil
+}
+
+func (f *fakeFullUploader) ListObjects(_ context.Context, _, _ string) ([]string, error) {
+	seen := map[string]struct{}{}
+	var keys []string
+	for _, k := range append(append([]string{}, f.existing...), f.put...) {
+		if _, ok := seen[k]; ok {
+			continue
+		}
+		seen[k] = struct{}{}
+		keys = append(keys, k)
+	}
+	return keys, nil
+}
+
+func (f *fakeFullUploader) CopyObject(_ context.Context, _, key string) error {
+	if f.copyErr != nil {
+		return f.copyErr
+	}
+	f.copied = append(f.copied, key)
+	return nil
+}
+
 func runUpdate(t *testing.T, up upload.Uploader, baseURL string, args ...string) (stdout, stderr string, code int) {
 	t.Helper()
 	var outBuf, errBuf bytes.Buffer
@@ -201,6 +237,52 @@ func TestUpdate_URLToStdout_OnlyURL(t *testing.T) {
 	lines := strings.Split(strings.TrimSpace(stdout), "\n")
 	assert.Len(t, lines, 1, "stdout should contain only the URL")
 	assert.True(t, strings.HasPrefix(lines[0], "http"), "stdout should be a URL, got: %q", lines[0])
+}
+
+func TestUpdate_Flash_Directory_TouchesUnreferencedPreExistingObjects(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "page.html"), []byte("<h1>new</h1>"), 0o600))
+
+	up := &fakeFullUploader{existing: []string{"flash/7/abc/old.pdf"}}
+	_, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", "flash/7/abc", dir)
+	require.Equal(t, 0, code)
+
+	// The unreferenced pre-existing object is touched; the freshly-written one is not.
+	assert.Equal(t, []string{"flash/7/abc/old.pdf"}, up.copied)
+	assert.NotContains(t, up.copied, "flash/7/abc/page.html")
+	assert.Contains(t, stderr, "flash/7/abc/old.pdf")
+}
+
+func TestUpdate_Keep_Directory_SkipsTouchPass(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "page.html"), []byte("<h1>new</h1>"), 0o600))
+
+	up := &fakeFullUploader{existing: []string{"keep/happy-cat/old.pdf"}}
+	_, _, code := runUpdate(t, up, "https://drop.example.com", "update", "keep/happy-cat", dir)
+	require.Equal(t, 0, code)
+
+	assert.Empty(t, up.copied, "keep/ prefixes have no expiry clock, so no touch pass runs")
+}
+
+func TestUpdate_Flash_SingleFile_SkipsTouchPass(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "report.pdf")
+	require.NoError(t, os.WriteFile(path, []byte("pdf"), 0o600))
+
+	up := &fakeFullUploader{existing: []string{"flash/7/abc/old.pdf"}}
+	_, _, code := runUpdate(t, up, "https://drop.example.com", "update", "flash/7/abc", path)
+	require.Equal(t, 0, code)
+
+	assert.Empty(t, up.copied, "single-file updates do not run the touch pass")
+}
+
+func TestUpdate_Flash_TouchFailure_NonZeroExit(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "page.html"), []byte("x"), 0o600))
+
+	up := &fakeFullUploader{existing: []string{"flash/7/abc/old.pdf"}, copyErr: errors.New("touch boom")}
+	_, _, code := runUpdate(t, up, "https://drop.example.com", "update", "flash/7/abc", dir)
+	assert.NotEqual(t, 0, code, "a touch failure exits non-zero")
 }
 
 func TestUpdate_CopyDir_WritesFilesToDisk(t *testing.T) {

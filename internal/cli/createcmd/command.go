@@ -120,13 +120,13 @@ are mutually exclusive.
 				uploadOpts = append(uploadOpts, upload.WithRenderer(render.NewMarkdownRendererWithStderr(cmd.Root().ErrWriter)))
 			}
 
-			files, err := upload.UploadFiles(ctx, activeUploader, bucket, prefix, localPath, genIndex, cmd.Root().ErrWriter, uploadOpts...)
+			result, err := upload.UploadFiles(ctx, activeUploader, bucket, prefix, localPath, genIndex, cmd.Root().ErrWriter, uploadOpts...)
 			if err != nil {
 				fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err) //nolint:errcheck
 				return cli.Exit("upload failed", 1)
 			}
 
-			suffix := upload.URLSuffix(genIndex, files)
+			suffix := upload.URLSuffix(genIndex, result.SourceRelPaths)
 			url := upload.PublicURL(baseURL, prefix, suffix)
 			if _, err := fmt.Fprintln(cmd.Root().Writer, urlout.Format(url, urlout.IsTerminalWriter(cmd.Root().Writer))); err != nil {
 				return cli.Exit(fmt.Sprintf("write output: %v", err), 1)

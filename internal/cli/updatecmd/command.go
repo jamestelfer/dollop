@@ -3,6 +3,8 @@ package updatecmd
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/jamestelfer/dollop/internal/cli/urlout"
 	"github.com/jamestelfer/dollop/internal/render"
@@ -84,13 +86,29 @@ use --no-render to disable it and --index to generate an index.html.`,
 				uploadOpts = append(uploadOpts, upload.WithRenderer(render.NewMarkdownRendererWithStderr(cmd.Root().ErrWriter)))
 			}
 
-			files, err := upload.UploadFiles(ctx, activeUploader, bucket, prefix, localPath, genIndex, cmd.Root().ErrWriter, uploadOpts...)
+			result, err := upload.UploadFiles(ctx, activeUploader, bucket, prefix, localPath, genIndex, cmd.Root().ErrWriter, uploadOpts...)
 			if err != nil {
 				fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err) //nolint:errcheck
 				return cli.Exit("upload failed", 1)
 			}
 
-			suffix := upload.URLSuffix(genIndex, files)
+			// Reset the expiry clock on pre-existing objects this update did not
+			// rewrite, so a partial refresh doesn't let the rest of the upload
+			// expire early. The pass applies only to directory updates on flash/
+			// prefixes: keep/ has no expiry clock, and a single-file update leaves
+			// nothing else under the prefix worth preserving.
+			if info, statErr := os.Stat(localPath); statErr == nil && info.IsDir() && strings.HasPrefix(prefix, "flash/") {
+				lister, lok := activeUploader.(upload.ObjectLister)
+				copier, cok := activeUploader.(upload.ObjectCopier)
+				if lok && cok {
+					if err := upload.TouchUntouched(ctx, lister, copier, bucket, prefix, result.WrittenKeys, cmd.Root().ErrWriter); err != nil {
+						fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err) //nolint:errcheck
+						return cli.Exit("touch failed", 1)
+					}
+				}
+			}
+
+			suffix := upload.URLSuffix(genIndex, result.SourceRelPaths)
 			url := upload.PublicURL(baseURL, prefix, suffix)
 			if _, err := fmt.Fprintln(cmd.Root().Writer, urlout.Format(url, urlout.IsTerminalWriter(cmd.Root().Writer))); err != nil {
 				return cli.Exit(fmt.Sprintf("write output: %v", err), 1)

@@ -75,13 +75,24 @@ checked. Tick the phase last, once its criteria are all complete.
   - [x] Unit-tested via `DirUploader`: advances mod time while preserving content,
         and errors on a missing key (`diruploader_test.go`).
 
-- [ ] **Phase 5 — Wire touch into `update`**
-  - [ ] Upload pipeline returns the complete set of keys written this run.
-  - [ ] Pre-existing objects not referenced by the source are self-copied.
-  - [ ] Freshly written objects (sources, assets, index) are not touched.
-  - [ ] `keep/` and single-file updates perform no touch pass.
-  - [ ] Each touched key printed to stderr; any touch failure exits non-zero.
-  - [ ] Verifiable with `--copy-dir`: an unreferenced pre-existing object is touched.
+- [x] **Phase 5 — Wire touch into `update`** _(complete)_
+  - [x] `UploadFiles` now returns `*UploadResult` carrying `SourceRelPaths` (for
+        the URL suffix) and `WrittenKeys` — the complete key set written this run
+        (shared assets + optional generated index + sources). Asset/index/source
+        upload extracted into `uploadPlan`; `WrittenKeys == PutObject keys` is
+        locked by a test.
+  - [x] `upload.TouchUntouched` lists the prefix, subtracts `WrittenKeys`, and
+        self-copies each remaining (pre-existing, unreferenced) key. Unit-tested
+        in `touch_test.go`.
+  - [x] Freshly written objects (sources, assets, index) are excluded via the
+        written-key set; covered by the touch unit test and the command test.
+  - [x] `keep/` and single-file updates perform no touch pass — the command gates
+        the pass on a **directory** source under a **`flash/`** prefix
+        (`command_test.go`).
+  - [x] Each touched key printed to stderr (`touching [key]...done`); any touch
+        failure exits non-zero (`TestUpdate_Flash_TouchFailure_NonZeroExit`).
+  - [x] Verified with `--copy-dir`: an unreferenced pre-existing `old.pdf` was
+        touched (mtime advanced) while the freshly-written `page.html` was not.
 
 - [ ] **Phase 6 — Integration test** _(sleep ≥1 s before asserting `Last-Modified` advanced — R2 is 1-second resolution)_
   - [ ] Test publishes via `create`, mutates via `update`, asserts overwrite.
