@@ -41,14 +41,30 @@ Durable decisions that apply across all phases:
   deleted between `create` and `update` leave stale objects under the prefix.
   Those stale objects are **not** deleted and, being "not in the upload set",
   would be touched. Documented, not fixed.
+- **Touch directive** (resolved by Phase 1 spike, 2026-05-30): the touch ships as
+  a bare `CopyObject` self-copy with `MetadataDirective: COPY`. R2 accepts a no-op
+  self-copy and advances `Last-Modified` — unlike AWS S3, no metadata change is
+  required, so no `+meta` / `REPLACE` / `MERGE` workaround is needed.
+- **Touch success signal** (resolved by Phase 1 spike): R2's `Last-Modified` has
+  **1-second resolution**. The touch (and any test of it) must treat a successful
+  `CopyObject` response as the authoritative signal that the object was rewritten —
+  it must **not** re-read and diff `Last-Modified`, because two touches within the
+  same wall-clock second are indistinguishable.
 
 ---
 
-> **Reconciliation is already done** — see `docs/prd.md` "Update Command
-> Reconciliation". The spike below ends with a stop-and-go assessment that may
-> revise that reconciliation before implementation continues.
+> **Reconciliation and spike gate are resolved.** Phase 1 ran against real R2 and
+> **passed** — see `docs/prd.md` "Spike gate" and `docs/update-command.spike-results.md`.
+> The reconciliation stands unchanged; Phases 2–7 below are cleared to implement.
 
-## Phase 1: Spike — throwaway copier/touch prototype
+## Phase 1: Spike — throwaway copier/touch prototype ✅ DONE (PASS)
+
+> **Result (2026-05-30):** R2 accepts a bare `MetadataDirective: COPY` no-op
+> self-copy and advances `Last-Modified`; all five probed variants passed. The
+> touch ships as a bare `COPY`. One constraint for downstream phases: R2's
+> `Last-Modified` is 1-second resolution — rely on the `CopyObject` 200, not a
+> timestamp diff. Spike code removed. Full results:
+> `docs/update-command.spike-results.md`.
 
 **User stories**: de-risks §4.3, §4.4 (no requirement delivered).
 
@@ -70,14 +86,12 @@ hacked, deleted once the result is recorded.
 
 ### Acceptance criteria
 
-- [ ] Spike runs against real R2 using keys sourced via the `config` package.
-- [ ] Self-copy with `MetadataDirective: COPY` is observed to advance
+- [x] Spike runs against real R2 using keys sourced via the `config` package.
+- [x] Self-copy with `MetadataDirective: COPY` is observed to advance
       `Last-Modified` (T1 > T0).
-- [ ] **Stop-and-go gate**: assess the result and decide whether the PRD
-      reconciliation or the touch approach needs revising. Record the outcome in
-      `docs/prd.md`; revise it there if the self-copy does not reset
-      `Last-Modified`. Do not start Phase 2 until this gate passes.
-- [ ] Spike code removed before merge.
+- [x] **Stop-and-go gate**: PASS. Outcome recorded in `docs/prd.md` ("Spike
+      gate"); reconciliation unchanged. Phase 2 unblocked.
+- [x] Spike code removed before merge.
 
 ---
 
@@ -133,14 +147,22 @@ the prefix subtree). Not yet wired into `update`; lands behind tests.
 ### What to build
 
 An `ObjectCopier` capability performing a `CopyObject` self-copy on a single key
-with `MetadataDirective: COPY`, using the encoding confirmed in the Phase 1 spike.
-Implemented on `S3Uploader` and `DirUploader`. Behind tests; not yet wired.
+with `MetadataDirective: COPY` (the bare no-op directive confirmed working in the
+Phase 1 spike). Implemented on `S3Uploader` and `DirUploader`. Behind tests; not
+yet wired.
+
+The spike built `CopySource` as `"<bucket>/<key>"`. For keys with reserved/special
+characters this must be URL-encoded; use the SDK's expected `CopySource` encoding
+rather than raw concatenation. Treat the `CopyObject` 200 response as success — do
+not re-`HeadObject` to confirm via `Last-Modified` (1-second resolution; see
+architectural decisions).
 
 ### Acceptance criteria
 
 - [ ] Interface added and injected per the existing pattern.
-- [ ] `S3Uploader` builds a correct `CopySource` for R2 and sets
+- [ ] `S3Uploader` builds a correct, URL-encoded `CopySource` for R2 and sets
       `MetadataDirective: COPY`.
+- [ ] Success is determined from the `CopyObject` response, not a `Last-Modified` diff.
 - [ ] `DirUploader` provides an equivalent touch for integration use.
 - [ ] Unit-tested via `DirUploader`.
 
@@ -179,10 +201,17 @@ An optional round-trip test against minio or real R2 covering `update`: overwrit
 of an existing object plus the `flash/` touch pass resetting `Last-Modified`.
 Gated so it does not run without credentials/stub.
 
+Because R2's `Last-Modified` is 1-second resolution (Phase 1 finding), any
+assertion that the timestamp advanced must sleep **≥1 s** between the baseline
+read and the touch, and assert `after > baseline` at second granularity (not a
+sub-second delta). The touch's primary success assertion is that `CopyObject`
+returns without error.
+
 ### Acceptance criteria
 
 - [ ] Test publishes via `create`, mutates via `update`, asserts overwrite.
-- [ ] Test asserts an unreferenced pre-existing object's `Last-Modified` advances.
+- [ ] Test asserts an unreferenced pre-existing object is touched (the `CopyObject`
+      succeeds; `Last-Modified` advances after a ≥1 s gap).
 - [ ] Skipped cleanly when no R2/minio endpoint is configured.
 
 ---

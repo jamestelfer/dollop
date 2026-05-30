@@ -40,10 +40,11 @@ checked. Tick the phase last, once its criteria are all complete.
   - [ ] `DirUploader` lists keys consistently for integration use.
   - [ ] Unit-tested via `DirUploader` with a multi-file prefix.
 
-- [ ] **Phase 4 — Self-copy capability**
+- [ ] **Phase 4 — Self-copy capability** _(bare `COPY` confirmed by Phase 1; success = `CopyObject` 200, not a `Last-Modified` diff)_
   - [ ] `ObjectCopier` interface added and injected per the existing pattern.
-  - [ ] `S3Uploader` builds a correct `CopySource` for R2 and sets
+  - [ ] `S3Uploader` builds a correct, URL-encoded `CopySource` for R2 and sets
         `MetadataDirective: COPY`.
+  - [ ] Success determined from the `CopyObject` response, not a `Last-Modified` diff.
   - [ ] `DirUploader` provides an equivalent touch for integration use.
   - [ ] Unit-tested via `DirUploader`.
 
@@ -55,9 +56,10 @@ checked. Tick the phase last, once its criteria are all complete.
   - [ ] Each touched key printed to stderr; any touch failure exits non-zero.
   - [ ] Verifiable with `--copy-dir`: an unreferenced pre-existing object is touched.
 
-- [ ] **Phase 6 — Integration test**
+- [ ] **Phase 6 — Integration test** _(sleep ≥1 s before asserting `Last-Modified` advanced — R2 is 1-second resolution)_
   - [ ] Test publishes via `create`, mutates via `update`, asserts overwrite.
-  - [ ] Test asserts an unreferenced pre-existing object's `Last-Modified` advances.
+  - [ ] Test asserts an unreferenced pre-existing object is touched (the
+        `CopyObject` succeeds; `Last-Modified` advances after a ≥1 s gap).
   - [ ] Skipped cleanly when no R2/minio endpoint is configured.
 
 - [ ] **Phase 7 — Documentation & help text**
