@@ -103,6 +103,7 @@ func (m *markdownRenderer) Plan(relPaths []string, sourceDir string) ([]Source, 
 		{Name: "highlight-github.css", ContentType: "text/css; charset=utf-8", Content: highlightGithubCSS},
 		{Name: "dollop-light.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopLightSVG},
 		{Name: "dollop-dark.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopDarkSVG},
+		{Name: "dollop-favicon.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopFaviconSVG},
 	}
 
 	if needsMermaid {
@@ -255,6 +256,7 @@ func renderMarkdownFile(relPath, sourceDir string, batch map[string]bool) ([]byt
 		MermaidPath:      mermaidPath,
 		LogoLightPath:    prefix + "dollop-light.svg",
 		LogoDarkPath:     prefix + "dollop-dark.svg",
+		FaviconPath:      prefix + "dollop-favicon.svg",
 		Body:             template.HTML(sanitizeHTML(bodyBuf.String())), //nolint:gosec
 		SourcePath:       filepath.Base(relPath),
 	}
