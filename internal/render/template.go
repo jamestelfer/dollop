@@ -18,6 +18,7 @@ type pageData struct {
 	MermaidPath      string // empty when no mermaid fence in the document
 	LogoLightPath    string
 	LogoDarkPath     string
+	FaviconPath      string
 	Body             template.HTML
 	SourcePath       string
 }

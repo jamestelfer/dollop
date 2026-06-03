@@ -25,6 +25,9 @@ var dollopLightSVG []byte
 //go:embed assets/dollop-dark.svg
 var dollopDarkSVG []byte
 
+//go:embed assets/dollop-favicon.svg
+var dollopFaviconSVG []byte
+
 // SharedAsset is a file that should be uploaded at the prefix root with
 // cache headers, separate from the per-file relPaths list.
 type SharedAsset struct {
