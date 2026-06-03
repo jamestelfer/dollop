@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/jamestelfer/dollop/compare/v1.7.0...v1.8.0) (2026-06-03)
+
+
+### Features
+
+* add favicon to rendered markdown pages ([#40](https://github.com/jamestelfer/dollop/issues/40)) ([09b0237](https://github.com/jamestelfer/dollop/commit/09b0237da61b827f5469e599526390b6bcea5eda))
+
 ## [1.7.0](https://github.com/jamestelfer/dollop/compare/v1.6.0...v1.7.0) (2026-05-30)
 
 
