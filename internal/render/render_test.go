@@ -395,6 +395,48 @@ func TestMarkdownRenderer_MermaidFenceInjectsScript(t *testing.T) {
 	assert.Contains(t, assetNames, "mermaid.min.js")
 }
 
+// TestMarkdownRenderer_MermaidFenceRendersAsMermaidElement verifies that a
+// mermaid fence is emitted as a <pre class="mermaid"> element holding the
+// verbatim diagram source, so mermaid.js startOnLoad can find and render it.
+// A plain <pre><code class="language-mermaid"> block is invisible to mermaid.js.
+func TestMarkdownRenderer_MermaidFenceRendersAsMermaidElement(t *testing.T) {
+	dir := t.TempDir()
+	md := "```mermaid\ngraph TD\n    A --> B\n```\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	html := openSource(t, sources, "doc.html")
+
+	// rendered into an element mermaid.js looks for, not a highlighted code block
+	assert.Contains(t, html, `<pre class="mermaid">`)
+	assert.NotContains(t, html, `language-mermaid`)
+
+	// diagram source preserved verbatim as the element's text content
+	// ("-->" must survive as text, not be mangled or dropped)
+	assert.Contains(t, html, "graph TD")
+	assert.Contains(t, html, "A --&gt; B")
+}
+
+// TestMarkdownRenderer_MermaidConversionIsSelective verifies that converting
+// mermaid fences leaves other fenced code blocks highlighted as normal: only
+// the mermaid block becomes a <pre class="mermaid">, the go block stays chroma.
+func TestMarkdownRenderer_MermaidConversionIsSelective(t *testing.T) {
+	dir := t.TempDir()
+	md := "```mermaid\ngraph TD\n    A --> B\n```\n\n```go\nfmt.Println(\"hi\")\n```\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	sources, _, err := r.Plan([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	html := openSource(t, sources, "doc.html")
+	assert.Contains(t, html, `<pre class="mermaid">`)
+	assert.Contains(t, html, `class="chroma"`) // go block still highlighted
+}
+
 // TestMarkdownRenderer_NoMermaidFenceNoScript verifies that a file without a
 // mermaid fence does not get a mermaid script tag.
 func TestMarkdownRenderer_NoMermaidFenceNoScript(t *testing.T) {

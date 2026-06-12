@@ -196,17 +196,20 @@ var mdParser = goldmark.New(
 			highlighting.WithCustomStyle(styles.Get("github")),
 		),
 		&alertExtension{},
+		&mermaidExtension{},
 	),
 )
 
-func hasMermaidFence(doc ast.Node, src []byte) bool {
+// hasMermaidFence reports whether the document contains a mermaid diagram.
+// It looks for mermaidNode, which mermaidTransformer has already substituted for
+// any ```mermaid fenced code block by the time rendering runs.
+func hasMermaidFence(doc ast.Node, _ []byte) bool {
 	found := false
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
-		cb, ok := n.(*ast.FencedCodeBlock)
-		if ok && string(cb.Language(src)) == "mermaid" {
+		if n.Kind() == mermaidKind {
 			found = true
 			return ast.WalkStop, nil
 		}
