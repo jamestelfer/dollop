@@ -70,12 +70,15 @@ func (m *markdownRenderer) Plan(relPaths []string, sourceDir string) ([]Source, 
 			continue
 		}
 
-		// pre-scan for mermaid with a fast string search (no retained memory)
+		// pre-scan for mermaid by parsing the AST and reusing hasMermaidFence,
+		// so the shared-asset decision here matches the script injection in
+		// renderMarkdownFile exactly (a substring scan misses ~~~ fences and
+		// trips on literal "```mermaid" in sample code).
 		srcBytes, err := os.ReadFile(filepath.Join(sourceDir, filepath.FromSlash(p))) //nolint:gosec
 		if err != nil {
 			return nil, nil, fmt.Errorf("read %s: %w", p, err)
 		}
-		if bytes.Contains(srcBytes, []byte("```mermaid")) {
+		if hasMermaidFence(mdParser.Parser().Parse(text.NewReader(srcBytes)), srcBytes) {
 			needsMermaid = true
 		}
 

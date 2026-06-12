@@ -395,6 +395,30 @@ func TestMarkdownRenderer_MermaidFenceInjectsScript(t *testing.T) {
 	assert.Contains(t, assetNames, "mermaid.min.js")
 }
 
+// TestMarkdownRenderer_TildeMermaidFenceShipsAsset verifies that a tilde-fenced
+// mermaid block (~~~mermaid) ships mermaid.min.js. The script tag and asset
+// must agree: rendering keys off the AST, so the asset decision must too — a
+// substring scan for "```mermaid" would miss this and 404 the injected script.
+func TestMarkdownRenderer_TildeMermaidFenceShipsAsset(t *testing.T) {
+	dir := t.TempDir()
+	md := "~~~mermaid\ngraph TD\n    A --> B\n~~~\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	sources, assets, err := r.Plan([]string{"doc.md"}, dir)
+	require.NoError(t, err)
+
+	html := openSource(t, sources, "doc.html")
+	assert.Contains(t, html, `<pre class="mermaid">`)
+	assert.Contains(t, html, "mermaid.min.js")
+
+	assetNames := make([]string, len(assets))
+	for i, a := range assets {
+		assetNames[i] = a.Name
+	}
+	assert.Contains(t, assetNames, "mermaid.min.js")
+}
+
 // TestMarkdownRenderer_MermaidFenceRendersAsMermaidElement verifies that a
 // mermaid fence is emitted as a <pre class="mermaid"> element holding the
 // verbatim diagram source, so mermaid.js startOnLoad can find and render it.
