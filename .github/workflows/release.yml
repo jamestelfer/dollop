@@ -7,7 +7,14 @@ on:
   push:
     tags: ["v*"]
 
-permissions: {}
+# The caller sets the permission ceiling: a called reusable workflow can only
+# downgrade, never elevate. Grant exactly what goreleaser-release declares —
+# id-token for the octo-sts mint, contents:write to fill the release-please
+# draft, attestations:write to record keyless provenance.
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   release:

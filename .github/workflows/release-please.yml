@@ -7,8 +7,13 @@ on:
   push:
     branches: [main]
 
-# The reusable workflow declares its own job permissions; nothing extra needed here.
-permissions: {}
+# The caller sets the permission ceiling: a called reusable workflow can only
+# downgrade, never elevate. The reusable workflow needs id-token (octo-sts OIDC
+# mint) and contents:read (checkout) — grant exactly that. The write operations
+# (PR + tag) use the octo-sts-minted release-please-dollop token, not this one.
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
   release-please:
