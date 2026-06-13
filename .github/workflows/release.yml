@@ -1,6 +1,6 @@
 # jamestelfer/dollop — build/attest/publish on the v* tag pushed by release-please.
-# Delegates to the shared chinmina release kit. Pinned to the PR branch while we
-# test-adopt the pipeline; flip to a verified tag/SHA before relying on it.
+# Delegates to the shared chinmina release kit, pinned to the verified-actions
+# branch (third-party actions SHA-pinned and reviewed).
 name: release
 
 on:
@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   release:
-    uses: chinmina/.github/.github/workflows/goreleaser-release.yml@claude/prd-plan-review-lfh6yw # zizmor: ignore[secrets-inherit] | DEV REF: testing off PR branch
+    uses: chinmina/.github/.github/workflows/goreleaser-release.yml@verified-actions # zizmor: ignore[secrets-inherit]
     with:
       # Keyless: mint the release-dollop token (and release-tap for homebrew)
       # against the centralised org trust policies instead of github.token/a PAT.
