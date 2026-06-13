@@ -15,7 +15,7 @@
         packages = {
           dollop = pkgs.buildGoModule {
             pname = "dollop";
-            version = "1.8.0"; # x-release-please-version
+            version = "1.9.0-alpha.0"; # x-release-please-version
 
             src = ./.;
 
