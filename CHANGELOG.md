@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0-alpha.0](https://github.com/jamestelfer/dollop/compare/v1.8.0...v1.9.0-alpha.0) (2026-06-13)
+
+
+### Miscellaneous Chores
+
+* migrate to shared chinmina release pipeline ([#43](https://github.com/jamestelfer/dollop/issues/43)) ([60f33ca](https://github.com/jamestelfer/dollop/commit/60f33cad1880b0c49884ab394d38610afe476421))
+
 ## [1.8.0](https://github.com/jamestelfer/dollop/compare/v1.7.0...v1.8.0) (2026-06-03)
 
 
