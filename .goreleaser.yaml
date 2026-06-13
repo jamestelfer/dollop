@@ -34,6 +34,11 @@ changelog:
   sort: asc
 
 release:
+  # The shared pipeline requires the release to stay a draft that goreleaser
+  # fills in place: release-please creates the draft, attestation runs, then the
+  # wrapper publishes. Nothing downloadable exists without provenance behind it.
+  draft: true
+  mode: keep-existing
   prerelease: auto
 
 homebrew_casks:
