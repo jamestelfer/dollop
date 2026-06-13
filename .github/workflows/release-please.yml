@@ -1,23 +1,22 @@
-name: Release Please
+# jamestelfer/dollop — release-please trigger (keyless octo-sts path).
+# Delegates to the shared chinmina release kit. Pinned to the PR branch while we
+# test-adopt the pipeline; flip to a verified tag/SHA before relying on it.
+name: release-please
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+
+# The reusable workflow declares its own job permissions; nothing extra needed here.
+permissions: {}
 
 jobs:
   release-please:
-    name: Release Please
-    runs-on: ubuntu-latest
-    environment: automation
-    steps:
-      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
-        id: app-token
-        with:
-          client-id: ${{ secrets.RELEASE_PLEASE_CLIENT_ID }}
-          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
-
-      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
-        id: release-please
-        with:
-          token: ${{ steps.app-token.outputs.token }}
+    uses: chinmina/.github/.github/workflows/release-please.yml@claude/prd-plan-review-lfh6yw # zizmor: ignore[secrets-inherit] | DEV REF: testing off PR branch
+    with:
+      # Keyless: mint the release-please-dollop token against the centralised org
+      # trust policies (identity/scope are derived by convention — nothing passed).
+      token-source: octo-sts
+    # secrets: inherit is intentional — environment-scoped secrets must resolve
+    # inside the reusable workflow's environment-targeting job.
+    secrets: inherit

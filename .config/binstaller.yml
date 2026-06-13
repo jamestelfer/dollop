@@ -1,0 +1,27 @@
+# binstaller spec for the shared release pipeline's install-script channel.
+# Asset names must track .goreleaser.yaml:
+#   archives.name_template = {{ .ProjectName }}_{{ .Os }}_{{ .Arch }}  (tar.gz; zip on windows)
+#   checksum.name_template = checksums.txt
+# install.sh is a POSIX shell installer, so only the unix targets are listed.
+schema: v1
+name: dollop
+repo: jamestelfer/dollop
+default_version: latest
+asset:
+  template: ${NAME}_${OS}_${ARCH}${EXT}
+  default_extension: .tar.gz
+  binaries:
+    - name: dollop
+      path: dollop
+checksums:
+  template: checksums.txt
+  algorithm: sha256
+supported_platforms:
+  - os: linux
+    arch: amd64
+  - os: linux
+    arch: arm64
+  - os: darwin
+    arch: amd64
+  - os: darwin
+    arch: arm64

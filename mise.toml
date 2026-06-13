@@ -1,5 +1,12 @@
+# binstaller has no mise registry short name; alias the github backend so the
+# tool surfaces as `binstaller` (what setup-release-toolchain validates) while
+# exposing the `binst` CLI the binstaller-install-script action calls.
+[tool_alias]
+binstaller = "github:binary-install/binstaller"
+
 [tools]
 go            = "1.26.0"
 golangci-lint = "2.9.0"
 goreleaser    = "2.15.2"
 just          = "1.49.0"
+binstaller    = { version = "0.12.0", exe = "binst" }
