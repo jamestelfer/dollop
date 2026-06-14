@@ -54,12 +54,35 @@ nix profile install github:jamestelfer/dollop
 </details>
 
 <details>
-<summary><strong>Manual download</strong></summary>
+<summary><strong>Install script</strong></summary>
 
-Pre-built binaries for Linux, macOS, and Windows (amd64/arm64) are on the
-[releases page](https://github.com/jamestelfer/dollop/releases). Download the
-archive for your OS and architecture, extract, and place the binary on your
-`PATH`.
+Each release ships a self-contained installer (generated with
+[binstaller](https://github.com/binary-install/binstaller)) that detects your
+platform and checks the download against checksums embedded in the script — no
+separate checksum file is fetched:
+
+```sh
+curl -fsSL https://github.com/jamestelfer/dollop/releases/latest/download/install.sh | sh
+```
+
+It installs to `~/.local/bin`; pass `-b` for another directory and a tag to pin
+a version:
+
+```sh
+curl -fsSL https://github.com/jamestelfer/dollop/releases/latest/download/install.sh \
+  | sh -s -- -b /usr/local/bin v1.9.1
+```
+
+The script carries a build-provenance attestation, so you can verify it before
+running it (with an authenticated [GitHub CLI](https://cli.github.com/)). This
+transitively covers the binary too: a verified script is guaranteed to hold the
+genuine checksums it then enforces on the download.
+
+```sh
+curl -fsSL -O https://github.com/jamestelfer/dollop/releases/latest/download/install.sh
+gh attestation verify install.sh --repo jamestelfer/dollop
+sh install.sh
+```
 
 </details>
 
