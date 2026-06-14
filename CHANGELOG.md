@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.1](https://github.com/jamestelfer/dollop/compare/v1.9.0...v1.9.1) (2026-06-14)
+
+
+### Bug Fixes
+
+* fill release-please draft instead of creating a duplicate release ([#49](https://github.com/jamestelfer/dollop/issues/49)) ([e77423f](https://github.com/jamestelfer/dollop/commit/e77423f3756df8842597c530e3653dbbba49b75f))
+
 ## [1.9.0](https://github.com/jamestelfer/dollop/compare/v1.9.0-alpha.0...v1.9.0) (2026-06-14)
 
 
