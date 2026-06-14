@@ -70,12 +70,15 @@ func (m *markdownRenderer) Plan(relPaths []string, sourceDir string) ([]Source, 
 			continue
 		}
 
-		// pre-scan for mermaid with a fast string search (no retained memory)
+		// pre-scan for mermaid by parsing the AST and reusing hasMermaidFence,
+		// so the shared-asset decision here matches the script injection in
+		// renderMarkdownFile exactly (a substring scan misses ~~~ fences and
+		// trips on literal "```mermaid" in sample code).
 		srcBytes, err := os.ReadFile(filepath.Join(sourceDir, filepath.FromSlash(p))) //nolint:gosec
 		if err != nil {
 			return nil, nil, fmt.Errorf("read %s: %w", p, err)
 		}
-		if bytes.Contains(srcBytes, []byte("```mermaid")) {
+		if hasMermaidFence(mdParser.Parser().Parse(text.NewReader(srcBytes)), srcBytes) {
 			needsMermaid = true
 		}
 
@@ -196,17 +199,20 @@ var mdParser = goldmark.New(
 			highlighting.WithCustomStyle(styles.Get("github")),
 		),
 		&alertExtension{},
+		&mermaidExtension{},
 	),
 )
 
-func hasMermaidFence(doc ast.Node, src []byte) bool {
+// hasMermaidFence reports whether the document contains a mermaid diagram.
+// It looks for mermaidNode, which mermaidTransformer has already substituted for
+// any ```mermaid fenced code block by the time rendering runs.
+func hasMermaidFence(doc ast.Node, _ []byte) bool {
 	found := false
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
-		cb, ok := n.(*ast.FencedCodeBlock)
-		if ok && string(cb.Language(src)) == "mermaid" {
+		if n.Kind() == mermaidKind {
 			found = true
 			return ast.WalkStop, nil
 		}
