@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.9.0](https://github.com/jamestelfer/dollop/compare/v1.9.0-alpha.0...v1.9.0) (2026-06-14)
+
+
+### Bug Fixes
+
+* render mermaid fences as elements mermaid.js can find ([#42](https://github.com/jamestelfer/dollop/issues/42)) ([ad3291c](https://github.com/jamestelfer/dollop/commit/ad3291cce5ea64fecb1935c1908bd64caec255ab))
+
+
+### Miscellaneous Chores
+
+* release 1.9.0 ([#47](https://github.com/jamestelfer/dollop/issues/47)) ([d1baffe](https://github.com/jamestelfer/dollop/commit/d1baffe6a761d02614453fce3ad0ddca85d43c63))
+
 ## [1.9.0-alpha.0](https://github.com/jamestelfer/dollop/compare/v1.8.0...v1.9.0-alpha.0) (2026-06-13)
 
 
