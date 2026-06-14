@@ -38,6 +38,11 @@ release:
   # fills in place: release-please creates the draft, attestation runs, then the
   # wrapper publishes. Nothing downloadable exists without provenance behind it.
   draft: true
+  # release-please creates the draft, but the tag is pushed separately so the
+  # draft has no published tag association. goreleaser's default lookup
+  # (GetReleaseByTag) cannot see draft releases and would create a duplicate;
+  # use_existing_draft makes it locate the draft by name and fill it instead.
+  use_existing_draft: true
   mode: keep-existing
   prerelease: auto
 
