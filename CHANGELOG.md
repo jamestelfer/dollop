@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/jamestelfer/dollop/compare/v1.9.1...v1.10.0) (2026-07-06)
+
+
+### Features
+
+* publish mermaid engine once to a shared bucket location ([#56](https://github.com/jamestelfer/dollop/issues/56)) ([aef76d7](https://github.com/jamestelfer/dollop/commit/aef76d7c7b0c121c76c38d23c51b791e7a37cdb3))
+
 ## [1.9.1](https://github.com/jamestelfer/dollop/compare/v1.9.0...v1.9.1) (2026-06-14)
 
 
