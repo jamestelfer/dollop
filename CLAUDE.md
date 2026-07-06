@@ -23,8 +23,20 @@ internal/config/                YAML config file (~/.config/dollop/config.yaml, 
                                 + keyring access (r2-key, r2-secret via OS keyring)
 internal/cli/configcmd/         config subcommand tree: set, get, list, auth
 internal/cli/createcmd/         create subcommand: generates prefix, calls upload.UploadFiles
+internal/cli/depscmd/           deps subcommand tree: publish, status (shared mermaid engine)
+internal/deps/                  fetch/verify/extract/publish the pinned mermaid ESM engine;
+                                shared Present presence check + missing-deps warning
+internal/render/                markdown→html rendering, page template, mermaid version pin
 internal/upload/                uploader interface, S3 client, MIME detection, prefix logic
 ```
+
+The shared mermaid engine lives outside the expiring `flash/` prefixes at
+`deps/mermaid/<x.y.z>/` (full patch version, immutable, long-lived cache). It is
+published once per version via `dollop deps publish`; rendered pages reference it
+by a relative path that climbs out of their prefix. The pinned version and its
+npm sha512 integrity are the only mermaid artifacts in git (`render.MermaidVersion`,
+`render.MermaidSHA512`) — the engine bytes are fetched from npm at publish time,
+never embedded.
 
 ## Commits and PR titles
 

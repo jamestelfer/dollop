@@ -83,9 +83,8 @@ body { margin: 0; padding-top: 2.5rem; background-color: #ffffff; }
 {{.Body}}
 </div>
 </div>
-{{- if .MermaidPath}}
-<script src="{{.MermaidPath}}"></script>
-<script>mermaid.initialize({startOnLoad:true});</script>
+{{- if .MermaidScript}}
+{{.MermaidScript}}
 {{- end}}
 </body>
 </html>

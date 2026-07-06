@@ -5,17 +5,20 @@ import (
 	"fmt"
 
 	"github.com/jamestelfer/dollop/internal/cli/urlout"
+	"github.com/jamestelfer/dollop/internal/deps"
 	"github.com/jamestelfer/dollop/internal/render"
 	"github.com/jamestelfer/dollop/internal/upload"
 	"github.com/urfave/cli/v3"
 )
 
 // New returns the create command.
-// uploader, bucket, and baseURL are injected so tests can supply fakes.
+// uploader, bucket, and baseURL are injected so tests can supply fakes. The
+// uploader must also list objects (upload.ListingUploader) so the command can
+// check whether the shared mermaid engine is published.
 // newID generates the nanoid for ephemeral uploads; newName generates the
 // petname for permanent uploads.
 func New(
-	uploader upload.Uploader,
+	uploader upload.ListingUploader,
 	bucket string,
 	baseURL string,
 	newID func() (string, error),
@@ -124,6 +127,14 @@ are mutually exclusive.
 			if err != nil {
 				fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err) //nolint:errcheck
 				return cli.Exit("upload failed", 1)
+			}
+
+			// Warn (non-fatal) when the publish renders mermaid but the shared
+			// engine is not published; the upload above already succeeded.
+			if !noRender {
+				if uses, merr := render.UsesMermaid(localPath); merr == nil {
+					deps.WarnIfAbsent(ctx, activeUploader, bucket, render.MermaidVersion, uses, cmd.Root().ErrWriter)
+				}
 			}
 
 			suffix := upload.URLSuffix(genIndex, result.SourceRelPaths)

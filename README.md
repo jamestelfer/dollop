@@ -144,6 +144,28 @@ On success, dollop prints the public URL of the upload:
 https://cdn.example.com/flash/7/v8p2xkqj3m/
 ```
 
+### Mermaid diagrams
+
+Markdown containing ` ```mermaid ` fenced code blocks renders as diagrams in the
+browser. Rather than embedding the ~3 MB mermaid engine in every upload, dollop
+publishes it once to a shared, version-pinned location in the bucket
+(`deps/mermaid/<version>/`) and every rendered page references it by relative
+path. Pages load it as an ES module, so only the diagram types a page actually
+uses are fetched.
+
+Publish the engine once — and again whenever a new dollop release bumps the
+pinned mermaid version:
+
+```
+dollop deps publish          # fetch, verify, and upload the pinned engine
+dollop deps publish --force  # re-upload even if already present
+dollop deps status           # show the shipped version and whether it is published
+```
+
+`dollop doctor` reports the same presence check. If you publish markdown with a
+mermaid diagram before running `deps publish`, dollop prints a warning and the
+diagram will not render until the engine is published.
+
 ## Cloudflare R2 setup
 
 ### Bucket

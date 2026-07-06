@@ -3,19 +3,25 @@ package updatecmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
 	"github.com/jamestelfer/dollop/internal/cli/urlout"
+	"github.com/jamestelfer/dollop/internal/deps"
 	"github.com/jamestelfer/dollop/internal/render"
 	"github.com/jamestelfer/dollop/internal/upload"
 	"github.com/urfave/cli/v3"
 )
 
 // New returns the update command.
-// uploader, bucket, and baseURL are injected so tests can supply fakes.
+// uploader, bucket, and baseURL are injected so tests can supply fakes. The
+// uploader must also list and self-copy objects (upload.SyncUploader): listing
+// backs the deps-presence check and the partial-refresh touch pass, and
+// self-copy resets the lifecycle expiry clock on objects this run did not
+// rewrite.
 func New(
-	uploader upload.Uploader,
+	uploader upload.SyncUploader,
 	bucket string,
 	baseURL string,
 ) cli.Command {
@@ -54,66 +60,82 @@ use --no-render to disable it and --index to generate an index.html.`,
 				Hidden: true,
 			},
 		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			if cmd.Args().Len() != 2 {
-				return cli.Exit("usage: update <url-or-prefix> <path>", 1)
-			}
+		Action: newAction(uploader, bucket, baseURL),
+	}
+}
 
-			genIndex := cmd.Bool("index")
-			noRender := cmd.Bool("no-render")
-			copyDir := cmd.String("copy-dir")
-			ref := cmd.Args().Get(0)
-			localPath := cmd.Args().Get(1)
+// warnMissingMermaidDeps writes a non-fatal warning when localPath renders any
+// mermaid diagram but the shared engine is not present in the bucket.
+func warnMissingMermaidDeps(ctx context.Context, lister upload.ObjectLister, bucket, localPath string, stderr io.Writer) {
+	uses, err := render.UsesMermaid(localPath)
+	if err != nil {
+		return
+	}
+	deps.WarnIfAbsent(ctx, lister, bucket, render.MermaidVersion, uses, stderr)
+}
 
-			prefix, err := upload.ResolvePrefix(baseURL, ref)
-			if err != nil {
-				return cli.Exit(fmt.Sprintf("resolve upload reference: %v", err), 1)
-			}
+func newAction(uploader upload.SyncUploader, bucket, baseURL string) cli.ActionFunc {
+	return func(ctx context.Context, cmd *cli.Command) error {
+		if cmd.Args().Len() != 2 {
+			return cli.Exit("usage: update <url-or-prefix> <path>", 1)
+		}
 
-			activeUploader := uploader
-			if copyDir != "" {
-				fmt.Fprintf(cmd.Root().ErrWriter, "note: writing to local directory %s instead of R2\n", copyDir) //nolint:errcheck
-				activeUploader = &upload.DirUploader{Root: copyDir}
-			}
+		genIndex := cmd.Bool("index")
+		noRender := cmd.Bool("no-render")
+		copyDir := cmd.String("copy-dir")
+		ref := cmd.Args().Get(0)
+		localPath := cmd.Args().Get(1)
 
-			if activeUploader == nil {
-				return cli.Exit("no R2 credentials configured; run 'dollop config set account-id <id>', "+
-					"'dollop config auth r2-key <key>', and 'dollop config auth r2-secret <secret>' (or use --copy-dir)", 1)
-			}
+		prefix, err := upload.ResolvePrefix(baseURL, ref)
+		if err != nil {
+			return cli.Exit(fmt.Sprintf("resolve upload reference: %v", err), 1)
+		}
 
-			var uploadOpts []upload.UploadOption
-			if !noRender {
-				uploadOpts = append(uploadOpts, upload.WithRenderer(render.NewMarkdownRendererWithStderr(cmd.Root().ErrWriter)))
-			}
+		activeUploader := uploader
+		if copyDir != "" {
+			fmt.Fprintf(cmd.Root().ErrWriter, "note: writing to local directory %s instead of R2\n", copyDir) //nolint:errcheck
+			activeUploader = &upload.DirUploader{Root: copyDir}
+		}
 
-			result, err := upload.UploadFiles(ctx, activeUploader, bucket, prefix, localPath, genIndex, cmd.Root().ErrWriter, uploadOpts...)
-			if err != nil {
+		if activeUploader == nil {
+			return cli.Exit("no R2 credentials configured; run 'dollop config set account-id <id>', "+
+				"'dollop config auth r2-key <key>', and 'dollop config auth r2-secret <secret>' (or use --copy-dir)", 1)
+		}
+
+		var uploadOpts []upload.UploadOption
+		if !noRender {
+			uploadOpts = append(uploadOpts, upload.WithRenderer(render.NewMarkdownRendererWithStderr(cmd.Root().ErrWriter)))
+		}
+
+		result, err := upload.UploadFiles(ctx, activeUploader, bucket, prefix, localPath, genIndex, cmd.Root().ErrWriter, uploadOpts...)
+		if err != nil {
+			fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err) //nolint:errcheck
+			return cli.Exit("upload failed", 1)
+		}
+
+		// Reset the expiry clock on pre-existing objects this update did not
+		// rewrite, so a partial refresh doesn't let the rest of the upload
+		// expire early. The pass applies only to directory updates on flash/
+		// prefixes: keep/ has no expiry clock, and a single-file update leaves
+		// nothing else under the prefix worth preserving.
+		if info, statErr := os.Stat(localPath); statErr == nil && info.IsDir() && strings.HasPrefix(prefix, "flash/") {
+			if err := upload.TouchUntouched(ctx, activeUploader, activeUploader, bucket, prefix, result.WrittenKeys, cmd.Root().ErrWriter); err != nil {
 				fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err) //nolint:errcheck
-				return cli.Exit("upload failed", 1)
+				return cli.Exit("touch failed", 1)
 			}
+		}
 
-			// Reset the expiry clock on pre-existing objects this update did not
-			// rewrite, so a partial refresh doesn't let the rest of the upload
-			// expire early. The pass applies only to directory updates on flash/
-			// prefixes: keep/ has no expiry clock, and a single-file update leaves
-			// nothing else under the prefix worth preserving.
-			if info, statErr := os.Stat(localPath); statErr == nil && info.IsDir() && strings.HasPrefix(prefix, "flash/") {
-				lister, lok := activeUploader.(upload.ObjectLister)
-				copier, cok := activeUploader.(upload.ObjectCopier)
-				if lok && cok {
-					if err := upload.TouchUntouched(ctx, lister, copier, bucket, prefix, result.WrittenKeys, cmd.Root().ErrWriter); err != nil {
-						fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err) //nolint:errcheck
-						return cli.Exit("touch failed", 1)
-					}
-				}
-			}
+		// Warn (non-fatal) when the publish renders mermaid but the shared
+		// engine is not published; the upload above already succeeded.
+		if !noRender {
+			warnMissingMermaidDeps(ctx, activeUploader, bucket, localPath, cmd.Root().ErrWriter)
+		}
 
-			suffix := upload.URLSuffix(genIndex, result.SourceRelPaths)
-			url := upload.PublicURL(baseURL, prefix, suffix)
-			if _, err := fmt.Fprintln(cmd.Root().Writer, urlout.Format(url, urlout.IsTerminalWriter(cmd.Root().Writer))); err != nil {
-				return cli.Exit(fmt.Sprintf("write output: %v", err), 1)
-			}
-			return nil
-		},
+		suffix := upload.URLSuffix(genIndex, result.SourceRelPaths)
+		url := upload.PublicURL(baseURL, prefix, suffix)
+		if _, err := fmt.Fprintln(cmd.Root().Writer, urlout.Format(url, urlout.IsTerminalWriter(cmd.Root().Writer))); err != nil {
+			return cli.Exit(fmt.Sprintf("write output: %v", err), 1)
+		}
+		return nil
 	}
 }

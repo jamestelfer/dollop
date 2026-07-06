@@ -23,8 +23,11 @@ type Source struct {
 
 // Renderer plans the set of Sources to upload from a list of relative paths
 // and returns any shared assets that must be uploaded once at the prefix root.
+// prefix is the R2 key prefix the files will be published under (e.g.
+// flash/1/<id> or keep/<name>); it is used to compute relative references that
+// climb out of the prefix to shared, bucket-rooted deps.
 type Renderer interface {
-	Plan(relPaths []string, sourceDir string) ([]Source, []SharedAsset, error)
+	Plan(relPaths []string, sourceDir string, prefix string) ([]Source, []SharedAsset, error)
 }
 
 // NewDiskRenderer returns a Renderer that serves files directly from disk
@@ -35,7 +38,7 @@ func NewDiskRenderer() Renderer {
 
 type diskRenderer struct{}
 
-func (d *diskRenderer) Plan(relPaths []string, sourceDir string) ([]Source, []SharedAsset, error) {
+func (d *diskRenderer) Plan(relPaths []string, sourceDir string, _ string) ([]Source, []SharedAsset, error) {
 	sources := make([]Source, 0, len(relPaths))
 	for _, p := range relPaths {
 		absPath := filepath.Join(sourceDir, filepath.FromSlash(p))

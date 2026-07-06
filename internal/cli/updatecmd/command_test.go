@@ -31,6 +31,21 @@ func (f *fakeUploader) PutObject(_ context.Context, _, key, _ string, _ io.Reade
 	return nil
 }
 
+// ListObjects and CopyObject let fakeUploader satisfy upload.SyncUploader for
+// cases that don't exercise the touch pass (it reports no pre-existing objects,
+// so the pass is a no-op). Tests that assert touch behaviour use
+// fakeFullUploader instead.
+func (f *fakeUploader) ListObjects(_ context.Context, _, _ string) ([]string, error) {
+	return nil, nil
+}
+
+func (f *fakeUploader) CopyObject(_ context.Context, _, _ string) error { return nil }
+
+var (
+	_ upload.SyncUploader = (*fakeUploader)(nil)
+	_ upload.SyncUploader = (*fakeFullUploader)(nil)
+)
+
 // fakeFullUploader implements Uploader, ObjectLister, and ObjectCopier so the
 // flash/ touch pass can be exercised. existing seeds objects already under the
 // prefix; ListObjects reports those plus everything PutObject wrote this run.
@@ -67,7 +82,7 @@ func (f *fakeFullUploader) CopyObject(_ context.Context, _, key string) error {
 	return nil
 }
 
-func runUpdate(t *testing.T, up upload.Uploader, baseURL string, args ...string) (stdout, stderr string, code int) {
+func runUpdate(t *testing.T, up upload.SyncUploader, baseURL string, args ...string) (stdout, stderr string, code int) {
 	t.Helper()
 	var outBuf, errBuf bytes.Buffer
 	cmd := updatecmd.New(up, "test-bucket", baseURL)

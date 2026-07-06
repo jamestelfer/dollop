@@ -47,3 +47,21 @@ type ObjectLister interface {
 type ObjectCopier interface {
 	CopyObject(ctx context.Context, bucket, key string) error
 }
+
+// ListingUploader is the capability set the create command depends on: publish
+// objects and list them (to check whether shared deps are already present).
+// Both S3Uploader and DirUploader satisfy it, so commands can depend on it
+// directly instead of type-asserting a plain Uploader at runtime.
+type ListingUploader interface {
+	Uploader
+	ObjectLister
+}
+
+// SyncUploader is the capability set the update command depends on: publish,
+// list (for deps presence and the partial-refresh touch pass), and self-copy to
+// reset the lifecycle expiry clock. Both S3Uploader and DirUploader satisfy it.
+type SyncUploader interface {
+	Uploader
+	ObjectLister
+	ObjectCopier
+}
