@@ -32,7 +32,15 @@ func (f *fakeUploader) PutObject(_ context.Context, _, key, _ string, _ io.Reade
 	return nil
 }
 
-func runCreate(t *testing.T, up upload.Uploader, args ...string) (stdout, stderr string, code int) {
+// ListObjects reports no existing objects; create only needs it for the
+// (absent) deps-presence check, which these fakes exercise as "not published".
+func (f *fakeUploader) ListObjects(_ context.Context, _, _ string) ([]string, error) {
+	return nil, nil
+}
+
+var _ upload.ListingUploader = (*fakeUploader)(nil)
+
+func runCreate(t *testing.T, up upload.ListingUploader, args ...string) (stdout, stderr string, code int) {
 	t.Helper()
 	var outBuf, errBuf bytes.Buffer
 	cmd := createcmd.New(

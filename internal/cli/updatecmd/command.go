@@ -15,9 +15,13 @@ import (
 )
 
 // New returns the update command.
-// uploader, bucket, and baseURL are injected so tests can supply fakes.
+// uploader, bucket, and baseURL are injected so tests can supply fakes. The
+// uploader must also list and self-copy objects (upload.SyncUploader): listing
+// backs the deps-presence check and the partial-refresh touch pass, and
+// self-copy resets the lifecycle expiry clock on objects this run did not
+// rewrite.
 func New(
-	uploader upload.Uploader,
+	uploader upload.SyncUploader,
 	bucket string,
 	baseURL string,
 ) cli.Command {
@@ -62,16 +66,15 @@ use --no-render to disable it and --index to generate an index.html.`,
 
 // warnMissingMermaidDeps writes a non-fatal warning when localPath renders any
 // mermaid diagram but the shared engine is not present in the bucket.
-func warnMissingMermaidDeps(ctx context.Context, up upload.Uploader, bucket, localPath string, stderr io.Writer) {
+func warnMissingMermaidDeps(ctx context.Context, lister upload.ObjectLister, bucket, localPath string, stderr io.Writer) {
 	uses, err := render.UsesMermaid(localPath)
 	if err != nil {
 		return
 	}
-	lister, _ := up.(upload.ObjectLister)
 	deps.WarnIfAbsent(ctx, lister, bucket, render.MermaidVersion, uses, stderr)
 }
 
-func newAction(uploader upload.Uploader, bucket, baseURL string) cli.ActionFunc {
+func newAction(uploader upload.SyncUploader, bucket, baseURL string) cli.ActionFunc {
 	return func(ctx context.Context, cmd *cli.Command) error {
 		if cmd.Args().Len() != 2 {
 			return cli.Exit("usage: update <url-or-prefix> <path>", 1)
@@ -116,13 +119,9 @@ func newAction(uploader upload.Uploader, bucket, baseURL string) cli.ActionFunc 
 		// prefixes: keep/ has no expiry clock, and a single-file update leaves
 		// nothing else under the prefix worth preserving.
 		if info, statErr := os.Stat(localPath); statErr == nil && info.IsDir() && strings.HasPrefix(prefix, "flash/") {
-			lister, lok := activeUploader.(upload.ObjectLister)
-			copier, cok := activeUploader.(upload.ObjectCopier)
-			if lok && cok {
-				if err := upload.TouchUntouched(ctx, lister, copier, bucket, prefix, result.WrittenKeys, cmd.Root().ErrWriter); err != nil {
-					fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err) //nolint:errcheck
-					return cli.Exit("touch failed", 1)
-				}
+			if err := upload.TouchUntouched(ctx, activeUploader, activeUploader, bucket, prefix, result.WrittenKeys, cmd.Root().ErrWriter); err != nil {
+				fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err) //nolint:errcheck
+				return cli.Exit("touch failed", 1)
 			}
 		}
 

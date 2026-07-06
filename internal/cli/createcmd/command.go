@@ -12,11 +12,13 @@ import (
 )
 
 // New returns the create command.
-// uploader, bucket, and baseURL are injected so tests can supply fakes.
+// uploader, bucket, and baseURL are injected so tests can supply fakes. The
+// uploader must also list objects (upload.ListingUploader) so the command can
+// check whether the shared mermaid engine is published.
 // newID generates the nanoid for ephemeral uploads; newName generates the
 // petname for permanent uploads.
 func New(
-	uploader upload.Uploader,
+	uploader upload.ListingUploader,
 	bucket string,
 	baseURL string,
 	newID func() (string, error),
@@ -131,8 +133,7 @@ are mutually exclusive.
 			// engine is not published; the upload above already succeeded.
 			if !noRender {
 				if uses, merr := render.UsesMermaid(localPath); merr == nil {
-					lister, _ := activeUploader.(upload.ObjectLister)
-					deps.WarnIfAbsent(ctx, lister, bucket, render.MermaidVersion, uses, cmd.Root().ErrWriter)
+					deps.WarnIfAbsent(ctx, activeUploader, bucket, render.MermaidVersion, uses, cmd.Root().ErrWriter)
 				}
 			}
 

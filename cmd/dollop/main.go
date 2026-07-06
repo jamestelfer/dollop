@@ -71,29 +71,31 @@ func run(ctx context.Context, args []string) error {
 	// plain-text fallback file.
 	secureStorage := !accessPlaintext && !secretPlaintext
 
-	var uploader upload.Uploader
+	// client is the R2 backend; it satisfies every object capability the commands
+	// need (put, list, copy). It is nil when credentials are absent, and each
+	// command reports a friendly error in that case. lister is the bucket-level
+	// reachability check used only by doctor.
+	var client upload.SyncUploader
 	var lister upload.BucketLister
-	var objLister upload.ObjectLister
 	if cfg.AccountID != "" && accessKey != "" && secretKey != "" {
 		s3up, s3err := upload.NewS3Uploader(cfg.AccountID, accessKey, secretKey)
 		if s3err != nil {
 			return fmt.Errorf("init uploader: %w", s3err)
 		}
-		uploader = s3up
+		client = s3up
 		lister = s3up
-		objLister = s3up
 	}
 
 	cfgCmd := configcmd.New(kr, pt, cfgPath)
 	createCmd := createcmd.New(
-		uploader,
+		client,
 		cfg.Bucket,
 		cfg.BaseURL,
 		func() (string, error) { return nanoid.New() },
 		func() string { return petname.Generate(2, "-") },
 	)
 	updateCmd := updatecmd.New(
-		uploader,
+		client,
 		cfg.Bucket,
 		cfg.BaseURL,
 	)
@@ -104,9 +106,9 @@ func run(ctx context.Context, args []string) error {
 		secureStorage,
 		accessKey != "",
 		secretKey != "",
-		uploader,
+		client,
 		lister,
-		objLister,
+		client,
 		render.MermaidVersion,
 		func() (string, error) { return nanoid.New() },
 		func(ctx context.Context, url string) (*http.Response, error) {
@@ -118,8 +120,8 @@ func run(ctx context.Context, args []string) error {
 		},
 	)
 	depsCmd := depscmd.New(
-		uploader,
-		objLister,
+		client,
+		client,
 		cfg.Bucket,
 		render.MermaidVersion,
 		render.MermaidSHA512,
