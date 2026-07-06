@@ -106,6 +106,8 @@ func run(ctx context.Context, args []string) error {
 		secretKey != "",
 		uploader,
 		lister,
+		objLister,
+		render.MermaidVersion,
 		func() (string, error) { return nanoid.New() },
 		func(ctx context.Context, url string) (*http.Response, error) {
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)

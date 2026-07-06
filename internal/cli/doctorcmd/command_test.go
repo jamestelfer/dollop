@@ -11,6 +11,7 @@ import (
 
 	"github.com/jamestelfer/dollop/internal/cli/doctorcmd"
 	"github.com/jamestelfer/dollop/internal/config"
+	"github.com/jamestelfer/dollop/internal/render"
 	"github.com/jamestelfer/dollop/internal/upload"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,9 +48,26 @@ func okGet() func(context.Context, string) (*http.Response, error) {
 	return mockGet(http.StatusOK, "testid")
 }
 
+// fakeObjLister reports the object keys present under a prefix, used for the
+// shared mermaid deps presence check.
+type fakeObjLister struct {
+	keys []string
+	err  error
+}
+
+func (f *fakeObjLister) ListObjects(_ context.Context, _, _ string) ([]string, error) {
+	return f.keys, f.err
+}
+
+// presentDepsLister reports the shipped mermaid version as published.
+func presentDepsLister() *fakeObjLister {
+	return &fakeObjLister{keys: []string{"deps/mermaid/" + render.MermaidVersion + "/mermaid.esm.min.mjs"}}
+}
+
 // compile-time check: fakeUploader and fakeLister satisfy their interfaces
 var _ upload.Uploader = (*fakeUploader)(nil)
 var _ upload.BucketLister = (*fakeLister)(nil)
+var _ upload.ObjectLister = (*fakeObjLister)(nil)
 
 // doctorOpts captures the configuration inputs that most tests leave at their
 // defaults. Tests that care about a field override it before calling runDoctor.
@@ -69,16 +87,21 @@ func defaultOpts() doctorOpts {
 
 func runDoctor(t *testing.T, cfg config.Config, hasKey, hasSecret bool, lister upload.BucketLister, up upload.Uploader, httpGet func(context.Context, string) (*http.Response, error)) (stdout, stderr string, code int) {
 	t.Helper()
-	return runDoctorOpts(t, defaultOpts(), cfg, hasKey, hasSecret, lister, up, httpGet)
+	return runDoctorDeps(t, defaultOpts(), cfg, hasKey, hasSecret, lister, up, presentDepsLister(), httpGet)
 }
 
 func runDoctorOpts(t *testing.T, opts doctorOpts, cfg config.Config, hasKey, hasSecret bool, lister upload.BucketLister, up upload.Uploader, httpGet func(context.Context, string) (*http.Response, error)) (stdout, stderr string, code int) {
+	t.Helper()
+	return runDoctorDeps(t, opts, cfg, hasKey, hasSecret, lister, up, presentDepsLister(), httpGet)
+}
+
+func runDoctorDeps(t *testing.T, opts doctorOpts, cfg config.Config, hasKey, hasSecret bool, lister upload.BucketLister, up upload.Uploader, objLister upload.ObjectLister, httpGet func(context.Context, string) (*http.Response, error)) (stdout, stderr string, code int) {
 	t.Helper()
 	var outBuf, errBuf bytes.Buffer
 	cmd := doctorcmd.New(
 		cfg, opts.configPath, opts.authPath, opts.secureStorage,
 		hasKey, hasSecret,
-		up, lister,
+		up, lister, objLister, render.MermaidVersion,
 		func() (string, error) { return "testid", nil },
 		httpGet,
 	)
@@ -122,6 +145,22 @@ func TestDoctor_AllOK(t *testing.T) {
 	assert.Contains(t, stdout, "✓ bucket accessible")
 	assert.Contains(t, stdout, "✓ uploaded flash/1/testid/check.txt")
 	assert.Contains(t, stdout, "✓ downloaded https://example.com/flash/1/testid/check.txt")
+}
+
+func TestDoctor_MermaidDepsPublished(t *testing.T) {
+	stdout, _, code := runDoctor(t, fullConfig(), true, true, &fakeLister{}, &fakeUploader{}, okGet())
+	require.Equal(t, 0, code)
+	assert.Contains(t, stdout, "✓ mermaid "+render.MermaidVersion+": published")
+}
+
+func TestDoctor_MermaidDepsNotPublished(t *testing.T) {
+	stdout, _, code := runDoctorDeps(t, defaultOpts(), fullConfig(), true, true,
+		&fakeLister{}, &fakeUploader{}, &fakeObjLister{}, okGet())
+	// missing deps are informational, not a failure
+	require.Equal(t, 0, code)
+	assert.Contains(t, stdout, "mermaid "+render.MermaidVersion+": not published")
+	assert.Contains(t, stdout, "dollop deps publish")
+	assert.Contains(t, stdout, "all checks passed")
 }
 
 func TestDoctor_MissingBucket(t *testing.T) {

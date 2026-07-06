@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/jamestelfer/dollop/internal/config"
+	"github.com/jamestelfer/dollop/internal/deps"
 	"github.com/jamestelfer/dollop/internal/upload"
 	"github.com/urfave/cli/v3"
 )
@@ -29,8 +30,11 @@ const (
 // OS secrets storage (true) rather than the plain-text auth file (false).
 // uploader and lister are injected so tests can supply fakes; both may be nil
 // when credentials are absent (config checks will already fail in that case).
-// newID generates the nanoid used as the check object key and content.
-// httpGet performs the download verification; inject http.DefaultClient.Do for production.
+// objLister is the object lister used for the shared mermaid deps presence
+// check; it may be nil when credentials are absent. mermaidVersion is the
+// shipped engine version. newID generates the nanoid used as the check object
+// key and content. httpGet performs the download verification; inject
+// http.DefaultClient.Do for production.
 func New(
 	cfg config.Config,
 	configPath string,
@@ -40,6 +44,8 @@ func New(
 	hasSecret bool,
 	uploader upload.Uploader,
 	lister upload.BucketLister,
+	objLister upload.ObjectLister,
+	mermaidVersion string,
 	newID func() (string, error),
 	httpGet func(ctx context.Context, url string) (*http.Response, error),
 ) cli.Command {
@@ -127,11 +133,29 @@ Checks are reported in three groups:
 			}
 			writeOK(w, "downloaded %s", publicURL)
 
+			// Shared mermaid engine: informational, non-fatal.
+			checkMermaidDeps(ctx, w, objLister, cfg.Bucket, mermaidVersion)
+
 			if _, err := fmt.Fprintln(w, "all checks passed"); err != nil {
 				return cli.Exit(fmt.Sprintf("write output: %v", err), 1)
 			}
 			return nil
 		},
+	}
+}
+
+// checkMermaidDeps reports whether the shared mermaid engine is published, using
+// the same presence check as `deps status` and the create/update warning. It is
+// informational and non-fatal: a missing engine or a check error is a warning,
+// never a doctor failure.
+func checkMermaidDeps(ctx context.Context, w io.Writer, objLister upload.ObjectLister, bucket, version string) {
+	switch present, err := deps.Present(ctx, objLister, bucket, version); {
+	case err != nil:
+		writeWarn(w, "mermaid %s: deps check failed: %v", version, err)
+	case present:
+		writeOK(w, "mermaid %s: published", version)
+	default:
+		writeWarn(w, "mermaid %s: not published (run 'dollop deps publish')", version)
 	}
 }
 
