@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 
@@ -10,9 +11,11 @@ import (
 	"github.com/jamestelfer/dollop/internal/buildinfo"
 	"github.com/jamestelfer/dollop/internal/cli/configcmd"
 	"github.com/jamestelfer/dollop/internal/cli/createcmd"
+	"github.com/jamestelfer/dollop/internal/cli/depscmd"
 	"github.com/jamestelfer/dollop/internal/cli/doctorcmd"
 	"github.com/jamestelfer/dollop/internal/cli/updatecmd"
 	"github.com/jamestelfer/dollop/internal/config"
+	"github.com/jamestelfer/dollop/internal/render"
 	"github.com/jamestelfer/dollop/internal/upload"
 	nanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/urfave/cli/v3"
@@ -23,6 +26,25 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+// fetchTarball downloads a deps tarball over HTTP, returning its body for the
+// deps publisher to hash and extract. Non-200 responses are surfaced as errors
+// so a publish never proceeds on a partial or error page.
+func fetchTarball(ctx context.Context, url string) (io.ReadCloser, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		_ = resp.Body.Close()
+		return nil, fmt.Errorf("fetch %s: HTTP %d", url, resp.StatusCode)
+	}
+	return resp.Body, nil
 }
 
 func run(ctx context.Context, args []string) error {
@@ -51,6 +73,7 @@ func run(ctx context.Context, args []string) error {
 
 	var uploader upload.Uploader
 	var lister upload.BucketLister
+	var objLister upload.ObjectLister
 	if cfg.AccountID != "" && accessKey != "" && secretKey != "" {
 		s3up, s3err := upload.NewS3Uploader(cfg.AccountID, accessKey, secretKey)
 		if s3err != nil {
@@ -58,6 +81,7 @@ func run(ctx context.Context, args []string) error {
 		}
 		uploader = s3up
 		lister = s3up
+		objLister = s3up
 	}
 
 	cfgCmd := configcmd.New(kr, pt, cfgPath)
@@ -91,6 +115,14 @@ func run(ctx context.Context, args []string) error {
 			return http.DefaultClient.Do(req) //nolint:bodyclose
 		},
 	)
+	depsCmd := depscmd.New(
+		uploader,
+		objLister,
+		cfg.Bucket,
+		render.MermaidVersion,
+		render.MermaidSHA512,
+		fetchTarball,
+	)
 
 	cli.VersionPrinter = func(cmd *cli.Command) {
 		_ = buildinfo.Fprint(cmd.Root().Writer, cmd.Root().Name)
@@ -115,7 +147,7 @@ Quick start:
   dollop create photo.jpg              # share a file; link expires in 1 day
   dollop create --days 7 archive.zip   # share a file; link expires in 7 days
   dollop create --keep project/        # share a directory with a permanent link`,
-		Commands: []*cli.Command{&cfgCmd, &createCmd, &updateCmd, &doctorCmd},
+		Commands: []*cli.Command{&cfgCmd, &createCmd, &updateCmd, &doctorCmd, &depsCmd},
 	}
 	return app.Run(ctx, args)
 }
