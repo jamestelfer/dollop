@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/jamestelfer/dollop/internal/cli/urlout"
+	"github.com/jamestelfer/dollop/internal/deps"
 	"github.com/jamestelfer/dollop/internal/render"
 	"github.com/jamestelfer/dollop/internal/upload"
 	"github.com/urfave/cli/v3"
@@ -124,6 +125,15 @@ are mutually exclusive.
 			if err != nil {
 				fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err) //nolint:errcheck
 				return cli.Exit("upload failed", 1)
+			}
+
+			// Warn (non-fatal) when the publish renders mermaid but the shared
+			// engine is not published; the upload above already succeeded.
+			if !noRender {
+				if uses, merr := render.UsesMermaid(localPath); merr == nil {
+					lister, _ := activeUploader.(upload.ObjectLister)
+					deps.WarnIfAbsent(ctx, lister, bucket, render.MermaidVersion, uses, cmd.Root().ErrWriter)
+				}
 			}
 
 			suffix := upload.URLSuffix(genIndex, result.SourceRelPaths)

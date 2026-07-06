@@ -80,7 +80,7 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 		return nil, fmt.Errorf("scan files: %w", err)
 	}
 
-	sources, sharedAssets, err := renderer.Plan(relPaths, sourceDir)
+	sources, sharedAssets, err := renderer.Plan(relPaths, sourceDir, prefix)
 	if err != nil {
 		return nil, fmt.Errorf("plan: %w", err)
 	}

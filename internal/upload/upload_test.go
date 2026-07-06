@@ -200,7 +200,7 @@ func TestUploadFiles_Index_SingleFile_IsIndex(t *testing.T) {
 	assert.Equal(t, []string{"index.html"}, files)
 }
 
-func TestUploadFiles_Render_MermaidBatchUploadsJSOnce(t *testing.T) {
+func TestUploadFiles_Render_MermaidEngineNotUploadedPerPrefix(t *testing.T) {
 	dir := t.TempDir()
 	mermaidMD := "```mermaid\ngraph TD\n    A --> B\n```\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.md"), []byte(mermaidMD), 0o600))
@@ -211,13 +211,11 @@ func TestUploadFiles_Render_MermaidBatchUploadsJSOnce(t *testing.T) {
 	_, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
 	require.NoError(t, err)
 
-	mermaidCount := 0
+	// The mermaid engine is now shared under deps/mermaid/<v>/ and referenced by
+	// relative path; it must never be uploaded into the publish prefix.
 	for _, c := range up.calls {
-		if c.key == "flash/1/abc/mermaid.min.js" {
-			mermaidCount++
-		}
+		assert.NotContains(t, c.key, "mermaid", "no mermaid engine should be written under the prefix")
 	}
-	assert.Equal(t, 1, mermaidCount, "mermaid.min.js should be uploaded exactly once")
 }
 
 func TestUploadFiles_Render_SharedAssetsUploadedOnce(t *testing.T) {

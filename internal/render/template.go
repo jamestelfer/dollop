@@ -15,12 +15,17 @@ type pageData struct {
 	Title            string
 	CSSPath          string
 	HighlightCSSPath string
-	MermaidPath      string // empty when no mermaid fence in the document
-	LogoLightPath    string
-	LogoDarkPath     string
-	FaviconPath      string
-	Body             template.HTML
-	SourcePath       string
+	// MermaidScript is the full <script type="module"> element that loads the
+	// shared mermaid engine, or empty when the document has no mermaid fence. It
+	// is built server-side from the pinned version and a relative climb path (no
+	// user-controlled content), so it is emitted verbatim; interpolating the path
+	// into a JS string context would mangle its slashes.
+	MermaidScript template.HTML
+	LogoLightPath string
+	LogoDarkPath  string
+	FaviconPath   string
+	Body          template.HTML
+	SourcePath    string
 }
 
 func renderTemplate(data pageData) ([]byte, error) {

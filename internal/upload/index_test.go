@@ -42,13 +42,13 @@ func TestGenerateIndexHTML_MarkdownWithoutHTMLStaysTopLevel(t *testing.T) {
 }
 
 func TestGenerateIndexHTML_SupportingSection(t *testing.T) {
-	html, err := generateIndexHTML([]string{"a.html"}, []string{"github-markdown.css", "mermaid.min.js"})
+	html, err := generateIndexHTML([]string{"a.html"}, []string{"github-markdown.css", "highlight-github.css"})
 	require.NoError(t, err)
 	s := string(html)
 
 	assert.Contains(t, s, "Supporting files")
 	assert.Contains(t, s, `href="github-markdown.css"`)
-	assert.Contains(t, s, `href="mermaid.min.js"`)
+	assert.Contains(t, s, `href="highlight-github.css"`)
 }
 
 func TestGenerateIndexHTML_NoSupportingSectionWhenEmpty(t *testing.T) {

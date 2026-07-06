@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -39,7 +40,7 @@ type markdownRenderer struct {
 	stderr io.Writer
 }
 
-func (m *markdownRenderer) Plan(relPaths []string, sourceDir string) ([]Source, []SharedAsset, error) {
+func (m *markdownRenderer) Plan(relPaths []string, sourceDir string, prefix string) ([]Source, []SharedAsset, error) {
 	// batch map is used both for collision detection and by the link rewriter
 	// to know which .md files are being rendered.
 	batch := make(map[string]bool, len(relPaths))
@@ -48,7 +49,6 @@ func (m *markdownRenderer) Plan(relPaths []string, sourceDir string) ([]Source, 
 	}
 
 	hasMarkdown := false
-	needsMermaid := false
 	sources := make([]Source, 0, len(relPaths)+len(relPaths)/2)
 
 	for _, p := range relPaths {
@@ -70,25 +70,13 @@ func (m *markdownRenderer) Plan(relPaths []string, sourceDir string) ([]Source, 
 			continue
 		}
 
-		// pre-scan for mermaid by parsing the AST and reusing hasMermaidFence,
-		// so the shared-asset decision here matches the script injection in
-		// renderMarkdownFile exactly (a substring scan misses ~~~ fences and
-		// trips on literal "```mermaid" in sample code).
-		srcBytes, err := os.ReadFile(filepath.Join(sourceDir, filepath.FromSlash(p))) //nolint:gosec
-		if err != nil {
-			return nil, nil, fmt.Errorf("read %s: %w", p, err)
-		}
-		if hasMermaidFence(mdParser.Parser().Parse(text.NewReader(srcBytes)), srcBytes) {
-			needsMermaid = true
-		}
-
 		mdPath := p
 		sources = append(sources, Source{
 			RelPath:     htmlRel,
 			ContentType: "text/html; charset=utf-8",
 			Size:        -1,
 			Open: func() (io.ReadSeekCloser, error) {
-				html, err := renderMarkdownFile(mdPath, sourceDir, batch)
+				html, err := renderMarkdownFile(mdPath, sourceDir, prefix, batch)
 				if err != nil {
 					return nil, err
 				}
@@ -101,16 +89,16 @@ func (m *markdownRenderer) Plan(relPaths []string, sourceDir string) ([]Source, 
 		return sources, nil, nil
 	}
 
+	// The mermaid engine is no longer shipped per-prefix: rendered pages
+	// reference the shared, version-pinned copy under deps/mermaid/<v>/ (published
+	// once via `dollop deps publish`). Only the CSS and logo assets remain
+	// per-prefix.
 	assets := []SharedAsset{
 		{Name: "github-markdown.css", ContentType: "text/css; charset=utf-8", Content: githubMarkdownCSS},
 		{Name: "highlight-github.css", ContentType: "text/css; charset=utf-8", Content: highlightGithubCSS},
 		{Name: "dollop-light.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopLightSVG},
 		{Name: "dollop-dark.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopDarkSVG},
 		{Name: "dollop-favicon.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopFaviconSVG},
-	}
-
-	if needsMermaid {
-		assets = append(assets, SharedAsset{Name: "mermaid.min.js", ContentType: "application/javascript", Content: mermaidMinJS})
 	}
 
 	return sources, assets, nil
@@ -176,6 +164,28 @@ func cssDepthPrefix(relPath string) string {
 	return strings.Repeat("../", depth)
 }
 
+// mermaidDepsPath returns the relative reference from a rendered page at
+// prefix/relPath to the shared mermaid ESM entrypoint at
+// deps/mermaid/<MermaidVersion>/mermaid.esm.min.mjs. It climbs out of the
+// publish prefix entirely (one "../" per directory segment in prefix/relPath),
+// then descends into the bucket-rooted deps namespace, so the reference is
+// origin-independent and same-origin (no CORS).
+func mermaidDepsPath(prefix, relPath string) string {
+	full := path.Join(prefix, filepath.ToSlash(relPath))
+	climb := strings.Count(full, "/")
+	return strings.Repeat("../", climb) + "deps/mermaid/" + MermaidVersion + "/mermaid.esm.min.mjs"
+}
+
+// mermaidModuleScript builds the ES module loader that imports the shared
+// mermaid engine from depsPath and initialises it. depsPath is server-generated
+// from the pinned version and a relative climb (no user content), so the result
+// is safe to emit verbatim as template.HTML. Loading as a module means only the
+// diagram-type chunks a page actually uses are fetched on demand.
+func mermaidModuleScript(depsPath string) template.HTML {
+	return template.HTML(`<script type="module">import mermaid from '` + depsPath + //nolint:gosec
+		`';mermaid.initialize({startOnLoad:true});</script>`)
+}
+
 func isMarkdown(p string) bool {
 	ext := strings.ToLower(filepath.Ext(p))
 	return ext == ".md" || ext == ".markdown"
@@ -221,9 +231,53 @@ func hasMermaidFence(doc ast.Node, _ []byte) bool {
 	return found
 }
 
+// UsesMermaid reports whether publishing localPath (a markdown file or a
+// directory of files) would render any mermaid diagram. It parses each markdown
+// file's AST and reuses hasMermaidFence, so it agrees exactly with the renderer
+// (a substring scan would miss ~~~ fences and trip on literal sample code).
+// Non-markdown files are ignored. It is used by create/update to warn when the
+// shared mermaid engine is not yet published.
+func UsesMermaid(localPath string) (bool, error) {
+	info, err := os.Stat(localPath)
+	if err != nil {
+		return false, fmt.Errorf("stat %s: %w", localPath, err)
+	}
+	if !info.IsDir() {
+		return fileUsesMermaid(localPath)
+	}
+	found := false
+	err = filepath.WalkDir(localPath, func(p string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || found || !isMarkdown(p) {
+			return err
+		}
+		uses, ferr := fileUsesMermaid(p)
+		if ferr != nil {
+			return ferr
+		}
+		if uses {
+			found = true
+		}
+		return nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("scan %s for mermaid: %w", localPath, err)
+	}
+	return found, nil
+}
+
+// fileUsesMermaid parses a single markdown file and reports whether it contains
+// a mermaid fence.
+func fileUsesMermaid(absPath string) (bool, error) {
+	src, err := os.ReadFile(absPath) //nolint:gosec
+	if err != nil {
+		return false, fmt.Errorf("read %s: %w", absPath, err)
+	}
+	return hasMermaidFence(mdParser.Parser().Parse(text.NewReader(src)), src), nil
+}
+
 // renderMarkdownFile parses and renders the given .md file to HTML bytes.
 // It does not write any files to disk.
-func renderMarkdownFile(relPath, sourceDir string, batch map[string]bool) ([]byte, error) {
+func renderMarkdownFile(relPath, sourceDir, prefix string, batch map[string]bool) ([]byte, error) {
 	src, err := os.ReadFile(filepath.Join(sourceDir, filepath.FromSlash(relPath))) //nolint:gosec
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", relPath, err)
@@ -248,21 +302,21 @@ func renderMarkdownFile(relPath, sourceDir string, batch map[string]bool) ([]byt
 	basename := filepath.Base(stem)
 
 	title := extractTitle(meta.Get(pctx), src, doc, basename)
-	prefix := cssDepthPrefix(relPath)
+	depthPrefix := cssDepthPrefix(relPath)
 
-	var mermaidPath string
+	var mermaidScript template.HTML
 	if mermaid {
-		mermaidPath = prefix + "mermaid.min.js"
+		mermaidScript = mermaidModuleScript(mermaidDepsPath(prefix, relPath))
 	}
 
 	data := pageData{
 		Title:            title,
-		CSSPath:          prefix + "github-markdown.css",
-		HighlightCSSPath: prefix + "highlight-github.css",
-		MermaidPath:      mermaidPath,
-		LogoLightPath:    prefix + "dollop-light.svg",
-		LogoDarkPath:     prefix + "dollop-dark.svg",
-		FaviconPath:      prefix + "dollop-favicon.svg",
+		CSSPath:          depthPrefix + "github-markdown.css",
+		HighlightCSSPath: depthPrefix + "highlight-github.css",
+		MermaidScript:    mermaidScript,
+		LogoLightPath:    depthPrefix + "dollop-light.svg",
+		LogoDarkPath:     depthPrefix + "dollop-dark.svg",
+		FaviconPath:      depthPrefix + "dollop-favicon.svg",
 		Body:             template.HTML(sanitizeHTML(bodyBuf.String())), //nolint:gosec
 		SourcePath:       filepath.Base(relPath),
 	}

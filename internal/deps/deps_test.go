@@ -212,6 +212,39 @@ func TestPublish_ForceReuploadsWhenPresent(t *testing.T) {
 	assert.True(t, fetchCalled)
 }
 
+func TestWarnIfAbsent(t *testing.T) {
+	tgz, integrity := mermaidFixture(t)
+
+	t.Run("absent and used warns", func(t *testing.T) {
+		store := newFakeStore()
+		var buf bytes.Buffer
+		deps.WarnIfAbsent(context.Background(), store, "bucket", "11.16.0", true, &buf)
+		assert.Contains(t, buf.String(), "dollop deps publish")
+	})
+
+	t.Run("present and used is silent", func(t *testing.T) {
+		store := newFakeStore()
+		_, err := deps.Publish(context.Background(), store, store, "bucket", "11.16.0", integrity, fetchFrom(tgz, nil), false, io.Discard)
+		require.NoError(t, err)
+		var buf bytes.Buffer
+		deps.WarnIfAbsent(context.Background(), store, "bucket", "11.16.0", true, &buf)
+		assert.Empty(t, buf.String())
+	})
+
+	t.Run("not used is silent even when absent", func(t *testing.T) {
+		store := newFakeStore()
+		var buf bytes.Buffer
+		deps.WarnIfAbsent(context.Background(), store, "bucket", "11.16.0", false, &buf)
+		assert.Empty(t, buf.String())
+	})
+
+	t.Run("nil lister is silent", func(t *testing.T) {
+		var buf bytes.Buffer
+		deps.WarnIfAbsent(context.Background(), nil, "bucket", "11.16.0", true, &buf)
+		assert.Empty(t, buf.String())
+	})
+}
+
 func TestPresent_TrueAfterPublish(t *testing.T) {
 	tgz, integrity := mermaidFixture(t)
 	store := newFakeStore()

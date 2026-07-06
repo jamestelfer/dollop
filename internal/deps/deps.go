@@ -8,6 +8,7 @@ package deps
 import (
 	"context"
 	"fmt"
+	"io"
 	"slices"
 
 	"github.com/jamestelfer/dollop/internal/upload"
@@ -40,4 +41,22 @@ func Present(ctx context.Context, lister upload.ObjectLister, bucket, version st
 		return false, fmt.Errorf("list deps for mermaid %s: %w", version, err)
 	}
 	return slices.Contains(keys, entrypointKey(version)), nil
+}
+
+// WarnIfAbsent writes a non-fatal warning to stderr when a publish uses mermaid
+// but the shared engine is not present in the bucket, so rendered diagrams will
+// not display until the engine is published. It is a no-op when mermaid is not
+// used, when the lister is nil (presence cannot be checked, e.g. no
+// credentials), or when a presence check fails; publishing must never be
+// blocked by this diagnostic.
+func WarnIfAbsent(ctx context.Context, lister upload.ObjectLister, bucket, version string, usesMermaid bool, stderr io.Writer) {
+	if !usesMermaid || lister == nil {
+		return
+	}
+	present, err := Present(ctx, lister, bucket, version)
+	if err != nil || present {
+		return
+	}
+	fmt.Fprintf(stderr, "warning: this upload contains a mermaid diagram but the shared engine (mermaid %s) "+ //nolint:errcheck
+		"is not published; run 'dollop deps publish' or diagrams will not render\n", version)
 }

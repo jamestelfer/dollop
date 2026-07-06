@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/jamestelfer/dollop/internal/cli/createcmd"
+	"github.com/jamestelfer/dollop/internal/render"
 	"github.com/jamestelfer/dollop/internal/upload"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -279,6 +280,43 @@ func TestCreate_CopyDir_WritesFilesToDisk(t *testing.T) {
 	got, err := os.ReadFile(filepath.Join(dst, "flash", "1", "testid", "data.txt"))
 	require.NoError(t, err)
 	assert.Equal(t, "content", string(got))
+}
+
+func TestCreate_MermaidWarnsWhenDepsAbsent(t *testing.T) {
+	src := t.TempDir()
+	dst := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(src, "d.md"), []byte("```mermaid\ngraph TD\n A-->B\n```\n"), 0o600))
+
+	// --copy-dir uses DirUploader, which implements ObjectLister so the presence
+	// check runs; the deps tree is absent, so a warning must be printed.
+	_, stderr, code := runCreate(t, nil, "create", "--copy-dir", dst, src)
+	require.Equal(t, 0, code, "missing deps must be a warning, not a failure")
+	assert.Contains(t, stderr, "dollop deps publish")
+}
+
+func TestCreate_MermaidSilentWhenDepsPresent(t *testing.T) {
+	src := t.TempDir()
+	dst := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(src, "d.md"), []byte("```mermaid\ngraph TD\n A-->B\n```\n"), 0o600))
+
+	// pre-publish the shared engine into the copy-dir bucket
+	entry := filepath.Join(dst, "deps", "mermaid", render.MermaidVersion, "mermaid.esm.min.mjs")
+	require.NoError(t, os.MkdirAll(filepath.Dir(entry), 0o750))
+	require.NoError(t, os.WriteFile(entry, []byte("//engine"), 0o600))
+
+	_, stderr, code := runCreate(t, nil, "create", "--copy-dir", dst, src)
+	require.Equal(t, 0, code)
+	assert.NotContains(t, stderr, "dollop deps publish")
+}
+
+func TestCreate_NonMermaidNoWarning(t *testing.T) {
+	src := t.TempDir()
+	dst := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(src, "plain.md"), []byte("# Hi"), 0o600))
+
+	_, stderr, code := runCreate(t, nil, "create", "--copy-dir", dst, src)
+	require.Equal(t, 0, code)
+	assert.NotContains(t, stderr, "dollop deps publish")
 }
 
 func TestCreate_URL_IndexHtml_NoSuffix(t *testing.T) {

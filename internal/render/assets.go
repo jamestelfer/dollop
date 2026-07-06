@@ -14,11 +14,6 @@ var githubMarkdownCSS []byte
 //go:embed assets/highlight-github.css
 var highlightGithubCSS []byte
 
-// mermaid.min.js v11 — https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js
-//
-//go:embed assets/mermaid.min.js
-var mermaidMinJS []byte
-
 //go:embed assets/dollop-light.svg
 var dollopLightSVG []byte
 
