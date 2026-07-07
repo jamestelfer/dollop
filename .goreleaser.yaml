@@ -59,6 +59,10 @@ homebrew_casks:
       token: "{{ .Env.HOMEBREW_GITHUB_TOKEN }}"
     binaries:
       - dollop
+    # skip publishing the cask on a prerelease. release.prerelease: auto only
+    # marks the RELEASE as prerelease — it does NOT gate the cask push, so
+    # without this an RC tag would publish the cask.
+    skip_upload: auto
     hooks:
       post:
         install: |
