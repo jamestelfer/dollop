@@ -7,24 +7,28 @@ on:
   push:
     tags: ["v*"]
 
-# The caller sets the permission ceiling: a called reusable workflow can only
-# downgrade, never elevate. Grant exactly what goreleaser-release declares —
-# id-token for the octo-sts mint, contents:write to fill the release-please
-# draft, attestations:write to record keyless provenance.
-permissions:
-  contents: write
-  id-token: write
-  attestations: write
+# Default-deny at the workflow level; the GITHUB_TOKEN ceiling is granted on the
+# calling job below (secure by default — no other job could ever see it).
+permissions: {}
 
 jobs:
   release:
-    uses: chinmina/.github/.github/workflows/goreleaser-release.yml@verified-actions # zizmor: ignore[secrets-inherit]
+    # Caller permissions are a CEILING: a reusable workflow can only downgrade
+    # the GITHUB_TOKEN, never elevate it. Grant exactly what
+    # goreleaser-release.yml's job declares; omitting this would starve the
+    # octo-sts OIDC mint and the keyless attestation.
+    permissions:
+      contents: write # fill + publish the release, push assets
+      id-token: write # octo-sts OIDC mint + keyless attestation
+      attestations: write # record build attestations
+    uses: chinmina/.github/.github/workflows/goreleaser-release.yml@verified-actions
     with:
       # Keyless: mint the release-dollop token (and release-tap for homebrew)
       # against the centralised org trust policies instead of github.token/a PAT.
       # Identities/scope are derived by convention — nothing passed.
       token-source: octo-sts
       # GitHub release + Homebrew + binstaller all enabled (workflow defaults).
-    # secrets: inherit is intentional — environment-scoped secrets must resolve
-    # inside the reusable workflow's environment-targeting job.
-    secrets: inherit
+    # No `secrets:` block: the octo-sts path is keyless — even the Homebrew tap
+    # write is a keyless release-tap mint, so no HOMEBREW_GITHUB_TOKEN is needed.
+    # (On the `app` path with homebrew you would add `secrets: inherit` so the
+    # environment-scoped HOMEBREW_GITHUB_TOKEN resolves inside the reusable job.)
