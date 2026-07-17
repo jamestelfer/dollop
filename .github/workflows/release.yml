@@ -27,6 +27,8 @@ jobs:
       # against the centralised org trust policies instead of github.token/a PAT.
       # Identities/scope are derived by convention — nothing passed.
       token-source: octo-sts
+      disable-npm: true # no npm package published; opt out of default-on npm channel
+      disable-docker-login: true # no container image published; opt out of default-on Docker Hub login
       # GitHub release + Homebrew + binstaller all enabled (workflow defaults).
     # No `secrets:` block: the octo-sts path is keyless — even the Homebrew tap
     # write is a keyless release-tap mint, so no HOMEBREW_GITHUB_TOKEN is needed.
