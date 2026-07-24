@@ -77,7 +77,7 @@ func TestServe_MCPInitialize_ReportsVersion(t *testing.T) {
 
 	// Wait for server to be ready.
 	require.Eventually(t, func() bool {
-		req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+addr+"/healthz", nil)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+addr+"/status", nil)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return false

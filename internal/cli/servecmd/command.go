@@ -136,7 +136,7 @@ func RunServer(ctx context.Context, cfg EnvConfig, version string, stderr io.Wri
 	mux := http.NewServeMux()
 	mux.Handle("/sse", sseServer.SSEHandler())
 	mux.Handle("/message", sseServer.MessageHandler())
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/status", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok\n"))
 	})
