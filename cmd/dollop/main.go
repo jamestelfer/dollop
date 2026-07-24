@@ -13,6 +13,7 @@ import (
 	"github.com/jamestelfer/dollop/internal/cli/createcmd"
 	"github.com/jamestelfer/dollop/internal/cli/depscmd"
 	"github.com/jamestelfer/dollop/internal/cli/doctorcmd"
+	"github.com/jamestelfer/dollop/internal/cli/servecmd"
 	"github.com/jamestelfer/dollop/internal/cli/updatecmd"
 	"github.com/jamestelfer/dollop/internal/config"
 	"github.com/jamestelfer/dollop/internal/render"
@@ -119,6 +120,8 @@ func run(ctx context.Context, args []string) error {
 			return http.DefaultClient.Do(req) //nolint:bodyclose
 		},
 	)
+	serveCmd := servecmd.New(servecmd.ReadEnv)
+
 	depsCmd := depscmd.New(
 		client,
 		client,
@@ -151,7 +154,7 @@ Quick start:
   dollop create photo.jpg              # share a file; link expires in 1 day
   dollop create --days 7 archive.zip   # share a file; link expires in 7 days
   dollop create --keep project/        # share a directory with a permanent link`,
-		Commands: []*cli.Command{&cfgCmd, &createCmd, &updateCmd, &doctorCmd, &depsCmd},
+		Commands: []*cli.Command{&cfgCmd, &createCmd, &updateCmd, &doctorCmd, &depsCmd, &serveCmd},
 	}
 	return app.Run(ctx, args)
 }
