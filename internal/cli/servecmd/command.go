@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jamestelfer/dollop/internal/mcphandler"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/urfave/cli/v3"
 )
@@ -100,6 +101,9 @@ func runServer(ctx context.Context, cfg EnvConfig, stderr io.Writer) error {
 	)
 
 	httpMCP := server.NewStreamableHTTPServer(mcpServer)
+
+	// Register the create_upload tool (no upload function wired yet in this phase).
+	mcphandler.RegisterTool(mcpServer, nil)
 
 	mux := http.NewServeMux()
 	mux.Handle("/mcp", httpMCP)
