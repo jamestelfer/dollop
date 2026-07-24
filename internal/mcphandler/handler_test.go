@@ -2,7 +2,6 @@ package mcphandler_test
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"io"
 	"os"
@@ -17,8 +16,6 @@ import (
 )
 
 func TestValidateInput(t *testing.T) {
-	validContent := base64.StdEncoding.EncodeToString([]byte("hello"))
-
 	tests := []struct {
 		name      string
 		fileName  string
@@ -29,89 +26,82 @@ func TestValidateInput(t *testing.T) {
 		{
 			name:      "path separator slash",
 			fileName:  "dir/file.md",
-			content:   validContent,
+			content:   "hello",
 			wantErr:   true,
 			errSubstr: "path separator",
 		},
 		{
 			name:      "path separator backslash",
 			fileName:  "dir\\file.md",
-			content:   validContent,
+			content:   "hello",
 			wantErr:   true,
 			errSubstr: "path separator",
 		},
 		{
 			name:      "dot filename",
 			fileName:  ".",
-			content:   validContent,
+			content:   "hello",
 			wantErr:   true,
 			errSubstr: "invalid filename",
 		},
 		{
 			name:      "dotdot filename",
 			fileName:  "..",
-			content:   validContent,
+			content:   "hello",
 			wantErr:   true,
 			errSubstr: "invalid filename",
 		},
 		{
 			name:      "parent traversal",
 			fileName:  "../etc/passwd",
-			content:   validContent,
+			content:   "hello",
 			wantErr:   true,
 			errSubstr: "path separator",
 		},
 		{
 			name:      "unsupported extension png",
 			fileName:  "photo.png",
-			content:   validContent,
+			content:   "hello",
 			wantErr:   true,
 			errSubstr: ".md",
 		},
 		{
 			name:      "unsupported extension png mentions html",
 			fileName:  "photo.png",
-			content:   validContent,
+			content:   "hello",
 			wantErr:   true,
 			errSubstr: ".html",
 		},
 		{
 			name:      "no extension",
 			fileName:  "readme",
-			content:   validContent,
+			content:   "hello",
 			wantErr:   true,
 			errSubstr: "unsupported file extension",
 		},
 		{
-			name:      "invalid base64",
+			name:      "empty content",
 			fileName:  "doc.md",
-			content:   "not-valid-base64!!!",
-			wantErr:   true,
-			errSubstr: "base64",
-		},
-		{
-			name:      "empty decoded content",
-			fileName:  "doc.md",
-			content:   base64.StdEncoding.EncodeToString([]byte{}),
+			content:   "",
 			wantErr:   true,
 			errSubstr: "empty",
 		},
 		{
 			name:     "valid markdown",
 			fileName: "doc.md",
-			content:  validContent,
+			content:  "# Hello",
 			wantErr:  false,
 		},
 		{
 			name:     "valid html",
 			fileName: "page.html",
-			content:  validContent,
+			content:  "<html>",
 			wantErr:  false,
 		},
 		{
 			name:     "uppercase extension accepted",
 			fileName: "DOC.MD",
-			content:  validContent,
+			content:  "hello",
 			wantErr:  false,
 		},
 	}
@@ -143,7 +133,7 @@ func TestHandler_InvalidExtension_ReturnsError(t *testing.T) {
 	handler := mcphandler.Handler(nil)
 	result, err := handler(context.Background(), makeToolRequest(map[string]any{
 		"name":    "photo.png",
-		"content": base64.StdEncoding.EncodeToString([]byte("data")),
+		"content": "some data",
 	}))
 	require.NoError(t, err) // transport-level error must be nil
 	require.True(t, result.IsError, "should be an MCP error result")
@@ -156,7 +146,7 @@ func TestHandler_PathTraversal_ReturnsError(t *testing.T) {
 	handler := mcphandler.Handler(nil)
 	result, err := handler(context.Background(), makeToolRequest(map[string]any{
 		"name":    "../etc/passwd",
-		"content": base64.StdEncoding.EncodeToString([]byte("data")),
+		"content": "data",
 	}))
 	require.NoError(t, err)
 	require.True(t, result.IsError)
@@ -166,7 +156,7 @@ func TestHandler_PathSeparator_ReturnsError(t *testing.T) {
 	handler := mcphandler.Handler(nil)
 	result, err := handler(context.Background(), makeToolRequest(map[string]any{
 		"name":    "dir/file.md",
-		"content": base64.StdEncoding.EncodeToString([]byte("data")),
+		"content": "data",
 	}))
 	require.NoError(t, err)
 	require.True(t, result.IsError)
@@ -174,23 +164,11 @@ func TestHandler_PathSeparator_ReturnsError(t *testing.T) {
 	assert.Contains(t, text, "path separator")
 }
 
-func TestHandler_InvalidBase64_ReturnsError(t *testing.T) {
-	handler := mcphandler.Handler(nil)
-	result, err := handler(context.Background(), makeToolRequest(map[string]any{
-		"name":    "doc.md",
-		"content": "not-valid!!!",
-	}))
-	require.NoError(t, err)
-	require.True(t, result.IsError)
-	text := result.Content[0].(mcp.TextContent).Text
-	assert.Contains(t, text, "base64")
-}
-
 func TestHandler_EmptyContent_ReturnsError(t *testing.T) {
 	handler := mcphandler.Handler(nil)
 	result, err := handler(context.Background(), makeToolRequest(map[string]any{
 		"name":    "doc.md",
-		"content": base64.StdEncoding.EncodeToString([]byte{}),
+		"content": "",
 	}))
 	require.NoError(t, err)
 	require.True(t, result.IsError)
@@ -202,7 +180,7 @@ func TestHandler_ValidMarkdown_ReturnsSuccess(t *testing.T) {
 	handler := mcphandler.Handler(nil)
 	result, err := handler(context.Background(), makeToolRequest(map[string]any{
 		"name":    "doc.md",
-		"content": base64.StdEncoding.EncodeToString([]byte("# Hello")),
+		"content": "# Hello",
 	}))
 	require.NoError(t, err)
 	assert.False(t, result.IsError)
@@ -214,7 +192,7 @@ func TestHandler_ValidHTML_ReturnsSuccess(t *testing.T) {
 	handler := mcphandler.Handler(nil)
 	result, err := handler(context.Background(), makeToolRequest(map[string]any{
 		"name":    "page.html",
-		"content": base64.StdEncoding.EncodeToString([]byte("<html>")),
+		"content": "<html>",
 	}))
 	require.NoError(t, err)
 	assert.False(t, result.IsError)
@@ -254,7 +232,7 @@ func TestHandler_HTMLUpload_ReturnsURL(t *testing.T) {
 
 	result, err := handler(context.Background(), makeToolRequest(map[string]any{
 		"name":    "page.html",
-		"content": base64.StdEncoding.EncodeToString([]byte("<h1>Hello</h1>")),
+		"content": "<h1>Hello</h1>",
 	}))
 	require.NoError(t, err)
 	require.False(t, result.IsError, "expected success result")
@@ -277,7 +255,7 @@ func TestHandler_MarkdownUpload_ReturnsBothURLs(t *testing.T) {
 
 	result, err := handler(context.Background(), makeToolRequest(map[string]any{
 		"name":    "doc.md",
-		"content": base64.StdEncoding.EncodeToString([]byte("# Hello")),
+		"content": "# Hello",
 	}))
 	require.NoError(t, err)
 	require.False(t, result.IsError, "expected success result")
@@ -305,7 +283,7 @@ func TestHandler_UploadError_ReturnsMCPError(t *testing.T) {
 
 	result, err := handler(context.Background(), makeToolRequest(map[string]any{
 		"name":    "page.html",
-		"content": base64.StdEncoding.EncodeToString([]byte("<html>")),
+		"content": "<html>",
 	}))
 	require.NoError(t, err) // transport error must be nil
 	require.True(t, result.IsError, "upload failure should produce MCP error")
@@ -323,7 +301,7 @@ func TestHandler_HTMLUpload_UsesBaseURL(t *testing.T) {
 
 	result, err := handler(context.Background(), makeToolRequest(map[string]any{
 		"name":    "report.html",
-		"content": base64.StdEncoding.EncodeToString([]byte("<h1>Report</h1>")),
+		"content": "<h1>Report</h1>",
 	}))
 	require.NoError(t, err)
 	require.False(t, result.IsError)
@@ -347,7 +325,7 @@ func TestHandler_HTMLUpload_DirUploader_WritesFile(t *testing.T) {
 
 	result, err := handler(context.Background(), makeToolRequest(map[string]any{
 		"name":    "page.html",
-		"content": base64.StdEncoding.EncodeToString([]byte("<h1>Hello</h1>")),
+		"content": "<h1>Hello</h1>",
 	}))
 	require.NoError(t, err)
 	require.False(t, result.IsError)
@@ -371,7 +349,7 @@ func TestHandler_MarkdownUpload_DirUploader_WritesBothFiles(t *testing.T) {
 
 	result, err := handler(context.Background(), makeToolRequest(map[string]any{
 		"name":    "notes.md",
-		"content": base64.StdEncoding.EncodeToString([]byte("# My Notes")),
+		"content": "# My Notes",
 	}))
 	require.NoError(t, err)
 	require.False(t, result.IsError)

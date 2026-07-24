@@ -2,7 +2,6 @@ package mcphandler
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -12,21 +11,21 @@ import (
 )
 
 // UploadFunc is the signature for the function that performs the actual upload.
-// It receives the decoded file content, filename, and returns the tool result
+// It receives the file content, filename, and returns the tool result
 // text (JSON) or an error.
-type UploadFunc func(ctx context.Context, name string, decoded []byte) (string, error)
+type UploadFunc func(ctx context.Context, name string, content []byte) (string, error)
 
 // Tool returns the MCP tool definition for create_upload.
 func Tool() mcp.Tool {
 	return mcp.NewTool("create_upload",
-		mcp.WithDescription("Upload a file and return its public URL. Accepts HTML or Markdown files as base64-encoded content."),
+		mcp.WithDescription("Upload a file and return its public URL. Accepts HTML or Markdown files as plain text content."),
 		mcp.WithString("name",
 			mcp.Required(),
 			mcp.Description("Bare filename (no path separators). Must have .md or .html extension."),
 		),
 		mcp.WithString("content",
 			mcp.Required(),
-			mcp.Description("Base64-encoded file content."),
+			mcp.Description("Plain text file content."),
 		),
 	)
 }
@@ -57,10 +56,8 @@ func Handler(uploadFn UploadFunc) server.ToolHandlerFunc {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		decoded, _ := base64.StdEncoding.DecodeString(content) // safe: ValidateInput passed
-
 		if uploadFn != nil {
-			result, err := uploadFn(ctx, name, decoded)
+			result, err := uploadFn(ctx, name, []byte(content))
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -78,8 +75,8 @@ func RegisterTool(s *server.MCPServer, uploadFn UploadFunc) {
 }
 
 // ValidateInput checks the name and content parameters for a create_upload
-// tool call. It validates in order: filename → extension → base64 decode →
-// empty check. The first failure wins.
+// tool call. It validates in order: filename → extension → empty check.
+// The first failure wins.
 func ValidateInput(name, content string) error {
 	// Reject path separators.
 	if strings.ContainsAny(name, "/\\") {
@@ -97,15 +94,9 @@ func ValidateInput(name, content string) error {
 		return fmt.Errorf("unsupported file extension %q: allowed extensions are .md and .html", ext)
 	}
 
-	// Decode base64.
-	decoded, err := base64.StdEncoding.DecodeString(content)
-	if err != nil {
-		return fmt.Errorf("invalid base64 content: %w", err)
-	}
-
 	// Reject empty content.
-	if len(decoded) == 0 {
-		return fmt.Errorf("content must not be empty after decoding")
+	if len(content) == 0 {
+		return fmt.Errorf("content must not be empty")
 	}
 
 	return nil
