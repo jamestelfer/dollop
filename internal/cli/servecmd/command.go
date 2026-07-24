@@ -63,8 +63,9 @@ func ReadEnv() (EnvConfig, []string) {
 	return cfg, missing
 }
 
-// New returns the serve command. readEnv is injected for testability.
-func New(readEnv func() (EnvConfig, []string)) cli.Command {
+// New returns the serve command. readEnv is injected for testability. version
+// is reported in the MCP initialize handshake.
+func New(readEnv func() (EnvConfig, []string), version string) cli.Command {
 	return cli.Command{
 		Name:  "serve",
 		Usage: "start the MCP server for agent file publishing",
@@ -86,7 +87,7 @@ Streamable HTTP. Configuration is read from environment variables:
 				)
 			}
 
-			return runServer(ctx, cfg, cmd.Root().ErrWriter)
+			return runServer(ctx, cfg, version, cmd.Root().ErrWriter)
 		},
 	}
 }
@@ -95,7 +96,7 @@ Streamable HTTP. Configuration is read from environment variables:
 // to complete during graceful shutdown.
 const shutdownTimeout = 5 * time.Second
 
-func runServer(ctx context.Context, cfg EnvConfig, stderr io.Writer) error {
+func runServer(ctx context.Context, cfg EnvConfig, version string, stderr io.Writer) error {
 	// Construct the S3 uploader from the validated env vars.
 	s3up, err := upload.NewS3Uploader(cfg.AccountID, cfg.R2Key, cfg.R2Secret)
 	if err != nil {
@@ -109,16 +110,26 @@ func runServer(ctx context.Context, cfg EnvConfig, stderr io.Writer) error {
 		func() (string, error) { return nanoid.New() },
 	)
 
+	return RunServer(ctx, cfg, version, stderr, uploadFn)
+}
+
+// RunServer starts the MCP HTTP server. It is exported for integration testing.
+func RunServer(ctx context.Context, cfg EnvConfig, version string, stderr io.Writer, uploadFn ...mcphandler.UploadFunc) error {
+	var fn mcphandler.UploadFunc
+	if len(uploadFn) > 0 {
+		fn = uploadFn[0]
+	}
+
 	mcpServer := server.NewMCPServer(
 		"dollop",
-		"1.0.0",
+		version,
 		server.WithToolCapabilities(true),
 	)
 
 	httpMCP := server.NewStreamableHTTPServer(mcpServer)
 
 	// Register the create_upload tool with real upload wiring.
-	mcphandler.RegisterTool(mcpServer, uploadFn)
+	mcphandler.RegisterTool(mcpServer, fn)
 
 	mux := http.NewServeMux()
 	mux.Handle("/mcp", httpMCP)

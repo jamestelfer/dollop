@@ -76,7 +76,7 @@ func TestReadEnv_MissingSome(t *testing.T) {
 func runServe(t *testing.T, readEnv func() (servecmd.EnvConfig, []string), args ...string) (stdout, stderr, errMsg string, code int) {
 	t.Helper()
 	var outBuf, errBuf bytes.Buffer
-	cmd := servecmd.New(readEnv)
+	cmd := servecmd.New(readEnv, "test")
 	app := &cli.Command{
 		Name:           "dollop",
 		Writer:         &outBuf,

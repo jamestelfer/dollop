@@ -120,7 +120,7 @@ func run(ctx context.Context, args []string) error {
 			return http.DefaultClient.Do(req) //nolint:bodyclose
 		},
 	)
-	serveCmd := servecmd.New(servecmd.ReadEnv)
+	serveCmd := servecmd.New(servecmd.ReadEnv, buildinfo.Version)
 
 	depsCmd := depscmd.New(
 		client,
