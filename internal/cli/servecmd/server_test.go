@@ -1,9 +1,9 @@
 package servecmd_test
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -25,6 +25,35 @@ func getFreePort(t *testing.T) string {
 	addr := l.Addr().String()
 	require.NoError(t, l.Close())
 	return addr
+}
+
+// sseEvent holds a parsed SSE event.
+type sseEvent struct {
+	Event string
+	Data  string
+}
+
+// readSSEEvents reads SSE events from the body in a goroutine.
+func readSSEEvents(body io.Reader) <-chan sseEvent {
+	ch := make(chan sseEvent, 10)
+	go func() {
+		defer close(ch)
+		scanner := bufio.NewScanner(body)
+		var eventType string
+		for scanner.Scan() {
+			line := scanner.Text()
+			switch {
+			case strings.HasPrefix(line, "event: "):
+				eventType = strings.TrimPrefix(line, "event: ")
+			case strings.HasPrefix(line, "data: "):
+				ch <- sseEvent{Event: eventType, Data: strings.TrimPrefix(line, "data: ")}
+				eventType = ""
+			case line == "":
+				// empty line separates events
+			}
+		}
+	}()
+	return ch
 }
 
 func TestServe_MCPInitialize_ReportsVersion(t *testing.T) {
@@ -57,20 +86,48 @@ func TestServe_MCPInitialize_ReportsVersion(t *testing.T) {
 		return resp.StatusCode == 200
 	}, 2*time.Second, 10*time.Millisecond)
 
-	// Send an MCP initialize request.
+	// Step 1: Connect to SSE endpoint.
+	sseReq, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+addr+"/sse", nil)
+	require.NoError(t, err)
+	sseResp, err := http.DefaultClient.Do(sseReq)
+	require.NoError(t, err)
+	defer func() { _ = sseResp.Body.Close() }()
+	require.Equal(t, http.StatusOK, sseResp.StatusCode)
+
+	events := readSSEEvents(sseResp.Body)
+
+	// Read the endpoint event.
+	var messageEndpoint string
+	select {
+	case ev := <-events:
+		require.Equal(t, "endpoint", ev.Event)
+		messageEndpoint = ev.Data
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for endpoint event")
+	}
+	require.NotEmpty(t, messageEndpoint)
+
+	// Step 2: POST an MCP initialize request to the message endpoint.
 	initBody := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}`
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://"+addr+"/mcp", strings.NewReader(initBody))
+	msgReq, err := http.NewRequestWithContext(ctx, http.MethodPost, messageEndpoint, strings.NewReader(initBody))
 	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
+	msgReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	msgResp, err := http.DefaultClient.Do(msgReq)
 	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
+	_ = msgResp.Body.Close()
+	require.Equal(t, http.StatusAccepted, msgResp.StatusCode)
 
-	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
+	// Step 3: Read the initialize response from the SSE stream.
+	var responseLine string
+	select {
+	case ev := <-events:
+		require.Equal(t, "message", ev.Event)
+		responseLine = ev.Data
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for initialize response")
+	}
 
-	// Parse the JSON-RPC response to check the version.
 	var result struct {
 		Result struct {
 			ServerInfo struct {
@@ -79,10 +136,10 @@ func TestServe_MCPInitialize_ReportsVersion(t *testing.T) {
 			} `json:"serverInfo"`
 		} `json:"result"`
 	}
-	require.NoError(t, json.Unmarshal(body, &result), "response: %s", string(body))
+	require.NoError(t, json.Unmarshal([]byte(responseLine), &result),
+		"response: %s", responseLine)
 	assert.Equal(t, "dollop", result.Result.ServerInfo.Name)
-	assert.Equal(t, version, result.Result.ServerInfo.Version,
-		fmt.Sprintf("MCP server should report injected version, got response: %s", string(body)))
+	assert.Equal(t, version, result.Result.ServerInfo.Version)
 
 	// Shutdown.
 	cancel()
