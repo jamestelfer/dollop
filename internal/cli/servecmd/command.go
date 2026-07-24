@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"github.com/jamestelfer/dollop/internal/mcphandler"
+	"github.com/jamestelfer/dollop/internal/upload"
 	"github.com/mark3labs/mcp-go/server"
+	nanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/urfave/cli/v3"
 )
 
@@ -94,6 +96,19 @@ Streamable HTTP. Configuration is read from environment variables:
 const shutdownTimeout = 5 * time.Second
 
 func runServer(ctx context.Context, cfg EnvConfig, stderr io.Writer) error {
+	// Construct the S3 uploader from the validated env vars.
+	s3up, err := upload.NewS3Uploader(cfg.AccountID, cfg.R2Key, cfg.R2Secret)
+	if err != nil {
+		return fmt.Errorf("init uploader: %w", err)
+	}
+
+	uploadFn := mcphandler.NewUploadFunc(
+		s3up,
+		cfg.Bucket,
+		cfg.BaseURL,
+		func() (string, error) { return nanoid.New() },
+	)
+
 	mcpServer := server.NewMCPServer(
 		"dollop",
 		"1.0.0",
@@ -102,8 +117,8 @@ func runServer(ctx context.Context, cfg EnvConfig, stderr io.Writer) error {
 
 	httpMCP := server.NewStreamableHTTPServer(mcpServer)
 
-	// Register the create_upload tool (no upload function wired yet in this phase).
-	mcphandler.RegisterTool(mcpServer, nil)
+	// Register the create_upload tool with real upload wiring.
+	mcphandler.RegisterTool(mcpServer, uploadFn)
 
 	mux := http.NewServeMux()
 	mux.Handle("/mcp", httpMCP)

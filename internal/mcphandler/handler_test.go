@@ -3,9 +3,14 @@ package mcphandler_test
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
+	"io"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/jamestelfer/dollop/internal/mcphandler"
+	"github.com/jamestelfer/dollop/internal/upload"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -215,4 +220,170 @@ func TestHandler_ValidHTML_ReturnsSuccess(t *testing.T) {
 	assert.False(t, result.IsError)
 	text := result.Content[0].(mcp.TextContent).Text
 	assert.Contains(t, text, "page.html")
+}
+
+// fakeUploader records PutObject calls for verification.
+type fakeUploader struct {
+	keys []string
+	err  error
+}
+
+func (f *fakeUploader) PutObject(_ context.Context, _, key, _ string, _ io.Reader, _ ...upload.PutOption) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.keys = append(f.keys, key)
+	return nil
+}
+
+func (f *fakeUploader) ListObjects(_ context.Context, _, _ string) ([]string, error) {
+	return nil, nil
+}
+
+var _ upload.ListingUploader = (*fakeUploader)(nil)
+
+func TestHandler_HTMLUpload_ReturnsURL(t *testing.T) {
+	up := &fakeUploader{}
+	uploadFn := mcphandler.NewUploadFunc(
+		up,
+		"test-bucket",
+		"https://cdn.example.com",
+		func() (string, error) { return "testid", nil },
+	)
+	handler := mcphandler.Handler(uploadFn)
+
+	result, err := handler(context.Background(), makeToolRequest(map[string]any{
+		"name":    "page.html",
+		"content": base64.StdEncoding.EncodeToString([]byte("<h1>Hello</h1>")),
+	}))
+	require.NoError(t, err)
+	require.False(t, result.IsError, "expected success result")
+
+	text := result.Content[0].(mcp.TextContent).Text
+	var response map[string]string
+	require.NoError(t, json.Unmarshal([]byte(text), &response))
+	assert.Contains(t, response["url"], "https://cdn.example.com/flash/7/testid/page.html")
+}
+
+func TestHandler_MarkdownUpload_ReturnsBothURLs(t *testing.T) {
+	up := &fakeUploader{}
+	uploadFn := mcphandler.NewUploadFunc(
+		up,
+		"test-bucket",
+		"https://cdn.example.com",
+		func() (string, error) { return "testid", nil },
+	)
+	handler := mcphandler.Handler(uploadFn)
+
+	result, err := handler(context.Background(), makeToolRequest(map[string]any{
+		"name":    "doc.md",
+		"content": base64.StdEncoding.EncodeToString([]byte("# Hello")),
+	}))
+	require.NoError(t, err)
+	require.False(t, result.IsError, "expected success result")
+
+	text := result.Content[0].(mcp.TextContent).Text
+	var response map[string]string
+	require.NoError(t, json.Unmarshal([]byte(text), &response))
+	assert.Contains(t, response["html_url"], "https://cdn.example.com/flash/7/testid/doc.html")
+	assert.Contains(t, response["markdown_url"], "https://cdn.example.com/flash/7/testid/doc.md")
+
+	// Both .md and .html should have been uploaded
+	assert.Contains(t, up.keys, "flash/7/testid/doc.md")
+	assert.Contains(t, up.keys, "flash/7/testid/doc.html")
+}
+
+func TestHandler_UploadError_ReturnsMCPError(t *testing.T) {
+	up := &fakeUploader{err: assert.AnError}
+	uploadFn := mcphandler.NewUploadFunc(
+		up,
+		"test-bucket",
+		"https://cdn.example.com",
+		func() (string, error) { return "testid", nil },
+	)
+	handler := mcphandler.Handler(uploadFn)
+
+	result, err := handler(context.Background(), makeToolRequest(map[string]any{
+		"name":    "page.html",
+		"content": base64.StdEncoding.EncodeToString([]byte("<html>")),
+	}))
+	require.NoError(t, err) // transport error must be nil
+	require.True(t, result.IsError, "upload failure should produce MCP error")
+}
+
+func TestHandler_HTMLUpload_UsesBaseURL(t *testing.T) {
+	up := &fakeUploader{}
+	uploadFn := mcphandler.NewUploadFunc(
+		up,
+		"test-bucket",
+		"https://my-cdn.example.com",
+		func() (string, error) { return "abc123", nil },
+	)
+	handler := mcphandler.Handler(uploadFn)
+
+	result, err := handler(context.Background(), makeToolRequest(map[string]any{
+		"name":    "report.html",
+		"content": base64.StdEncoding.EncodeToString([]byte("<h1>Report</h1>")),
+	}))
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	text := result.Content[0].(mcp.TextContent).Text
+	var response map[string]string
+	require.NoError(t, json.Unmarshal([]byte(text), &response))
+	assert.Equal(t, "https://my-cdn.example.com/flash/7/abc123/report.html", response["url"])
+}
+
+func TestHandler_HTMLUpload_DirUploader_WritesFile(t *testing.T) {
+	outDir := t.TempDir()
+	up := &upload.DirUploader{Root: outDir}
+	uploadFn := mcphandler.NewUploadFunc(
+		up,
+		"ignored-bucket",
+		"https://cdn.example.com",
+		func() (string, error) { return "testid", nil },
+	)
+	handler := mcphandler.Handler(uploadFn)
+
+	result, err := handler(context.Background(), makeToolRequest(map[string]any{
+		"name":    "page.html",
+		"content": base64.StdEncoding.EncodeToString([]byte("<h1>Hello</h1>")),
+	}))
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	// Verify the file was written to the expected path.
+	got, err := os.ReadFile(filepath.Join(outDir, "flash", "7", "testid", "page.html"))
+	require.NoError(t, err)
+	assert.Equal(t, "<h1>Hello</h1>", string(got))
+}
+
+func TestHandler_MarkdownUpload_DirUploader_WritesBothFiles(t *testing.T) {
+	outDir := t.TempDir()
+	up := &upload.DirUploader{Root: outDir}
+	uploadFn := mcphandler.NewUploadFunc(
+		up,
+		"ignored-bucket",
+		"https://cdn.example.com",
+		func() (string, error) { return "testid", nil },
+	)
+	handler := mcphandler.Handler(uploadFn)
+
+	result, err := handler(context.Background(), makeToolRequest(map[string]any{
+		"name":    "notes.md",
+		"content": base64.StdEncoding.EncodeToString([]byte("# My Notes")),
+	}))
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	// Both .md and .html should exist on disk.
+	mdPath := filepath.Join(outDir, "flash", "7", "testid", "notes.md")
+	htmlPath := filepath.Join(outDir, "flash", "7", "testid", "notes.html")
+	assert.FileExists(t, mdPath)
+	assert.FileExists(t, htmlPath)
+
+	// The HTML should contain rendered content.
+	htmlContent, err := os.ReadFile(htmlPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(htmlContent), "My Notes")
 }
