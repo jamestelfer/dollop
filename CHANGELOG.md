@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.9.0](https://github.com/jamestelfer/dollop/compare/v1.10.0...v1.9.0) (2026-07-06)
+
+
+### Features
+
+* add --index flag to create command to generate a file listing ([#18](https://github.com/jamestelfer/dollop/issues/18)) ([d9644bd](https://github.com/jamestelfer/dollop/commit/d9644bde762f7a0bff45345e62d8ae6d3cd4e6bf))
+* add --version flag ([#26](https://github.com/jamestelfer/dollop/issues/26)) ([51b2898](https://github.com/jamestelfer/dollop/commit/51b2898b191be2ab478042ee9ceb88b75cfe7c29))
+* add doctor command for end-to-end configuration and connectivity checks ([#21](https://github.com/jamestelfer/dollop/issues/21)) ([b6b3b16](https://github.com/jamestelfer/dollop/commit/b6b3b1668f6405c448487a9d6b88468b77dd0cd8))
+* add favicon to rendered markdown pages ([#40](https://github.com/jamestelfer/dollop/issues/40)) ([09b0237](https://github.com/jamestelfer/dollop/commit/09b0237da61b827f5469e599526390b6bcea5eda))
+* add plain-text auth fallback for headless Linux environments ([#22](https://github.com/jamestelfer/dollop/issues/22)) ([10a5b4e](https://github.com/jamestelfer/dollop/commit/10a5b4e253e59cb2ebfabc36f44dc1143d320d3c))
+* add update subcommand to publish and overwrite content ([#36](https://github.com/jamestelfer/dollop/issues/36)) ([#38](https://github.com/jamestelfer/dollop/issues/38)) ([7106a80](https://github.com/jamestelfer/dollop/commit/7106a801ba8719b33bd5bd0fcec60c7e348bcd06))
+* append filename suffix to public URLs for single files ([#20](https://github.com/jamestelfer/dollop/issues/20)) ([1fb8c42](https://github.com/jamestelfer/dollop/commit/1fb8c420c6b87867e4977fc746bc61e3ca1fc523))
+* enforce mutually exclusive --keep and --days flags, normalize config keys ([#11](https://github.com/jamestelfer/dollop/issues/11)) ([6389450](https://github.com/jamestelfer/dollop/commit/638945032f2c828293dd835f74dcd57283311cc7))
+* enhance doctor command with grouped output and storage info ([#30](https://github.com/jamestelfer/dollop/issues/30)) ([05abda5](https://github.com/jamestelfer/dollop/commit/05abda5832635a1cfa5ff601d1526a4a3f7d8718))
+* fold markdown source links into rendered index entries ([#31](https://github.com/jamestelfer/dollop/issues/31)) ([c624ec2](https://github.com/jamestelfer/dollop/commit/c624ec295a86c89833a60d63e0edcb3960432b2d))
+* group doctor checks into config, auth, and roundtrip ([05abda5](https://github.com/jamestelfer/dollop/commit/05abda5832635a1cfa5ff601d1526a4a3f7d8718))
+* include filename in stdout URL based on upload contents ([1fb8c42](https://github.com/jamestelfer/dollop/commit/1fb8c420c6b87867e4977fc746bc61e3ca1fc523))
+* page header with logo and source link, embedded template ([#35](https://github.com/jamestelfer/dollop/issues/35)) ([22118c9](https://github.com/jamestelfer/dollop/commit/22118c97254b7d935aa2c81cc4a09f0921f7f171))
+* publish mermaid engine once to a shared bucket location ([#56](https://github.com/jamestelfer/dollop/issues/56)) ([aef76d7](https://github.com/jamestelfer/dollop/commit/aef76d7c7b0c121c76c38d23c51b791e7a37cdb3))
+* render markdown files to HTML on upload ([#24](https://github.com/jamestelfer/dollop/issues/24)) ([21cec1d](https://github.com/jamestelfer/dollop/commit/21cec1d102f5b5873030c57d6ab6d3e3e6c0edfd))
+* show relative path and rendered size in upload progress ([#33](https://github.com/jamestelfer/dollop/issues/33)) ([0a5cfa3](https://github.com/jamestelfer/dollop/commit/0a5cfa325a10f5764b37a4dff21b271db2144c2f))
+
+
+### Bug Fixes
+
+* fill release-please draft instead of creating a duplicate release ([#49](https://github.com/jamestelfer/dollop/issues/49)) ([e77423f](https://github.com/jamestelfer/dollop/commit/e77423f3756df8842597c530e3653dbbba49b75f))
+* fold markdown source links into rendered index entries ([c624ec2](https://github.com/jamestelfer/dollop/commit/c624ec295a86c89833a60d63e0edcb3960432b2d))
+* mise reshim on session start ([0b580b7](https://github.com/jamestelfer/dollop/commit/0b580b72067a8c53b676121313a43d00a32813ab))
+* prevent nil pointer crash when R2 credentials are unconfigured ([#28](https://github.com/jamestelfer/dollop/issues/28)) ([524426f](https://github.com/jamestelfer/dollop/commit/524426f6444cc869f10e2c3c9014677fe60aa0a6))
+* render mermaid fences as elements mermaid.js can find ([#42](https://github.com/jamestelfer/dollop/issues/42)) ([ad3291c](https://github.com/jamestelfer/dollop/commit/ad3291cce5ea64fecb1935c1908bd64caec255ab))
+* serve markdown files as text/plain for browser rendering ([#16](https://github.com/jamestelfer/dollop/issues/16)) ([f86ab2b](https://github.com/jamestelfer/dollop/commit/f86ab2be4d27a6d6a7c214ec100f42493d973cdb))
+
+
+### Miscellaneous Chores
+
+* migrate to shared chinmina release pipeline ([#43](https://github.com/jamestelfer/dollop/issues/43)) ([60f33ca](https://github.com/jamestelfer/dollop/commit/60f33cad1880b0c49884ab394d38610afe476421))
+* release 1.9.0 ([#47](https://github.com/jamestelfer/dollop/issues/47)) ([d1baffe](https://github.com/jamestelfer/dollop/commit/d1baffe6a761d02614453fce3ad0ddca85d43c63))
+
 ## [1.10.0](https://github.com/jamestelfer/dollop/compare/v1.9.1...v1.10.0) (2026-07-06)
 
 
