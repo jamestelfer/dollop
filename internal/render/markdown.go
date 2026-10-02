@@ -71,16 +71,18 @@ func (m *markdownRenderer) Plan(relPaths []string, fsys fs.FS, prefix string) ([
 			continue
 		}
 
-		mdPath := p
+		// Rendered here rather than in Open because Plan must return every asset
+		// the page depends on.
+		html, err := renderMarkdownFile(fsys, p, prefix, batch)
+		if err != nil {
+			return nil, nil, err
+		}
+
 		sources = append(sources, Source{
 			RelPath:     htmlRel,
 			ContentType: "text/html; charset=utf-8",
 			Size:        -1,
 			Open: func() (io.ReadSeekCloser, error) {
-				html, err := renderMarkdownFile(fsys, mdPath, prefix, batch)
-				if err != nil {
-					return nil, err
-				}
 				return nopSeekCloser{bytes.NewReader(html)}, nil
 			},
 		})
