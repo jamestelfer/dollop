@@ -169,6 +169,7 @@ diagram will not render until the engine is published.
 ### Fonts
 
 Rendered pages use [Inter](https://rsms.me/inter/), loaded from Google Fonts.
+The request is made only when the optional body font below is unavailable.
 
 Pages also declare an optional body font, PP Mori, at a shared bucket location
 (`deps/fonts/pp-mori/`) and prefer it when it is published there. PP Mori is a

@@ -25,6 +25,7 @@ type pageData struct {
 	// FontFaceCSS declares the optional shared body font. Like MermaidScript it is
 	// built server-side from constants and a relative climb path.
 	FontFaceCSS   template.CSS
+	FontFamily    string
 	LogoLightPath string
 	LogoDarkPath  string
 	FaviconPath   string

@@ -312,7 +312,11 @@ func TestMarkdownRenderer_ScriptTagStripped(t *testing.T) {
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
-	assert.NotContains(t, html, "<script>")
+	// the template's own font-loading script lives in <head>; the document body
+	// must carry no script at all
+	_, body, found := strings.Cut(html, "<body>")
+	require.True(t, found)
+	assert.NotContains(t, body, "<script")
 	assert.NotContains(t, html, "alert")
 }
 
@@ -729,7 +733,14 @@ func TestMarkdownRenderer_TypographyLayerAfterBase(t *testing.T) {
 	require.NotEqual(t, -1, base)
 	require.NotEqual(t, -1, layer)
 	assert.Less(t, base, layer, "typography layer must follow the base stylesheet")
-	assert.Contains(t, html, `https://fonts.googleapis.com/css2?family=Inter`)
+
+	// Inter is loaded by script only when the shared font is unavailable, never
+	// as a render-blocking stylesheet, with a noscript fallback.
+	assert.Contains(t, html, `document.fonts.load('1em "PP Mori"')`)
+	assert.Contains(t, html, `<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter`)
+	assert.NotContains(t, html, `rel="preconnect"`)
+	head := html[:strings.Index(html, "<script>")]
+	assert.NotContains(t, head, "fonts.googleapis.com")
 }
 
 // TestMarkdownRenderer_SharedFontFaces verifies each page declares the optional

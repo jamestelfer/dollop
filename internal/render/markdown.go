@@ -322,6 +322,7 @@ func renderMarkdownFile(relPath, sourceDir, prefix string, batch map[string]bool
 		HighlightCSSPath: depthPrefix + "highlight-github.css",
 		MermaidScript:    mermaidScript,
 		FontFaceCSS:      fontFaceCSS(bucketRootPath(prefix, relPath)),
+		FontFamily:       fontFamily,
 		LogoLightPath:    depthPrefix + "dollop-light.svg",
 		LogoDarkPath:     depthPrefix + "dollop-dark.svg",
 		FaviconPath:      depthPrefix + "dollop-favicon.svg",

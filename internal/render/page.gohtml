@@ -6,9 +6,6 @@
 <meta name="color-scheme" content="light dark">
 <title>{{.Title}}</title>
 <link rel="icon" type="image/svg+xml" href="{{.FaviconPath}}">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&amp;display=swap">
 <link rel="stylesheet" href="{{.CSSPath}}">
 <link rel="stylesheet" href="{{.ThemeCSSPath}}">
 <link rel="stylesheet" href="{{.HighlightCSSPath}}">
@@ -72,6 +69,25 @@ body { margin: 0; padding-top: 2.5rem; background-color: #ffffff; }
   margin-left: unset;
 }
 </style>
+{{- /* Inter is the fallback body font. It is requested only when the shared
+body font fails to load, so pages that have it make no third-party requests
+and the stylesheet never blocks rendering. */}}
+<script>
+(function () {
+  function loadInter() {
+    var link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap";
+    document.head.appendChild(link);
+  }
+  if (!document.fonts || !document.fonts.load) { loadInter(); return; }
+  document.fonts.load('1em "{{.FontFamily}}"').then(function (faces) {
+    var loaded = faces.length > 0 && faces.every(function (f) { return f.status === "loaded"; });
+    if (!loaded) loadInter();
+  }, loadInter);
+})();
+</script>
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&amp;display=swap"></noscript>
 </head>
 <body>
 <header class="page-header">

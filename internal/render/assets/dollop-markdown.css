@@ -8,7 +8,7 @@
  *
  * "PP Mori" is declared per page by @font-face rules that point at the shared
  * deps/fonts/ location. It applies only when published there; otherwise the
- * stack falls back to Inter, loaded from Google Fonts.
+ * stack falls back to Inter, which the page loads from Google Fonts on demand.
  */
 
 :root {
