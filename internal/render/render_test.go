@@ -693,6 +693,7 @@ func TestMarkdownRenderer_CSSPathRootLevel(t *testing.T) {
 
 	html := openSource(t, sources, "notes.html")
 	assert.Contains(t, html, `href="github-markdown.css"`)
+	assert.Contains(t, html, `href="dollop-markdown.css"`)
 }
 
 // TestMarkdownRenderer_CSSPathOneLevelDeep verifies that a file one directory
@@ -708,6 +709,85 @@ func TestMarkdownRenderer_CSSPathOneLevelDeep(t *testing.T) {
 
 	html := openSource(t, sources, "sub/page.html")
 	assert.Contains(t, html, `href="../github-markdown.css"`)
+	assert.Contains(t, html, `href="../dollop-markdown.css"`)
+}
+
+// TestMarkdownRenderer_TypographyLayerAfterBase verifies the dollop typography
+// stylesheet is linked after github-markdown.css so its rules take precedence,
+// and that the page loads the Inter webfont it depends on.
+func TestMarkdownRenderer_TypographyLayerAfterBase(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("Hello"), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	sources, _, err := r.Plan([]string{"doc.md"}, dir, "flash/1/testid")
+	require.NoError(t, err)
+
+	html := openSource(t, sources, "doc.html")
+	base := strings.Index(html, `href="github-markdown.css"`)
+	layer := strings.Index(html, `href="dollop-markdown.css"`)
+	require.NotEqual(t, -1, base)
+	require.NotEqual(t, -1, layer)
+	assert.Less(t, base, layer, "typography layer must follow the base stylesheet")
+	assert.Contains(t, html, `https://fonts.googleapis.com/css2?family=Inter`)
+}
+
+// TestMarkdownRenderer_SharedFontFaces verifies each page declares the optional
+// shared font by a relative path that climbs out of the publish prefix into
+// deps/, so the font is used when published and the stack falls back otherwise.
+func TestMarkdownRenderer_SharedFontFaces(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "sub"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("Hello"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "sub", "page.md"), []byte("Hello"), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	sources, _, err := r.Plan([]string{"doc.md", "sub/page.md"}, dir, "flash/1/testid")
+	require.NoError(t, err)
+
+	html := openSource(t, sources, "doc.html")
+	assert.Contains(t, html, `font-family: "PP Mori"`)
+	assert.Contains(t, html, `url("../../../deps/fonts/pp-mori/PPMori-Regular.otf")`)
+	for _, f := range render.FontFiles() {
+		assert.Contains(t, html, render.FontPrefix+"/"+f)
+	}
+
+	nested := openSource(t, sources, "sub/page.html")
+	assert.Contains(t, nested, `url("../../../../deps/fonts/pp-mori/PPMori-Regular.otf")`)
+}
+
+// TestMarkdownRenderer_HighlightCSSMatchesMarkup verifies the syntax theme's
+// selectors match the classes the highlighter emits: a bare "chroma" wrapper
+// with token classes inside it.
+func TestMarkdownRenderer_HighlightCSSMatchesMarkup(t *testing.T) {
+	dir := t.TempDir()
+	md := "```go\nfunc main() {}\n```\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	sources, assets, err := r.Plan([]string{"doc.md"}, dir, "flash/1/testid")
+	require.NoError(t, err)
+
+	html := openSource(t, sources, "doc.html")
+	require.Contains(t, html, `<pre class="chroma">`)
+	require.Contains(t, html, `<span class="kd">`)
+
+	var css string
+	for _, a := range assets {
+		if a.Name == "highlight-github.css" {
+			css = string(a.Content)
+		}
+	}
+	assert.Contains(t, css, ".chroma .kd {")
+	assert.NotContains(t, css, ".chroma.light")
+
+	// each theme sits inside its own colour-scheme media query
+	light := strings.Index(css, "@media (prefers-color-scheme: light)")
+	dark := strings.Index(css, "@media (prefers-color-scheme: dark)")
+	require.NotEqual(t, -1, light)
+	require.Greater(t, dark, light)
+	assert.Contains(t, css[light:dark], ".chroma .kd { color: #cf222e }")
+	assert.Contains(t, css[dark:], ".chroma .kd { color: #ff7b72 }")
 }
 
 // TestMarkdownRenderer_CollisionSkipsAndWarns verifies that when a .html file
@@ -750,5 +830,6 @@ func TestMarkdownRenderer_CollisionStillUploadsCSS(t *testing.T) {
 		names[i] = a.Name
 	}
 	assert.Contains(t, names, "github-markdown.css")
+	assert.Contains(t, names, "dollop-markdown.css")
 	assert.Contains(t, names, "highlight-github.css")
 }

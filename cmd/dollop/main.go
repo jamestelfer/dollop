@@ -15,6 +15,7 @@ import (
 	"github.com/jamestelfer/dollop/internal/cli/doctorcmd"
 	"github.com/jamestelfer/dollop/internal/cli/updatecmd"
 	"github.com/jamestelfer/dollop/internal/config"
+	"github.com/jamestelfer/dollop/internal/deps"
 	"github.com/jamestelfer/dollop/internal/render"
 	"github.com/jamestelfer/dollop/internal/upload"
 	nanoid "github.com/matoous/go-nanoid/v2"
@@ -126,6 +127,7 @@ func run(ctx context.Context, args []string) error {
 		render.MermaidVersion,
 		render.MermaidSHA512,
 		fetchTarball,
+		deps.FontSet{Prefix: render.FontPrefix, Files: render.FontFiles()},
 	)
 
 	cli.VersionPrinter = func(cmd *cli.Command) {

@@ -75,15 +75,40 @@ func Publish(ctx context.Context, up upload.Uploader, lister upload.ObjectLister
 	}
 
 	for _, e := range entries {
-		key := VersionPrefix(version) + "/" + e.relPath
-		fmt.Fprintf(stderr, "uploading [%s] %s...", e.relPath, upload.HumanSize(int64(len(e.content)))) //nolint:errcheck
-		if err := up.PutObject(ctx, bucket, key, jsContentType, bytes.NewReader(e.content), upload.WithCacheControl(immutableCacheControl)); err != nil {
-			fmt.Fprintln(stderr, "failed") //nolint:errcheck
-			return false, fmt.Errorf("upload %s: %w", key, err)
+		obj := depObject{
+			key:          VersionPrefix(version) + "/" + e.relPath,
+			name:         e.relPath,
+			contentType:  jsContentType,
+			cacheControl: immutableCacheControl,
+			size:         int64(len(e.content)),
+			body:         bytes.NewReader(e.content),
 		}
-		fmt.Fprintln(stderr, "done") //nolint:errcheck
+		if err := putDep(ctx, up, bucket, obj, stderr); err != nil {
+			return false, err
+		}
 	}
 	return true, nil
+}
+
+// depObject is one shared object to upload under deps/.
+type depObject struct {
+	key          string
+	name         string // shown in progress output
+	contentType  string
+	cacheControl string
+	size         int64
+	body         io.Reader
+}
+
+// putDep uploads one deps object, reporting progress on stderr.
+func putDep(ctx context.Context, up upload.Uploader, bucket string, obj depObject, stderr io.Writer) error {
+	fmt.Fprintf(stderr, "uploading [%s] %s...", obj.name, upload.HumanSize(obj.size)) //nolint:errcheck
+	if err := up.PutObject(ctx, bucket, obj.key, obj.contentType, obj.body, upload.WithCacheControl(obj.cacheControl)); err != nil {
+		fmt.Fprintln(stderr, "failed") //nolint:errcheck
+		return fmt.Errorf("upload %s: %w", obj.key, err)
+	}
+	fmt.Fprintln(stderr, "done") //nolint:errcheck
+	return nil
 }
 
 // download reads the whole tarball into memory so it can be hashed before any

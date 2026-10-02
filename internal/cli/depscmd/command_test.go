@@ -54,7 +54,8 @@ func fetchFixture(tgz []byte) deps.FetchFunc {
 func run(t *testing.T, integrity string, fetch deps.FetchFunc, args ...string) (stdout, stderr string, code int) {
 	t.Helper()
 	var outBuf, errBuf bytes.Buffer
-	cmd := depscmd.New(nil, nil, "test-bucket", "11.16.0", integrity, fetch)
+	fonts := deps.FontSet{Prefix: "deps/fonts/test", Files: []string{"Face-Regular.otf", "Face-Bold.otf"}}
+	cmd := depscmd.New(nil, nil, "test-bucket", "11.16.0", integrity, fetch, fonts)
 	app := &cli.Command{
 		Name:           "dollop",
 		Writer:         &outBuf,
@@ -146,4 +147,33 @@ func TestStatus_ReportsAbsentThenPresent(t *testing.T) {
 	stdout, _, code = run(t, integrity, fetchFixture(tgz), "deps", "status", "--copy-dir", dst)
 	require.Equal(t, 0, code)
 	assert.Contains(t, stdout, "present")
+}
+
+func TestFonts_CopyDir_UploadsAndStatusReports(t *testing.T) {
+	_, integrity := fixtureTarball(t)
+	src, dst := t.TempDir(), t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(src, "Face-Regular.otf"), []byte("REGULAR"), 0o600))
+
+	stdout, _, code := run(t, integrity, nil, "deps", "status", "--copy-dir", dst)
+	require.Equal(t, 0, code)
+	assert.Contains(t, stdout, "fonts: 0 of 2 published")
+
+	stdout, stderr, code := run(t, integrity, nil, "deps", "fonts", "--copy-dir", dst, src)
+	require.Equal(t, 0, code)
+	assert.Contains(t, stdout, "published 1 font file to deps/fonts/test/")
+	assert.Contains(t, stderr, "warning: Face-Bold.otf not found")
+
+	got, err := os.ReadFile(filepath.Join(dst, "deps", "fonts", "test", "Face-Regular.otf"))
+	require.NoError(t, err)
+	assert.Equal(t, "REGULAR", string(got))
+
+	stdout, _, code = run(t, integrity, nil, "deps", "status", "--copy-dir", dst)
+	require.Equal(t, 0, code)
+	assert.Contains(t, stdout, "fonts: 1 of 2 published")
+}
+
+func TestFonts_RequiresDirectoryArgument(t *testing.T) {
+	_, integrity := fixtureTarball(t)
+	_, _, code := run(t, integrity, nil, "deps", "fonts", "--copy-dir", t.TempDir())
+	assert.NotEqual(t, 0, code)
 }
