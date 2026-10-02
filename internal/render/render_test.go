@@ -758,13 +758,13 @@ func TestMarkdownRenderer_SharedFontFaces(t *testing.T) {
 
 	html := openSource(t, sources, "doc.html")
 	assert.Contains(t, html, `font-family: "PP Mori"`)
-	assert.Contains(t, html, `url("../../../deps/fonts/pp-mori/PPMori-Regular.otf")`)
+	assert.Contains(t, html, `url("../../../deps/fonts/pp-mori/PPMori-Regular.woff2")`)
 	for _, f := range render.FontFiles() {
 		assert.Contains(t, html, render.FontPrefix+"/"+f)
 	}
 
 	nested := openSource(t, sources, "sub/page.html")
-	assert.Contains(t, nested, `url("../../../../deps/fonts/pp-mori/PPMori-Regular.otf")`)
+	assert.Contains(t, nested, `url("../../../../deps/fonts/pp-mori/PPMori-Regular.woff2")`)
 }
 
 // TestMarkdownRenderer_HighlightCSSMatchesMarkup verifies the syntax theme's

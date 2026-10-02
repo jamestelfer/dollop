@@ -26,12 +26,12 @@ type fontFace struct {
 // (links), 600 (strong) and 700 (headings). Headings resolve to Semibold; Black
 // reads too heavy at heading sizes and is kept for explicit 800–900 only.
 var fontFaces = []fontFace{
-	{"PPMori-Regular.otf", "400 500", "normal"},
-	{"PPMori-Italic.otf", "400 500", "italic"},
-	{"PPMori-Semibold.otf", "600 700", "normal"},
-	{"PPMori-SemiboldItalic.otf", "600 700", "italic"},
-	{"PPMori-Black.otf", "800 900", "normal"},
-	{"PPMori-BlackItalic.otf", "800 900", "italic"},
+	{"PPMori-Regular.woff2", "400 500", "normal"},
+	{"PPMori-Italic.woff2", "400 500", "italic"},
+	{"PPMori-Semibold.woff2", "600 700", "normal"},
+	{"PPMori-SemiboldItalic.woff2", "600 700", "italic"},
+	{"PPMori-Black.woff2", "800 900", "normal"},
+	{"PPMori-BlackItalic.woff2", "800 900", "italic"},
 }
 
 // FontFiles returns the file names that make up the shared body font.
@@ -53,7 +53,7 @@ func fontFaceCSS(depsRoot string) template.CSS {
 	var b strings.Builder
 	for _, f := range fontFaces {
 		b.WriteString(`@font-face { font-family: "` + fontFamily + `"; src: url("` + depsRoot + FontPrefix + "/" + f.file +
-			`") format("opentype"); font-weight: ` + f.weight + `; font-style: ` + f.style + "; font-display: swap; }\n")
+			`") format("woff2"); font-weight: ` + f.weight + `; font-style: ` + f.style + "; font-display: swap; }\n")
 	}
 	return template.CSS(b.String()) //nolint:gosec
 }

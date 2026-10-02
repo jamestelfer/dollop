@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	// fontContentType is set explicitly; mime type detection for .otf is
+	// fontContentType is set explicitly; mime type detection for .woff2 is
 	// unreliable across platforms.
-	fontContentType = "font/otf"
+	fontContentType = "font/woff2"
 	// fontCacheControl is long but not immutable: the font path carries no
 	// version, so a replaced file must eventually be re-fetched.
 	fontCacheControl = "public, max-age=604800"

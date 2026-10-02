@@ -177,9 +177,12 @@ proprietary typeface: dollop does not ship, fetch, or embed it. To use it,
 supply font files you hold a licence for and upload them:
 
 ```
-dollop deps fonts <dir>   # upload the PPMori-*.otf files found under <dir>
+dollop deps fonts <dir>   # upload the PPMori-*.woff2 files found under <dir>
 dollop deps status        # also reports how many font files are published
 ```
+
+The files must be WOFF2. Convert OTF or TTF files with
+`fonttools ttLib.woff2 compress` if the licence allows it.
 
 `<dir>` is searched recursively, so an unpacked font archive can be passed
 as-is. Pages already published pick the font up without re-rendering, and fall
