@@ -23,22 +23,31 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
 	"go.abhg.dev/goldmark/anchor"
+
+	"github.com/jamestelfer/dollop/internal/d2render"
 )
 
 // NewMarkdownRenderer returns a Renderer that converts .md files to .html,
 // discarding any warnings.
 func NewMarkdownRenderer() Renderer {
-	return &markdownRenderer{stderr: io.Discard}
+	return NewMarkdownRendererWithStderr(io.Discard)
 }
 
-// NewMarkdownRendererWithStderr returns a Renderer that writes collision
-// warnings to stderr.
+// NewMarkdownRendererWithStderr returns a Renderer that writes collision and
+// diagram warnings to stderr.
 func NewMarkdownRendererWithStderr(stderr io.Writer) Renderer {
-	return &markdownRenderer{stderr: stderr}
+	return NewMarkdownRendererWithD2(stderr, d2render.Render)
+}
+
+// NewMarkdownRendererWithD2 returns a Renderer that renders d2 fences with the
+// given function instead of the real d2 engine.
+func NewMarkdownRendererWithD2(stderr io.Writer, d2 D2RenderFunc) Renderer {
+	return &markdownRenderer{stderr: stderr, d2: d2}
 }
 
 type markdownRenderer struct {
 	stderr io.Writer
+	d2     D2RenderFunc
 }
 
 func (m *markdownRenderer) Plan(relPaths []string, fsys fs.FS, prefix string) ([]Source, []SharedAsset, error) {
@@ -50,6 +59,8 @@ func (m *markdownRenderer) Plan(relPaths []string, fsys fs.FS, prefix string) ([
 	}
 
 	hasMarkdown := false
+	var diagramAssets []SharedAsset
+	seenAsset := make(map[string]bool)
 	sources := make([]Source, 0, len(relPaths)+len(relPaths)/2)
 
 	for _, p := range relPaths {
@@ -73,9 +84,15 @@ func (m *markdownRenderer) Plan(relPaths []string, fsys fs.FS, prefix string) ([
 
 		// Rendered here rather than in Open because Plan must return every asset
 		// the page depends on.
-		html, err := renderMarkdownFile(fsys, p, prefix, batch)
+		html, pageAssets, err := m.renderMarkdownFile(fsys, p, prefix, batch)
 		if err != nil {
 			return nil, nil, err
+		}
+		for _, a := range pageAssets {
+			if !seenAsset[a.Name] {
+				seenAsset[a.Name] = true
+				diagramAssets = append(diagramAssets, a)
+			}
 		}
 
 		sources = append(sources, Source{
@@ -94,16 +111,16 @@ func (m *markdownRenderer) Plan(relPaths []string, fsys fs.FS, prefix string) ([
 
 	// The mermaid engine is no longer shipped per-prefix: rendered pages
 	// reference the shared, version-pinned copy under deps/mermaid/<v>/ (published
-	// once via `dollop deps publish`). Only the CSS and logo assets remain
-	// per-prefix.
-	assets := []SharedAsset{
+	// once via `dollop deps publish`). Only the CSS, logo and d2 diagram assets
+	// are per-prefix.
+	assets := append([]SharedAsset{
 		{Name: "github-markdown.css", ContentType: "text/css; charset=utf-8", Content: githubMarkdownCSS},
 		{Name: "dollop-markdown.css", ContentType: "text/css; charset=utf-8", Content: dollopMarkdownCSS},
 		{Name: "highlight-github.css", ContentType: "text/css; charset=utf-8", Content: highlightGithubCSS},
 		{Name: "dollop-light.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopLightSVG},
 		{Name: "dollop-dark.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopDarkSVG},
 		{Name: "dollop-favicon.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopFaviconSVG},
-	}
+	}, diagramAssets...)
 
 	return sources, assets, nil
 }
@@ -218,6 +235,7 @@ var mdParser = goldmark.New(
 		),
 		&alertExtension{},
 		&mermaidExtension{},
+		&d2Extension{},
 	),
 )
 
@@ -286,12 +304,13 @@ func fileUsesMermaid(fsys fs.FS, relPath string) (bool, error) {
 	return hasMermaidFence(mdParser.Parser().Parse(text.NewReader(src)), src), nil
 }
 
-// renderMarkdownFile parses and renders the given .md file to HTML bytes.
-// It does not write any files to disk.
-func renderMarkdownFile(fsys fs.FS, relPath, prefix string, batch map[string]bool) ([]byte, error) {
+// renderMarkdownFile parses and renders the given .md file to HTML bytes, and
+// returns the SVG assets of the d2 diagrams it contains. It does not write any
+// files to disk.
+func (m *markdownRenderer) renderMarkdownFile(fsys fs.FS, relPath, prefix string, batch map[string]bool) ([]byte, []SharedAsset, error) {
 	src, err := fs.ReadFile(fsys, relPath)
 	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", relPath, err)
+		return nil, nil, fmt.Errorf("read %s: %w", relPath, err)
 	}
 
 	reader := text.NewReader(src)
@@ -302,18 +321,22 @@ func renderMarkdownFile(fsys fs.FS, relPath, prefix string, batch map[string]boo
 	lr := &linkRewriter{batch: batch, dir: path.Dir(filepath.ToSlash(relPath))}
 	lr.Transform(doc.(*ast.Document), reader, pctx)
 
+	depthPrefix := cssDepthPrefix(relPath)
+
+	dr := &d2Rewriter{render: m.d2, stderr: m.stderr, relPath: relPath, depthPrefix: depthPrefix}
+	dr.Transform(doc.(*ast.Document), reader, pctx)
+
 	mermaid := hasMermaidFence(doc, src)
 
 	var bodyBuf bytes.Buffer
 	if err := mdParser.Renderer().Render(&bodyBuf, src, doc); err != nil {
-		return nil, fmt.Errorf("render %s: %w", relPath, err)
+		return nil, nil, fmt.Errorf("render %s: %w", relPath, err)
 	}
 
 	stem := strings.TrimSuffix(relPath, filepath.Ext(relPath))
 	basename := filepath.Base(stem)
 
 	title := extractTitle(meta.Get(pctx), src, doc, basename)
-	depthPrefix := cssDepthPrefix(relPath)
 
 	var mermaidScript template.HTML
 	if mermaid {
@@ -337,7 +360,7 @@ func renderMarkdownFile(fsys fs.FS, relPath, prefix string, batch map[string]boo
 
 	out, err := renderTemplate(data)
 	if err != nil {
-		return nil, fmt.Errorf("template %s: %w", relPath, err)
+		return nil, nil, fmt.Errorf("template %s: %w", relPath, err)
 	}
-	return out, nil
+	return out, dr.assets, nil
 }
