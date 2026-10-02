@@ -1,7 +1,6 @@
 package servecmd_test
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"io"
@@ -27,42 +26,13 @@ func getFreePort(t *testing.T) string {
 	return addr
 }
 
-// sseEvent holds a parsed SSE event.
-type sseEvent struct {
-	Event string
-	Data  string
-}
-
-// readSSEEvents reads SSE events from the body in a goroutine.
-func readSSEEvents(body io.Reader) <-chan sseEvent {
-	ch := make(chan sseEvent, 10)
-	go func() {
-		defer close(ch)
-		scanner := bufio.NewScanner(body)
-		var eventType string
-		for scanner.Scan() {
-			line := scanner.Text()
-			switch {
-			case strings.HasPrefix(line, "event: "):
-				eventType = strings.TrimPrefix(line, "event: ")
-			case strings.HasPrefix(line, "data: "):
-				ch <- sseEvent{Event: eventType, Data: strings.TrimPrefix(line, "data: ")}
-				eventType = ""
-			case line == "":
-				// empty line separates events
-			}
-		}
-	}()
-	return ch
-}
-
-func TestServe_MCPInitialize_ReportsVersion(t *testing.T) {
-	addr := getFreePort(t)
-	version := "1.2.3-test"
+// startServer runs the server in the background and returns its address and
+// a stop function that cancels it and waits for a clean shutdown.
+func startServer(t *testing.T, version string) (addr string, stop func()) {
+	t.Helper()
+	addr = getFreePort(t)
 
 	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- servecmd.RunServer(ctx, servecmd.EnvConfig{
@@ -75,58 +45,52 @@ func TestServe_MCPInitialize_ReportsVersion(t *testing.T) {
 		}, version, io.Discard)
 	}()
 
-	// Wait for server to be ready.
 	require.Eventually(t, func() bool {
-		req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+addr+"/status", nil)
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return false
-		}
-		_ = resp.Body.Close()
-		return resp.StatusCode == 200
+		return get(t, "http://"+addr+"/status") == http.StatusOK
 	}, 2*time.Second, 10*time.Millisecond)
 
-	// Step 1: Connect to SSE endpoint.
-	sseReq, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+addr+"/sse", nil)
-	require.NoError(t, err)
-	sseResp, err := http.DefaultClient.Do(sseReq)
-	require.NoError(t, err)
-	defer func() { _ = sseResp.Body.Close() }()
-	require.Equal(t, http.StatusOK, sseResp.StatusCode)
-
-	events := readSSEEvents(sseResp.Body)
-
-	// Read the endpoint event.
-	var messageEndpoint string
-	select {
-	case ev := <-events:
-		require.Equal(t, "endpoint", ev.Event)
-		messageEndpoint = ev.Data
-	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for endpoint event")
+	return addr, func() {
+		cancel()
+		select {
+		case err := <-errCh:
+			assert.NoError(t, err)
+		case <-time.After(3 * time.Second):
+			t.Fatal("server did not shut down in time")
+		}
 	}
-	require.NotEmpty(t, messageEndpoint)
+}
 
-	// Step 2: POST an MCP initialize request to the message endpoint.
+// get issues a GET and returns the status code, or 0 on transport error.
+func get(t *testing.T, url string) int {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
+	require.NoError(t, err)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0
+	}
+	_ = resp.Body.Close()
+	return resp.StatusCode
+}
+
+func TestServe_MCPInitialize_StreamableHTTP_ReportsVersion(t *testing.T) {
+	version := "1.2.3-test"
+	addr, stop := startServer(t, version)
+	defer stop()
+
 	initBody := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}`
-	msgReq, err := http.NewRequestWithContext(ctx, http.MethodPost, messageEndpoint, strings.NewReader(initBody))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://"+addr+"/mcp", strings.NewReader(initBody))
 	require.NoError(t, err)
-	msgReq.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
 
-	msgResp, err := http.DefaultClient.Do(msgReq)
+	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
-	_ = msgResp.Body.Close()
-	require.Equal(t, http.StatusAccepted, msgResp.StatusCode)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	// Step 3: Read the initialize response from the SSE stream.
-	var responseLine string
-	select {
-	case ev := <-events:
-		require.Equal(t, "message", ev.Event)
-		responseLine = ev.Data
-	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for initialize response")
-	}
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
 
 	var result struct {
 		Result struct {
@@ -136,17 +100,15 @@ func TestServe_MCPInitialize_ReportsVersion(t *testing.T) {
 			} `json:"serverInfo"`
 		} `json:"result"`
 	}
-	require.NoError(t, json.Unmarshal([]byte(responseLine), &result),
-		"response: %s", responseLine)
+	require.NoError(t, json.Unmarshal(body, &result), "response: %s", string(body))
 	assert.Equal(t, "dollop", result.Result.ServerInfo.Name)
 	assert.Equal(t, version, result.Result.ServerInfo.Version)
+}
 
-	// Shutdown.
-	cancel()
-	select {
-	case err := <-errCh:
-		assert.NoError(t, err)
-	case <-time.After(3 * time.Second):
-		t.Fatal("server did not shut down in time")
-	}
+func TestServe_SSEEndpointsRemoved(t *testing.T) {
+	addr, stop := startServer(t, "test")
+	defer stop()
+
+	assert.Equal(t, http.StatusNotFound, get(t, "http://"+addr+"/sse"))
+	assert.Equal(t, http.StatusNotFound, get(t, "http://"+addr+"/message"))
 }

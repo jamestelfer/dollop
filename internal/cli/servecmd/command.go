@@ -70,7 +70,7 @@ func New(readEnv func() (EnvConfig, []string), version string) cli.Command {
 		Name:  "serve",
 		Usage: "start the MCP server for agent file publishing",
 		Description: `Starts an MCP server that exposes a create_upload tool over
-SSE (Server-Sent Events). Configuration is read from environment variables:
+Streamable HTTP at /mcp. Configuration is read from environment variables:
 
   DOLLOP_ACCOUNT_ID   Cloudflare account ID (required)
   DOLLOP_BUCKET       R2 bucket name (required)
@@ -126,16 +126,13 @@ func RunServer(ctx context.Context, cfg EnvConfig, version string, stderr io.Wri
 		server.WithToolCapabilities(true),
 	)
 
-	sseServer := server.NewSSEServer(mcpServer,
-		server.WithBaseURL("http://"+cfg.Addr),
-	)
+	httpMCP := server.NewStreamableHTTPServer(mcpServer)
 
 	// Register the create_upload tool with real upload wiring.
 	mcphandler.RegisterTool(mcpServer, fn)
 
 	mux := http.NewServeMux()
-	mux.Handle("/sse", sseServer.SSEHandler())
-	mux.Handle("/message", sseServer.MessageHandler())
+	mux.Handle("/mcp", httpMCP)
 	mux.HandleFunc("/status", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok\n"))
