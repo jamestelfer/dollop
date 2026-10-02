@@ -19,7 +19,7 @@ Two upload modes:
   expiry.
 
 Markdown rendering supports GitHub-flavoured markdown, with tables, alerts,
-footnotes, mermaid diagrams and more supported.
+footnotes, mermaid and d2 diagrams and more supported.
 
 ## Installation
 
@@ -165,6 +165,38 @@ dollop deps status           # show the shipped version and whether it is publis
 `dollop doctor` reports the same presence check. If you publish markdown with a
 mermaid diagram before running `deps publish`, dollop prints a warning and the
 diagram will not render until the engine is published.
+
+### d2 diagrams
+
+Markdown containing ` ```d2 ` fenced code blocks renders as diagrams. dollop
+renders each diagram to SVG when it publishes, so nothing extra loads in the
+browser and there is nothing to publish beforehand.
+
+```d2
+web -> api -> db
+api -> cache
+```
+
+Each diagram follows the viewer's light or dark colour scheme. Click a diagram
+to open it on its own and zoom in with the browser.
+
+Diagrams are laid out with [TALA](https://d2lang.com/tour/tala/). Choose
+another engine in the diagram source:
+
+```d2
+vars: {
+  d2-config: {
+    layout-engine: elk
+  }
+}
+a -> b
+```
+
+`dagre`, `elk` and `tala` are supported.
+
+If a diagram cannot be rendered, dollop prints a warning naming the file and
+the error, and publishes that block as plain code. The rest of the upload is
+unaffected. Imports of other d2 files are not supported.
 
 ### Fonts
 

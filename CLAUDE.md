@@ -4,7 +4,7 @@ CLI tool that uploads files and directories to unique, expiring paths in a Cloud
 
 ## Go version
 
-This project uses **Go 1.26**, which was released after the AI knowledge cutoff. Do not rely on training data for Go stdlib or dependency APIs — always fetch current documentation via Context7 before using unfamiliar APIs.
+This project uses **Go 1.27**, which was released after the AI knowledge cutoff. Do not rely on training data for Go stdlib or dependency APIs — always fetch current documentation via Context7 before using unfamiliar APIs.
 
 ## Build and test
 
@@ -26,8 +26,9 @@ internal/cli/createcmd/         create subcommand: generates prefix, calls uploa
 internal/cli/depscmd/           deps subcommand tree: publish, fonts, status (shared mermaid engine, fonts)
 internal/deps/                  fetch/verify/extract/publish the pinned mermaid ESM engine;
                                 shared Present presence check + missing-deps warning
+internal/d2render/              d2 source → SVG (TALA layout); the only package importing d2
 internal/render/                markdown→html rendering, page template, mermaid version pin,
-                                optional shared font faces
+                                optional shared font faces, d2 fence rewriting
 internal/upload/                uploader interface, S3 client, MIME detection, prefix logic
 ```
 
@@ -76,3 +77,4 @@ Use Context7 for up-to-date documentation on all of these — do not guess at AP
 | `github.com/zalando/go-keyring` | `/zalando/go-keyring` | OS keyring (Set/Get/Delete) |
 | `gopkg.in/yaml.v3` | — | Config serialisation; use `yaml` struct tags |
 | `github.com/stretchr/testify` | — | `require` (fatal) / `assert` (non-fatal) in tests |
+| `github.com/d2lang/d2` | — | d2 diagrams → SVG; read the module source for v0.9.0 APIs. The old `oss.terrastruct.com/d2` path is frozen at v0.7.2 |

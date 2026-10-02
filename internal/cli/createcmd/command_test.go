@@ -258,6 +258,30 @@ func TestCreate_Render_MarkdownProducesHTMLByDefault(t *testing.T) {
 	assert.Contains(t, stdout, "notes.html")
 }
 
+func TestCreate_Render_D2DiagramPublishedAsSVG(t *testing.T) {
+	src := t.TempDir()
+	dst := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(src, "sub"), 0o750))
+	md := "```d2\na -> b\n```\n\n```d2\na -> -> {\n```\n"
+	require.NoError(t, os.WriteFile(filepath.Join(src, "sub", "page.md"), []byte(md), 0o600))
+
+	_, stderr, code := runCreate(t, nil, "create", "--copy-dir", dst, src)
+	require.Equal(t, 0, code)
+	assert.Contains(t, stderr, "warning: sub/page.md: d2 diagram 2: ")
+
+	root := filepath.Join(dst, "flash", "1", "testid")
+	svgs, err := filepath.Glob(filepath.Join(root, "d2", "*.svg"))
+	require.NoError(t, err)
+	require.Len(t, svgs, 1)
+	svg, err := os.ReadFile(svgs[0])
+	require.NoError(t, err)
+	assert.Contains(t, string(svg), "<svg")
+
+	page, err := os.ReadFile(filepath.Join(root, "sub", "page.html"))
+	require.NoError(t, err)
+	assert.Contains(t, string(page), `src="../d2/`+filepath.Base(svgs[0])+`"`)
+}
+
 func TestCreate_NoRender_SkipsRendering(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello"), 0600))
