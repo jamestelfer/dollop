@@ -11,8 +11,9 @@ import (
 // are supplied locally and uploaded with `dollop deps fonts <dir>`.
 const FontPrefix = "deps/fonts/pp-mori"
 
-// fontFamily is the family name the @font-face rules declare. It leads the
-// font stack in dollop-markdown.css, ahead of Inter.
+// fontFamily is the family name the @font-face rules declare. It must match the
+// first entry of the font stack in dollop-markdown.css, and the page's
+// font-loading script probes it to decide whether Inter is needed.
 const fontFamily = "PP Mori"
 
 // fontFace maps one font file to the CSS weights and style it serves.

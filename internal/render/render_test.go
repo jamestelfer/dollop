@@ -718,7 +718,7 @@ func TestMarkdownRenderer_CSSPathOneLevelDeep(t *testing.T) {
 
 // TestMarkdownRenderer_TypographyLayerAfterBase verifies the dollop typography
 // stylesheet is linked after github-markdown.css so its rules take precedence,
-// and that the page loads the Inter webfont it depends on.
+// and that Inter is loaded on demand rather than as a blocking stylesheet.
 func TestMarkdownRenderer_TypographyLayerAfterBase(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("Hello"), 0o600))

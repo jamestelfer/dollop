@@ -9,8 +9,7 @@ import (
 //go:embed assets/github-markdown.css
 var githubMarkdownCSS []byte
 
-// Typography, spacing and accent-colour overrides layered on top of
-// github-markdown.css. Metrics adapted from the VitePress default theme.
+// Typography layer over github-markdown.css; it must be linked after it.
 //
 //go:embed assets/dollop-markdown.css
 var dollopMarkdownCSS []byte
