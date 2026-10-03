@@ -166,6 +166,31 @@ dollop deps status           # show the shipped version and whether it is publis
 mermaid diagram before running `deps publish`, dollop prints a warning and the
 diagram will not render until the engine is published.
 
+### Fonts
+
+Rendered pages use [Inter](https://rsms.me/inter/), loaded from Google Fonts.
+The request is made only when the optional body font below is unavailable.
+
+Pages also declare an optional body font, PP Mori, at a shared bucket location
+(`deps/fonts/pp-mori/`) and prefer it when it is published there. PP Mori is a
+proprietary typeface: dollop does not ship, fetch, or embed it. To use it,
+supply font files you hold a licence for and upload them:
+
+```
+dollop deps fonts <dir>   # upload the PPMori-*.woff2 files found under <dir>
+dollop deps status        # also reports how many font files are published
+```
+
+The files must be WOFF2. Convert OTF or TTF files with
+`fonttools ttLib.woff2 compress` if the licence allows it.
+
+`<dir>` is searched recursively, so an unpacked font archive can be passed
+as-is. Pages already published pick the font up without re-rendering, and fall
+back to Inter while it is absent.
+
+Check that your licence permits web hosting before uploading. The foundry's
+free personal-use licence does not.
+
 ## Cloudflare R2 setup
 
 ### Bucket

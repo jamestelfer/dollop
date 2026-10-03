@@ -14,6 +14,7 @@ var htmlTmpl = template.Must(template.New("page").Parse(htmlTmplSrc))
 type pageData struct {
 	Title            string
 	CSSPath          string
+	ThemeCSSPath     string
 	HighlightCSSPath string
 	// MermaidScript is the full <script type="module"> element that loads the
 	// shared mermaid engine, or empty when the document has no mermaid fence. It
@@ -21,6 +22,10 @@ type pageData struct {
 	// user-controlled content), so it is emitted verbatim; interpolating the path
 	// into a JS string context would mangle its slashes.
 	MermaidScript template.HTML
+	// FontFaceCSS declares the optional shared body font. Like MermaidScript it is
+	// built server-side from constants and a relative climb path.
+	FontFaceCSS   template.CSS
+	FontFamily    string
 	LogoLightPath string
 	LogoDarkPath  string
 	FaviconPath   string

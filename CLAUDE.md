@@ -23,10 +23,11 @@ internal/config/                YAML config file (~/.config/dollop/config.yaml, 
                                 + keyring access (r2-key, r2-secret via OS keyring)
 internal/cli/configcmd/         config subcommand tree: set, get, list, auth
 internal/cli/createcmd/         create subcommand: generates prefix, calls upload.UploadFiles
-internal/cli/depscmd/           deps subcommand tree: publish, status (shared mermaid engine)
+internal/cli/depscmd/           deps subcommand tree: publish, fonts, status (shared mermaid engine, fonts)
 internal/deps/                  fetch/verify/extract/publish the pinned mermaid ESM engine;
                                 shared Present presence check + missing-deps warning
-internal/render/                markdown→html rendering, page template, mermaid version pin
+internal/render/                markdown→html rendering, page template, mermaid version pin,
+                                optional shared font faces
 internal/upload/                uploader interface, S3 client, MIME detection, prefix logic
 ```
 
@@ -37,6 +38,11 @@ by a relative path that climbs out of their prefix. The pinned version and its
 npm sha512 integrity are the only mermaid artifacts in git (`render.MermaidVersion`,
 `render.MermaidSHA512`) — the engine bytes are fetched from npm at publish time,
 never embedded.
+
+The optional body font (PP Mori) also lives under `deps/`, at the unversioned
+path `deps/fonts/pp-mori/` (cached for a week, not immutable). It is proprietary: its files are never fetched, embedded, or committed. They
+are uploaded from a local directory via `dollop deps fonts <dir>`, and pages
+fall back to Inter (Google Fonts) when the files are absent.
 
 ## Commits and PR titles
 

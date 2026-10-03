@@ -95,6 +95,7 @@ func (m *markdownRenderer) Plan(relPaths []string, sourceDir string, prefix stri
 	// per-prefix.
 	assets := []SharedAsset{
 		{Name: "github-markdown.css", ContentType: "text/css; charset=utf-8", Content: githubMarkdownCSS},
+		{Name: "dollop-markdown.css", ContentType: "text/css; charset=utf-8", Content: dollopMarkdownCSS},
 		{Name: "highlight-github.css", ContentType: "text/css; charset=utf-8", Content: highlightGithubCSS},
 		{Name: "dollop-light.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopLightSVG},
 		{Name: "dollop-dark.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopDarkSVG},
@@ -164,6 +165,12 @@ func cssDepthPrefix(relPath string) string {
 	return strings.Repeat("../", depth)
 }
 
+// bucketRootPath returns the relative climb (e.g. "../../../") from a rendered
+// page at prefix/relPath to the bucket root: one "../" per directory segment.
+func bucketRootPath(prefix, relPath string) string {
+	return cssDepthPrefix(path.Join(prefix, filepath.ToSlash(relPath)))
+}
+
 // mermaidDepsPath returns the relative reference from a rendered page at
 // prefix/relPath to the shared mermaid ESM entrypoint at
 // deps/mermaid/<MermaidVersion>/mermaid.esm.min.mjs. It climbs out of the
@@ -171,19 +178,18 @@ func cssDepthPrefix(relPath string) string {
 // then descends into the bucket-rooted deps namespace, so the reference is
 // origin-independent and same-origin (no CORS).
 func mermaidDepsPath(prefix, relPath string) string {
-	full := path.Join(prefix, filepath.ToSlash(relPath))
-	climb := strings.Count(full, "/")
-	return strings.Repeat("../", climb) + "deps/mermaid/" + MermaidVersion + "/mermaid.esm.min.mjs"
+	return bucketRootPath(prefix, relPath) + "deps/mermaid/" + MermaidVersion + "/mermaid.esm.min.mjs"
 }
 
 // mermaidModuleScript builds the ES module loader that imports the shared
 // mermaid engine from depsPath and initialises it. depsPath is server-generated
 // from the pinned version and a relative climb (no user content), so the result
-// is safe to emit verbatim as template.HTML. Loading as a module means only the
+// is safe to emit verbatim as template.HTML. The diagram theme follows the
+// reader's colour scheme at load time. Loading as a module means only the
 // diagram-type chunks a page actually uses are fetched on demand.
 func mermaidModuleScript(depsPath string) template.HTML {
 	return template.HTML(`<script type="module">import mermaid from '` + depsPath + //nolint:gosec
-		`';mermaid.initialize({startOnLoad:true});</script>`)
+		`';mermaid.initialize({startOnLoad:true,theme:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'default'});</script>`)
 }
 
 func isMarkdown(p string) bool {
@@ -312,8 +318,11 @@ func renderMarkdownFile(relPath, sourceDir, prefix string, batch map[string]bool
 	data := pageData{
 		Title:            title,
 		CSSPath:          depthPrefix + "github-markdown.css",
+		ThemeCSSPath:     depthPrefix + "dollop-markdown.css",
 		HighlightCSSPath: depthPrefix + "highlight-github.css",
 		MermaidScript:    mermaidScript,
+		FontFaceCSS:      fontFaceCSS(bucketRootPath(prefix, relPath)),
+		FontFamily:       fontFamily,
 		LogoLightPath:    depthPrefix + "dollop-light.svg",
 		LogoDarkPath:     depthPrefix + "dollop-dark.svg",
 		FaviconPath:      depthPrefix + "dollop-favicon.svg",

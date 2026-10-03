@@ -7,8 +7,10 @@
 <title>{{.Title}}</title>
 <link rel="icon" type="image/svg+xml" href="{{.FaviconPath}}">
 <link rel="stylesheet" href="{{.CSSPath}}">
+<link rel="stylesheet" href="{{.ThemeCSSPath}}">
 <link rel="stylesheet" href="{{.HighlightCSSPath}}">
 <style>
+{{.FontFaceCSS}}
 body { margin: 0; padding-top: 2.5rem; background-color: #ffffff; }
 @media (prefers-color-scheme: dark) { body { background-color: #0d1117; } }
 .markdown-body { background-color: transparent; }
@@ -22,6 +24,7 @@ body { margin: 0; padding-top: 2.5rem; background-color: #ffffff; }
   box-sizing: border-box;
   display: flex;
   justify-content: flex-end;
+  gap: 0.5rem;
   padding: 0.4rem 1rem;
   background-color: #ffffff;
   border-bottom: 1px solid #d0d7de;
@@ -52,15 +55,12 @@ body { margin: 0; padding-top: 2.5rem; background-color: #ffffff; }
 @media (prefers-color-scheme: dark) {
   .page-header a { border-color: #30363d; color: #8b949e; }
 }
-.page-header a:hover { border-color: #0969da; color: #0969da; }
-@media (prefers-color-scheme: dark) {
-  .page-header a:hover { border-color: #58a6ff; color: #58a6ff; }
-}
+.page-header a:hover { border-color: var(--dollop-accent); color: var(--dollop-accent); }
 
 .page-content {
-  max-width: 70rem;
+  max-width: 46rem;
   margin: 0 auto;
-  padding: 2rem;
+  padding: 2rem 1.5rem 6rem;
 }
 
 .markdown-body .anchor {
@@ -69,14 +69,33 @@ body { margin: 0; padding-top: 2.5rem; background-color: #ffffff; }
   margin-left: unset;
 }
 </style>
+{{- /* Inter is the fallback body font. It is requested only when the shared
+body font fails to load, so pages that have it make no third-party requests
+and the stylesheet never blocks rendering. */}}
+<script>
+(function () {
+  function loadInter() {
+    var link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap";
+    document.head.appendChild(link);
+  }
+  if (!document.fonts || !document.fonts.load) { loadInter(); return; }
+  document.fonts.load('1em "{{.FontFamily}}"').then(function (faces) {
+    var loaded = faces.length > 0 && faces.every(function (f) { return f.status === "loaded"; });
+    if (!loaded) loadInter();
+  }, loadInter);
+})();
+</script>
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&amp;display=swap"></noscript>
 </head>
 <body>
 <header class="page-header">
+  <a href="{{.SourcePath}}">M&#x2193;</a>
   <a href="https://github.com/jamestelfer/dollop"><picture>
     <source media="(prefers-color-scheme: dark)" srcset="{{.LogoDarkPath}}">
     <img src="{{.LogoLightPath}}" alt="dollop logo">
   </picture></a>
-  <a href="{{.SourcePath}}">M&#x2193;</a>
 </header>
 <div class="page-content">
 <div class="markdown-body">
