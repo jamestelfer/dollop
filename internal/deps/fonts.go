@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -45,20 +46,22 @@ func FontsPresent(ctx context.Context, lister upload.ObjectLister, bucket string
 }
 
 // PublishFonts uploads the font set's files found anywhere under dir to the
-// font prefix and returns the uploaded file names in the set's order. Files are
-// matched by base name, so the directory an archive unpacks to can be passed
-// as-is; every other file is ignored. When a name appears more than once the
-// first in walk order is used and the rest are reported. A missing file produces a warning (pages
-// fall back for the weights it serves); finding none at all is an error.
+// font prefix and returns the uploaded file names in the set's order. dir is
+// opened as an os.Root and traversed through it, so an unpacked font archive
+// can be passed as-is while symlinks cannot reach outside it. Files are matched
+// by base name and every other file is ignored. When a name appears more than
+// once the first in walk order is used and the rest are reported. A missing
+// file produces a warning (pages fall back for the weights it serves); finding
+// none at all is an error.
 func PublishFonts(ctx context.Context, up upload.Uploader, bucket string, fonts FontSet, dir string, stderr io.Writer) ([]string, error) {
-	// WalkDir does not descend into a symlinked root, so resolve it first.
-	root, err := filepath.EvalSymlinks(dir)
+	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return nil, fmt.Errorf("scan %s: %w", dir, err)
+		return nil, fmt.Errorf("open font directory: %w", err)
 	}
+	defer root.Close() //nolint:errcheck
 
 	found := map[string]string{}
-	err = filepath.WalkDir(root, func(p string, entry os.DirEntry, err error) error {
+	err = fs.WalkDir(root.FS(), ".", func(p string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -86,7 +89,11 @@ func PublishFonts(ctx context.Context, up upload.Uploader, bucket string, fonts 
 			fmt.Fprintf(stderr, "warning: %s not found under %s\n", name, dir) //nolint:errcheck
 			continue
 		}
-		if err := putFont(ctx, up, bucket, fonts.Prefix+"/"+name, p, stderr); err != nil {
+		f, err := root.Open(p)
+		if err != nil {
+			return uploaded, fmt.Errorf("open font: %w", err)
+		}
+		if err := putFont(ctx, up, bucket, fonts.Prefix+"/"+name, f, stderr); err != nil {
 			return uploaded, err
 		}
 		uploaded = append(uploaded, name)
@@ -94,20 +101,17 @@ func PublishFonts(ctx context.Context, up upload.Uploader, bucket string, fonts 
 	return uploaded, nil
 }
 
-func putFont(ctx context.Context, up upload.Uploader, bucket, key, path string, stderr io.Writer) error {
-	f, err := os.Open(path) //nolint:gosec
-	if err != nil {
-		return fmt.Errorf("open %s: %w", path, err)
-	}
+// putFont uploads an open font file and closes it.
+func putFont(ctx context.Context, up upload.Uploader, bucket, key string, f *os.File, stderr io.Writer) error {
 	defer f.Close() //nolint:errcheck
 
 	info, err := f.Stat()
 	if err != nil {
-		return fmt.Errorf("stat %s: %w", path, err)
+		return fmt.Errorf("stat %s: %w", f.Name(), err)
 	}
 	return putDep(ctx, up, bucket, depObject{
 		key:          key,
-		name:         filepath.Base(path),
+		name:         filepath.Base(f.Name()),
 		contentType:  fontContentType,
 		cacheControl: fontCacheControl,
 		size:         info.Size(),

@@ -98,6 +98,17 @@ func TestPublishFonts_FollowsSymlinkedRoot(t *testing.T) {
 	assert.Equal(t, []string{"Face-Regular.woff2"}, uploaded)
 }
 
+func TestPublishFonts_RefusesSymlinkOutsideDir(t *testing.T) {
+	outside, src, dst := t.TempDir(), t.TempDir(), t.TempDir()
+	writeFile(t, outside, "secret.woff2", "SECRET")
+	require.NoError(t, os.Symlink(filepath.Join(outside, "secret.woff2"), filepath.Join(src, "Face-Regular.woff2")))
+
+	_, err := deps.PublishFonts(context.Background(), &upload.DirUploader{Root: dst}, "bucket", testFonts, src, &bytes.Buffer{})
+	require.Error(t, err)
+	_, statErr := os.Stat(filepath.Join(dst, "deps"))
+	assert.True(t, os.IsNotExist(statErr), "nothing outside the directory may be uploaded")
+}
+
 func TestPublishFonts_DuplicateNameUsesFirstAndWarns(t *testing.T) {
 	src, dst := t.TempDir(), t.TempDir()
 	writeFile(t, src, "desktop/Face-Regular.woff2", "DESKTOP")
@@ -110,5 +121,5 @@ func TestPublishFonts_DuplicateNameUsesFirstAndWarns(t *testing.T) {
 	got, err := os.ReadFile(filepath.Join(dst, "deps", "fonts", "test", "Face-Regular.woff2"))
 	require.NoError(t, err)
 	assert.Equal(t, "DESKTOP", string(got))
-	assert.Contains(t, stderr.String(), "warning: ignoring "+filepath.Join(src, "web", "Face-Regular.woff2"))
+	assert.Contains(t, stderr.String(), "warning: ignoring web/Face-Regular.woff2")
 }

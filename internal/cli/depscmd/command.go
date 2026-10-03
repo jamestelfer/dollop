@@ -3,6 +3,7 @@ package depscmd
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/jamestelfer/dollop/internal/deps"
 	"github.com/jamestelfer/dollop/internal/upload"
@@ -89,11 +90,9 @@ when the version is already present unless --force is given.`,
 
 			w := cmd.Root().Writer
 			if uploaded {
-				fmt.Fprintf(w, "published mermaid %s to %s/\n", version, deps.VersionPrefix(version)) //nolint:errcheck
-			} else {
-				fmt.Fprintf(w, "mermaid %s already present at %s/\n", version, deps.VersionPrefix(version)) //nolint:errcheck
+				return writeOutput(w, "published mermaid %s to %s/\n", version, deps.VersionPrefix(version))
 			}
-			return nil
+			return writeOutput(w, "mermaid %s already present at %s/\n", version, deps.VersionPrefix(version))
 		},
 	}
 }
@@ -130,8 +129,7 @@ hold a licence for, and check that the licence permits web hosting.`,
 			if len(uploaded) == 1 {
 				noun = "file"
 			}
-			fmt.Fprintf(cmd.Root().Writer, "published %d font %s to %s/\n", len(uploaded), noun, fonts.Prefix) //nolint:errcheck
-			return nil
+			return writeOutput(cmd.Root().Writer, "published %d font %s to %s/\n", len(uploaded), noun, fonts.Prefix)
 		},
 	}
 }
@@ -145,35 +143,46 @@ func statusCommand(lister upload.ObjectLister, bucket, version string, fonts dep
 			copyDir := cmd.String("copy-dir")
 			w := cmd.Root().Writer
 
-			fmt.Fprintf(w, "mermaid version: %s\n", version) //nolint:errcheck
+			if err := writeOutput(w, "mermaid version: %s\n", version); err != nil {
+				return err
+			}
 
 			lst := lister
 			if copyDir != "" {
 				lst = &upload.DirUploader{Root: copyDir}
 			}
 			if lst == nil {
-				fmt.Fprintln(w, "bucket: not configured") //nolint:errcheck
-				return nil
+				return writeOutput(w, "bucket: not configured\n")
 			}
 
 			present, err := deps.Present(ctx, lst, bucket, version)
 			if err != nil {
 				return cli.Exit(fmt.Sprintf("check deps: %v", err), 1)
 			}
+			mermaidState := "absent (run 'dollop deps publish')"
 			if present {
-				fmt.Fprintf(w, "bucket: present at %s/\n", deps.VersionPrefix(version)) //nolint:errcheck
-			} else {
-				fmt.Fprintf(w, "bucket: absent (run 'dollop deps publish')\n") //nolint:errcheck
+				mermaidState = "present at " + deps.VersionPrefix(version) + "/"
+			}
+			if err := writeOutput(w, "bucket: %s\n", mermaidState); err != nil {
+				return err
 			}
 
 			published, err := deps.FontsPresent(ctx, lst, bucket, fonts)
 			if err != nil {
 				return cli.Exit(fmt.Sprintf("check fonts: %v", err), 1)
 			}
-			fmt.Fprintf(w, "fonts: %d of %d published at %s/\n", len(published), len(fonts.Files), fonts.Prefix) //nolint:errcheck
-			return nil
+			return writeOutput(w, "fonts: %d of %d published at %s/\n", len(published), len(fonts.Files), fonts.Prefix)
 		},
 	}
+}
+
+// writeOutput writes a line of the command's primary output, turning a writer
+// failure into an exit error rather than dropping it.
+func writeOutput(w io.Writer, format string, args ...any) error {
+	if _, err := fmt.Fprintf(w, format, args...); err != nil {
+		return cli.Exit(fmt.Sprintf("write output: %v", err), 1)
+	}
+	return nil
 }
 
 const noCredsMessage = "no R2 credentials configured; run 'dollop config set account-id <id>', " +

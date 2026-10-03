@@ -53,12 +53,20 @@ func fetchFixture(tgz []byte) deps.FetchFunc {
 
 func run(t *testing.T, integrity string, fetch deps.FetchFunc, args ...string) (stdout, stderr string, code int) {
 	t.Helper()
-	var outBuf, errBuf bytes.Buffer
+	var outBuf bytes.Buffer
+	stderr, code = runWith(t, &outBuf, integrity, fetch, args...)
+	return outBuf.String(), stderr, code
+}
+
+// runWith runs the deps command with its primary output directed at out.
+func runWith(t *testing.T, out io.Writer, integrity string, fetch deps.FetchFunc, args ...string) (stderr string, code int) {
+	t.Helper()
+	var errBuf bytes.Buffer
 	fonts := deps.FontSet{Prefix: "deps/fonts/test", Files: []string{"Face-Regular.woff2", "Face-Bold.woff2"}}
 	cmd := depscmd.New(nil, nil, "test-bucket", "11.16.0", integrity, fetch, fonts)
 	app := &cli.Command{
 		Name:           "dollop",
-		Writer:         &outBuf,
+		Writer:         out,
 		ErrWriter:      &errBuf,
 		Commands:       []*cli.Command{&cmd},
 		ExitErrHandler: func(_ context.Context, _ *cli.Command, _ error) {},
@@ -67,11 +75,31 @@ func run(t *testing.T, integrity string, fetch deps.FetchFunc, args ...string) (
 	if err != nil {
 		var ec cli.ExitCoder
 		if errors.As(err, &ec) {
-			return outBuf.String(), errBuf.String(), ec.ExitCode()
+			return errBuf.String(), ec.ExitCode()
 		}
-		return outBuf.String(), errBuf.String(), 1
+		return errBuf.String(), 1
 	}
-	return outBuf.String(), errBuf.String(), 0
+	return errBuf.String(), 0
+}
+
+// failingWriter rejects every write, standing in for a closed stdout.
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("stdout closed") }
+
+func TestFonts_WriteFailureIsReported(t *testing.T) {
+	_, integrity := fixtureTarball(t)
+	src := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(src, "Face-Regular.woff2"), []byte("REGULAR"), 0o600))
+
+	_, code := runWith(t, failingWriter{}, integrity, nil, "deps", "fonts", "--copy-dir", t.TempDir(), src)
+	assert.NotEqual(t, 0, code)
+}
+
+func TestStatus_WriteFailureIsReported(t *testing.T) {
+	_, integrity := fixtureTarball(t)
+	_, code := runWith(t, failingWriter{}, integrity, nil, "deps", "status", "--copy-dir", t.TempDir())
+	assert.NotEqual(t, 0, code)
 }
 
 func TestPublish_CopyDir_WritesESMTree(t *testing.T) {
