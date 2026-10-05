@@ -331,6 +331,115 @@ func TestUploadFiles_Render_NoRender_SkipsHTML(t *testing.T) {
 	assert.Equal(t, []string{"notes.md"}, files)
 }
 
+// symlinkFixture builds an upload directory beside a sibling "outside"
+// directory holding a secret, so links can point out of the upload root.
+func symlinkFixture(t *testing.T) (dir, outside string) {
+	t.Helper()
+	base := t.TempDir()
+	dir = filepath.Join(base, "upload")
+	outside = filepath.Join(base, "outside")
+	require.NoError(t, os.MkdirAll(dir, 0o700))
+	require.NoError(t, os.MkdirAll(outside, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("private"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(outside, "secret.md"), []byte("# Private"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "keep.txt"), []byte("public"), 0o600))
+	return dir, outside
+}
+
+func uploadedKeys(up *fakeUploader) []string {
+	keys := make([]string, len(up.calls))
+	for i, c := range up.calls {
+		keys[i] = c.key
+	}
+	return keys
+}
+
+func TestUploadFiles_Directory_SkipsSymlinkOutsideRoot(t *testing.T) {
+	dir, outside := symlinkFixture(t)
+	require.NoError(t, os.Symlink(filepath.Join(outside, "secret.txt"), filepath.Join(dir, "notes.txt")))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"flash/1/abc/keep.txt"}, uploadedKeys(up))
+	assert.Equal(t, []string{"keep.txt"}, res.SourceRelPaths)
+	assert.Contains(t, stderr.String(), "warning: skipping notes.txt")
+	for _, c := range up.calls {
+		assert.NotContains(t, string(c.body), "private")
+	}
+}
+
+func TestUploadFiles_Directory_FollowsSymlinkInsideRoot(t *testing.T) {
+	dir, _ := symlinkFixture(t)
+	require.NoError(t, os.Symlink("keep.txt", filepath.Join(dir, "alias.txt")))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	_, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr)
+	require.NoError(t, err)
+
+	bodies := map[string]string{}
+	for _, c := range up.calls {
+		bodies[c.key] = string(c.body)
+	}
+	assert.Equal(t, map[string]string{
+		"flash/1/abc/keep.txt":  "public",
+		"flash/1/abc/alias.txt": "public",
+	}, bodies)
+	assert.NotContains(t, stderr.String(), "warning")
+}
+
+func TestUploadFiles_Directory_OmitsSymlinkToDirectory(t *testing.T) {
+	dir, outside := symlinkFixture(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "sub"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "sub", "data.json"), []byte("{}"), 0o600))
+	require.NoError(t, os.Symlink("sub", filepath.Join(dir, "sublink")))
+	require.NoError(t, os.Symlink(outside, filepath.Join(dir, "outlink")))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr)
+	require.NoError(t, err)
+
+	assert.ElementsMatch(t, []string{"keep.txt", "sub/data.json"}, res.SourceRelPaths)
+}
+
+func TestUploadFiles_Render_SkipsMarkdownSymlinkOutsideRoot(t *testing.T) {
+	dir, outside := symlinkFixture(t)
+	require.NoError(t, os.Symlink(filepath.Join(outside, "secret.md"), filepath.Join(dir, "notes.md")))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	_, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	require.NoError(t, err)
+
+	keys := uploadedKeys(up)
+	assert.NotContains(t, keys, "flash/1/abc/notes.md")
+	assert.NotContains(t, keys, "flash/1/abc/notes.html")
+	assert.Contains(t, keys, "flash/1/abc/keep.txt")
+	assert.Contains(t, stderr.String(), "warning: skipping notes.md")
+}
+
+func TestUploadFiles_SingleFile_FollowsSymlink(t *testing.T) {
+	dir, outside := symlinkFixture(t)
+	link := filepath.Join(dir, "some-link.md")
+	require.NoError(t, os.Symlink(filepath.Join(outside, "secret.md"), link))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", link, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	require.NoError(t, err)
+
+	assert.ElementsMatch(t, []string{"some-link.md", "some-link.html"}, res.SourceRelPaths)
+	for _, c := range up.calls {
+		if c.key == "flash/1/abc/some-link.md" {
+			assert.Equal(t, "# Private", string(c.body))
+		}
+	}
+}
+
 func TestUploadFiles_NilUploader_ReturnsError(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "f.txt")

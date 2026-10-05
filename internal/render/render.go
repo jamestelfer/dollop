@@ -1,10 +1,8 @@
 package render
 
 import (
-	"fmt"
 	"io"
-	"os"
-	"path/filepath"
+	"io/fs"
 )
 
 // Source represents a single file to be uploaded. Open is called lazily when
@@ -22,12 +20,14 @@ type Source struct {
 }
 
 // Renderer plans the set of Sources to upload from a list of relative paths
-// and returns any shared assets that must be uploaded once at the prefix root.
+// within fsys and returns any shared assets that must be uploaded once at the
+// prefix root. Sources read from fsys lazily, so it must remain usable until
+// every Source has been opened.
 // prefix is the R2 key prefix the files will be published under (e.g.
 // flash/1/<id> or keep/<name>); it is used to compute relative references that
 // climb out of the prefix to shared, bucket-rooted deps.
 type Renderer interface {
-	Plan(relPaths []string, sourceDir string, prefix string) ([]Source, []SharedAsset, error)
+	Plan(relPaths []string, fsys fs.FS, prefix string) ([]Source, []SharedAsset, error)
 }
 
 // NewDiskRenderer returns a Renderer that serves files directly from disk
@@ -38,26 +38,10 @@ func NewDiskRenderer() Renderer {
 
 type diskRenderer struct{}
 
-func (d *diskRenderer) Plan(relPaths []string, sourceDir string, _ string) ([]Source, []SharedAsset, error) {
+func (d *diskRenderer) Plan(relPaths []string, fsys fs.FS, _ string) ([]Source, []SharedAsset, error) {
 	sources := make([]Source, 0, len(relPaths))
 	for _, p := range relPaths {
-		absPath := filepath.Join(sourceDir, filepath.FromSlash(p))
-		info, err := os.Stat(absPath)
-		var sz int64 = -1
-		if err == nil {
-			sz = info.Size()
-		}
-		sources = append(sources, Source{
-			RelPath: p,
-			Size:    sz,
-			Open: func() (io.ReadSeekCloser, error) {
-				f, err := os.Open(absPath) //nolint:gosec
-				if err != nil {
-					return nil, fmt.Errorf("open %s: %w", absPath, err)
-				}
-				return f, nil
-			},
-		})
+		sources = append(sources, diskSource(p, fsys))
 	}
 	return sources, nil, nil
 }
