@@ -3,6 +3,7 @@ package render_test
 import (
 	"bytes"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// rootFS opens dir as an os.Root, matching how directory uploads read files.
+func rootFS(t *testing.T, dir string) fs.FS {
+	t.Helper()
+	root, err := os.OpenRoot(dir)
+	require.NoError(t, err)
+	t.Cleanup(func() { root.Close() }) //nolint:errcheck,gosec
+	return root.FS()
+}
 
 // sourceRelPaths extracts the RelPath from each Source.
 func sourceRelPaths(sources []render.Source) []string {
@@ -46,7 +56,7 @@ func TestDiskRenderer_PassesThrough(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello"), 0600))
 
 	r := render.NewDiskRenderer()
-	sources, assets, err := r.Plan([]string{"notes.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, assets, err := r.Plan([]string{"notes.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{"notes.md"}, sourceRelPaths(sources))
@@ -56,7 +66,7 @@ func TestDiskRenderer_PassesThrough(t *testing.T) {
 // TestDiskRenderer_EmptySlice verifies the disk renderer handles empty input.
 func TestDiskRenderer_EmptySlice(t *testing.T) {
 	r := render.NewDiskRenderer()
-	sources, _, err := r.Plan([]string{}, os.DirFS(t.TempDir()), "flash/1/testid")
+	sources, _, err := r.Plan([]string{}, rootFS(t, t.TempDir()), "flash/1/testid")
 	require.NoError(t, err)
 	assert.Empty(t, sources)
 }
@@ -68,7 +78,7 @@ func TestDiskRenderer_OpenReadsFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "hello.txt"), []byte("hello world"), 0600))
 
 	r := render.NewDiskRenderer()
-	sources, _, err := r.Plan([]string{"hello.txt"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"hello.txt"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 	require.Len(t, sources, 1)
 
@@ -83,7 +93,7 @@ func TestDiskRenderer_OpenIsSeekable(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "data.txt"), []byte("hello world"), 0600))
 
 	r := render.NewDiskRenderer()
-	sources, _, err := r.Plan([]string{"data.txt"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"data.txt"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 	require.Len(t, sources, 1)
 
@@ -111,7 +121,7 @@ func TestMarkdownRenderer_RenderedHTMLIsSeekable(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("# Hello"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	var htmlSrc render.Source
@@ -146,7 +156,7 @@ func TestMarkdownRenderer_RendersHTML(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello\n\nWorld"), 0600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"notes.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"notes.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	got := sourceRelPaths(sources)
@@ -169,7 +179,7 @@ func TestMarkdownRenderer_DarkModeSupport(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("Hello"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -185,7 +195,7 @@ func TestMarkdownRenderer_NonMarkdownPassedThrough(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "photo.jpg"), []byte("data"), 0600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"photo.jpg"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"photo.jpg"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 	assert.Equal(t, []string{"photo.jpg"}, sourceRelPaths(sources))
 }
@@ -198,7 +208,7 @@ func TestMarkdownRenderer_TitleFromFrontmatter(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -213,7 +223,7 @@ func TestMarkdownRenderer_TitleFromH1(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("# My H1 Title\n\nBody."), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -227,7 +237,7 @@ func TestMarkdownRenderer_TitleFallbackToFilename(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "my-doc.md"), []byte("Just a paragraph."), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"my-doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"my-doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "my-doc.html")
@@ -241,7 +251,7 @@ func TestMarkdownRenderer_OutputIsFullHTMLDocument(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("# Title\n\nParagraph."), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -260,7 +270,7 @@ func TestMarkdownRenderer_SourceHeaderLink(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("Hello"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"notes.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"notes.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "notes.html")
@@ -277,7 +287,7 @@ func TestMarkdownRenderer_Emoji(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("Hello :smile:"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -293,7 +303,7 @@ func TestMarkdownRenderer_HeadingAnchor(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("# My Heading"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -308,7 +318,7 @@ func TestMarkdownRenderer_ScriptTagStripped(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -328,7 +338,7 @@ func TestMarkdownRenderer_DetailsPermitted(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -343,7 +353,7 @@ func TestMarkdownRenderer_TaskList(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -356,7 +366,7 @@ func TestMarkdownRenderer_Strikethrough(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("~~gone~~"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -370,7 +380,7 @@ func TestMarkdownRenderer_Footnote(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -436,7 +446,7 @@ func TestMarkdownRenderer_MermaidReferencesSharedDeps(t *testing.T) {
 
 	r := render.NewMarkdownRenderer()
 	// prefix flash/1/testid + doc.html ⇒ 3 directory segments ⇒ climb ../../../
-	sources, assets, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, assets, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -461,7 +471,7 @@ func TestMarkdownRenderer_MermaidClimbDepthNested(t *testing.T) {
 
 	r := render.NewMarkdownRenderer()
 	// prefix flash/1/testid + sub/page.html ⇒ 4 directory segments ⇒ ../../../../
-	sources, _, err := r.Plan([]string{"sub/page.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"sub/page.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "sub/page.html")
@@ -477,7 +487,7 @@ func TestMarkdownRenderer_TildeMermaidFenceReferencesSharedDeps(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -496,7 +506,7 @@ func TestMarkdownRenderer_MermaidFenceRendersAsMermaidElement(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -520,7 +530,7 @@ func TestMarkdownRenderer_MermaidConversionIsSelective(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -535,7 +545,7 @@ func TestMarkdownRenderer_NoMermaidFenceNoScript(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("# Hello"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -550,7 +560,7 @@ func TestMarkdownRenderer_AlertInsideFencedCodeNotConverted(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -566,7 +576,7 @@ func TestMarkdownRenderer_AlertNotOnFirstLineNotConverted(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -582,7 +592,7 @@ func TestMarkdownRenderer_AlertNote(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -601,7 +611,7 @@ func TestMarkdownRenderer_AlertAllTypes(t *testing.T) {
 			require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 			r := render.NewMarkdownRenderer()
-			sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+			sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 			require.NoError(t, err)
 
 			html := openSource(t, sources, "doc.html")
@@ -619,7 +629,7 @@ func TestMarkdownRenderer_SyntaxHighlightingCSSClasses(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -634,7 +644,7 @@ func TestMarkdownRenderer_GFMTable(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -649,7 +659,7 @@ func TestMarkdownRenderer_InternalLinkRewritten(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "guide.md"), []byte("# Guide"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"index.md", "guide.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"index.md", "guide.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "index.html")
@@ -665,7 +675,7 @@ func TestMarkdownRenderer_ExternalLinkNotRewritten(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -680,7 +690,7 @@ func TestMarkdownRenderer_FragmentPreservedOnRewrite(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.md"), []byte("# other"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md", "other.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md", "other.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -694,7 +704,7 @@ func TestMarkdownRenderer_NonBatchLinkNotRewritten(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("[other](missing.md)"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -708,7 +718,7 @@ func TestMarkdownRenderer_CSSPathRootLevel(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("Hello"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"notes.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"notes.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "notes.html")
@@ -724,7 +734,7 @@ func TestMarkdownRenderer_CSSPathOneLevelDeep(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "sub", "page.md"), []byte("Hello"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"sub/page.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"sub/page.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "sub/page.html")
@@ -740,7 +750,7 @@ func TestMarkdownRenderer_TypographyLayerAfterBase(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("Hello"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -769,7 +779,7 @@ func TestMarkdownRenderer_SharedFontFaces(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "sub", "page.md"), []byte("Hello"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md", "sub/page.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"doc.md", "sub/page.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -792,7 +802,7 @@ func TestMarkdownRenderer_HighlightCSSMatchesMarkup(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, assets, err := r.Plan([]string{"doc.md"}, os.DirFS(dir), "flash/1/testid")
+	sources, assets, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
@@ -827,7 +837,7 @@ func TestMarkdownRenderer_CollisionSkipsAndWarns(t *testing.T) {
 
 	var stderr bytes.Buffer
 	r := render.NewMarkdownRendererWithStderr(&stderr)
-	sources, _, err := r.Plan([]string{"notes.md", "notes.html"}, os.DirFS(dir), "flash/1/testid")
+	sources, _, err := r.Plan([]string{"notes.md", "notes.html"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	relPaths := sourceRelPaths(sources)
@@ -849,7 +859,7 @@ func TestMarkdownRenderer_CollisionStillUploadsCSS(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.html"), []byte("<h1>existing</h1>"), 0600))
 
 	r := render.NewMarkdownRenderer()
-	_, assets, err := r.Plan([]string{"notes.md", "notes.html"}, os.DirFS(dir), "flash/1/testid")
+	_, assets, err := r.Plan([]string{"notes.md", "notes.html"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	names := make([]string, len(assets))
@@ -898,7 +908,7 @@ func TestMarkdownRenderer_RelativeLinkResolution(t *testing.T) {
 			require.NoError(t, os.WriteFile(filepath.Join(dir, filepath.FromSlash(tc.from)), []byte("[link]("+tc.link+")"), 0o600))
 
 			r := render.NewMarkdownRenderer()
-			sources, _, err := r.Plan(relPaths, dir, "flash/1/testid")
+			sources, _, err := r.Plan(relPaths, rootFS(t, dir), "flash/1/testid")
 			require.NoError(t, err)
 
 			fromHTML := strings.TrimSuffix(tc.from, filepath.Ext(tc.from)) + ".html"
