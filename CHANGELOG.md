@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.12.0](https://github.com/jamestelfer/dollop/compare/v1.11.0...v1.12.0) (2026-10-05)
+
+
+### Features
+
+* render d2 diagrams in markdown ([#71](https://github.com/jamestelfer/dollop/issues/71)) ([d2eba35](https://github.com/jamestelfer/dollop/commit/d2eba35d9b93daebd0287fa125ad1006de5fb04b))
+
+
+### Bug Fixes
+
+* confine directory uploads to the source directory ([#74](https://github.com/jamestelfer/dollop/issues/74)) ([928c4fa](https://github.com/jamestelfer/dollop/commit/928c4fa247a57d02908a6925fd1697dda11512c8))
+* **deps:** update actions/setup-go action to v7 ([#72](https://github.com/jamestelfer/dollop/issues/72)) ([89d913e](https://github.com/jamestelfer/dollop/commit/89d913ead96c50c57b1a9dbf29c94ea0eb0b1c57))
+* **deps:** update go dependencies ([#69](https://github.com/jamestelfer/dollop/issues/69)) ([1cbd997](https://github.com/jamestelfer/dollop/commit/1cbd997aa6e2a1863fc8c990c7f46c89790b90f3))
+* **deps:** update jdx/mise-action action to v5 ([#76](https://github.com/jamestelfer/dollop/issues/76)) ([19051c2](https://github.com/jamestelfer/dollop/commit/19051c2bb345cb2a13dc86e67c6739dc0c8f373c))
+* **deps:** update mise packages ([#70](https://github.com/jamestelfer/dollop/issues/70)) ([c241ccb](https://github.com/jamestelfer/dollop/commit/c241ccbe9e89d37be594078b8cc8153879cf3153))
+* resolve relative markdown links against the linking page ([#75](https://github.com/jamestelfer/dollop/issues/75)) ([6caa08a](https://github.com/jamestelfer/dollop/commit/6caa08ae6f3a41c308596dc357659567a4bbb3bc))
+
 ## [1.11.0](https://github.com/jamestelfer/dollop/compare/v1.10.0...v1.11.0) (2026-10-05)
 
 
