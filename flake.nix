@@ -13,13 +13,13 @@
       in
       {
         packages = {
-          dollop = pkgs.buildGoModule {
+          dollop = pkgs.buildGo127Module {
             pname = "dollop";
             version = "1.11.0"; # x-release-please-version
 
             src = ./.;
 
-            vendorHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+            vendorHash = "sha256-yqDrD5+t5i7NzYsonO32ru73rh58qPBFZGaDKuA7PDI=";
 
             subPackages = [ "cmd/dollop" ];
 
