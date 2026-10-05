@@ -844,3 +844,49 @@ func TestMarkdownRenderer_CollisionStillUploadsCSS(t *testing.T) {
 	assert.Contains(t, names, "dollop-markdown.css")
 	assert.Contains(t, names, "highlight-github.css")
 }
+
+// TestMarkdownRenderer_RelativeLinkResolution verifies that internal .md links
+// are resolved relative to the linking file's directory before the batch
+// lookup, so nested pages link to the rendered .html of their neighbours.
+func TestMarkdownRenderer_RelativeLinkResolution(t *testing.T) {
+	tests := []struct {
+		name  string
+		from  string
+		link  string
+		want  string
+		batch []string
+	}{
+		{name: "sibling in subdirectory", from: "docs/a.md", link: "b.md", want: `href="b.html"`, batch: []string{"docs/b.md"}},
+		{name: "dot slash prefix", from: "docs/a.md", link: "./b.md", want: `href="./b.html"`, batch: []string{"docs/b.md"}},
+		{name: "parent directory", from: "docs/a.md", link: "../README.md", want: `href="../README.html"`, batch: []string{"README.md"}},
+		{name: "child directory", from: "index.md", link: "docs/b.md", want: `href="docs/b.html"`, batch: []string{"docs/b.md"}},
+		{name: "query and fragment", from: "index.md", link: "b.md?v=1#top", want: `href="b.html?v=1#top"`, batch: []string{"b.md"}},
+		{name: "percent-encoded name", from: "index.md", link: "my%20doc.md", want: `href="my%20doc.html"`, batch: []string{"my doc.md"}},
+		{name: "angle-bracket name with space", from: "index.md", link: "<my doc.md>", want: `href="my%20doc.html"`, batch: []string{"my doc.md"}},
+		{name: "upper-case extension", from: "index.md", link: "NOTES.MD", want: `href="NOTES.html"`, batch: []string{"NOTES.MD"}},
+		{name: "root-level name from subdirectory not in batch", from: "docs/a.md", link: "b.md", want: `href="b.md"`, batch: []string{"b.md"}},
+		{name: "escapes upload root", from: "a.md", link: "../a.md", want: `href="../a.md"`},
+		{name: "root-relative path untouched", from: "docs/a.md", link: "/docs/b.md", want: `href="/docs/b.md"`, batch: []string{"docs/b.md"}},
+		{name: "protocol-relative untouched", from: "a.md", link: "//example.com/b.md", want: `href="//example.com/b.md"`, batch: []string{"b.md"}},
+		{name: "mailto untouched", from: "a.md", link: "mailto:b.md", want: `href="mailto:b.md"`, batch: []string{"b.md"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			relPaths := append([]string{tc.from}, tc.batch...)
+			for _, p := range relPaths {
+				abs := filepath.Join(dir, filepath.FromSlash(p))
+				require.NoError(t, os.MkdirAll(filepath.Dir(abs), 0o700))
+				require.NoError(t, os.WriteFile(abs, []byte("# page"), 0o600))
+			}
+			require.NoError(t, os.WriteFile(filepath.Join(dir, filepath.FromSlash(tc.from)), []byte("[link]("+tc.link+")"), 0o600))
+
+			r := render.NewMarkdownRenderer()
+			sources, _, err := r.Plan(relPaths, dir, "flash/1/testid")
+			require.NoError(t, err)
+
+			fromHTML := strings.TrimSuffix(tc.from, filepath.Ext(tc.from)) + ".html"
+			assert.Contains(t, openSource(t, sources, fromHTML), tc.want)
+		})
+	}
+}

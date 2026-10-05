@@ -294,7 +294,7 @@ func renderMarkdownFile(relPath, sourceDir, prefix string, batch map[string]bool
 	doc := mdParser.Parser().Parse(reader, parser.WithContext(pctx))
 
 	// rewrite internal .md links before rendering
-	lr := &linkRewriter{batch: batch}
+	lr := &linkRewriter{batch: batch, dir: path.Dir(filepath.ToSlash(relPath))}
 	lr.Transform(doc.(*ast.Document), reader, pctx)
 
 	mermaid := hasMermaidFence(doc, src)
