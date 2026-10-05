@@ -95,8 +95,7 @@ func runUpdate(t *testing.T, up upload.SyncUploader, baseURL string, args ...str
 	}
 	err := app.Run(context.Background(), append([]string{"dollop"}, args...))
 	if err != nil {
-		var ec cli.ExitCoder
-		if errors.As(err, &ec) {
+		if ec, ok := errors.AsType[cli.ExitCoder](err); ok {
 			return outBuf.String(), errBuf.String(), ec.ExitCode()
 		}
 		return outBuf.String(), errBuf.String(), 1

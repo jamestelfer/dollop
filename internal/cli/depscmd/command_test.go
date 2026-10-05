@@ -73,8 +73,7 @@ func runWith(t *testing.T, out io.Writer, integrity string, fetch deps.FetchFunc
 	}
 	err := app.Run(context.Background(), append([]string{"dollop"}, args...))
 	if err != nil {
-		var ec cli.ExitCoder
-		if errors.As(err, &ec) {
+		if ec, ok := errors.AsType[cli.ExitCoder](err); ok {
 			return errBuf.String(), ec.ExitCode()
 		}
 		return errBuf.String(), 1
