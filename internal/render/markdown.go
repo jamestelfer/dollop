@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -40,7 +41,7 @@ type markdownRenderer struct {
 	stderr io.Writer
 }
 
-func (m *markdownRenderer) Plan(relPaths []string, sourceDir string, prefix string) ([]Source, []SharedAsset, error) {
+func (m *markdownRenderer) Plan(relPaths []string, fsys fs.FS, prefix string) ([]Source, []SharedAsset, error) {
 	// batch map is used both for collision detection and by the link rewriter
 	// to know which .md files are being rendered.
 	batch := make(map[string]bool, len(relPaths))
@@ -53,14 +54,14 @@ func (m *markdownRenderer) Plan(relPaths []string, sourceDir string, prefix stri
 
 	for _, p := range relPaths {
 		if !isMarkdown(p) {
-			sources = append(sources, diskSource(p, sourceDir))
+			sources = append(sources, diskSource(p, fsys))
 			continue
 		}
 
 		hasMarkdown = true
 
 		// include the source .md file as a plain disk source
-		sources = append(sources, diskSource(p, sourceDir))
+		sources = append(sources, diskSource(p, fsys))
 
 		stem := strings.TrimSuffix(p, filepath.Ext(p))
 		htmlRel := stem + ".html"
@@ -76,7 +77,7 @@ func (m *markdownRenderer) Plan(relPaths []string, sourceDir string, prefix stri
 			ContentType: "text/html; charset=utf-8",
 			Size:        -1,
 			Open: func() (io.ReadSeekCloser, error) {
-				html, err := renderMarkdownFile(mdPath, sourceDir, prefix, batch)
+				html, err := renderMarkdownFile(fsys, mdPath, prefix, batch)
 				if err != nil {
 					return nil, err
 				}
@@ -105,10 +106,9 @@ func (m *markdownRenderer) Plan(relPaths []string, sourceDir string, prefix stri
 	return sources, assets, nil
 }
 
-// diskSource creates a Source that reads the given relative path from sourceDir.
-func diskSource(relPath, sourceDir string) Source {
-	absPath := filepath.Join(sourceDir, filepath.FromSlash(relPath))
-	info, err := os.Stat(absPath)
+// diskSource creates a Source that reads the given relative path from fsys.
+func diskSource(relPath string, fsys fs.FS) Source {
+	info, err := fs.Stat(fsys, relPath)
 	var sz int64 = -1
 	if err == nil {
 		sz = info.Size()
@@ -116,7 +116,7 @@ func diskSource(relPath, sourceDir string) Source {
 	return Source{
 		RelPath: relPath,
 		Size:    sz,
-		Open:    func() (io.ReadSeekCloser, error) { return os.Open(absPath) }, //nolint:gosec
+		Open:    func() (io.ReadSeekCloser, error) { return openSeekable(fsys, relPath) },
 	}
 }
 
@@ -241,50 +241,53 @@ func hasMermaidFence(doc ast.Node, _ []byte) bool {
 // directory of files) would render any mermaid diagram. It parses each markdown
 // file's AST and reuses hasMermaidFence, so it agrees exactly with the renderer
 // (a substring scan would miss ~~~ fences and trip on literal sample code).
-// Non-markdown files are ignored. It is used by create/update to warn when the
-// shared mermaid engine is not yet published.
+// A directory is scanned through an os.Root with ListFiles, so it considers
+// the same files an upload would. Non-markdown files are ignored. It is used by
+// create/update to warn when the shared mermaid engine is not yet published.
 func UsesMermaid(localPath string) (bool, error) {
 	info, err := os.Stat(localPath)
 	if err != nil {
 		return false, fmt.Errorf("stat %s: %w", localPath, err)
 	}
 	if !info.IsDir() {
-		return fileUsesMermaid(localPath)
+		return fileUsesMermaid(os.DirFS(filepath.Dir(localPath)), filepath.Base(localPath))
 	}
-	found := false
-	err = filepath.WalkDir(localPath, func(p string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() || found || !isMarkdown(p) {
-			return err
-		}
-		uses, ferr := fileUsesMermaid(p)
-		if ferr != nil {
-			return ferr
-		}
-		if uses {
-			found = true
-		}
-		return nil
-	})
+	root, err := os.OpenRoot(localPath)
+	if err != nil {
+		return false, fmt.Errorf("open %s: %w", localPath, err)
+	}
+	defer root.Close() //nolint:errcheck
+
+	paths, err := ListFiles(root.FS(), io.Discard)
 	if err != nil {
 		return false, fmt.Errorf("scan %s for mermaid: %w", localPath, err)
 	}
-	return found, nil
+	for _, p := range paths {
+		if !isMarkdown(p) {
+			continue
+		}
+		uses, err := fileUsesMermaid(root.FS(), p)
+		if err != nil || uses {
+			return uses, err
+		}
+	}
+	return false, nil
 }
 
 // fileUsesMermaid parses a single markdown file and reports whether it contains
 // a mermaid fence.
-func fileUsesMermaid(absPath string) (bool, error) {
-	src, err := os.ReadFile(absPath) //nolint:gosec
+func fileUsesMermaid(fsys fs.FS, relPath string) (bool, error) {
+	src, err := fs.ReadFile(fsys, relPath)
 	if err != nil {
-		return false, fmt.Errorf("read %s: %w", absPath, err)
+		return false, fmt.Errorf("read %s: %w", relPath, err)
 	}
 	return hasMermaidFence(mdParser.Parser().Parse(text.NewReader(src)), src), nil
 }
 
 // renderMarkdownFile parses and renders the given .md file to HTML bytes.
 // It does not write any files to disk.
-func renderMarkdownFile(relPath, sourceDir, prefix string, batch map[string]bool) ([]byte, error) {
-	src, err := os.ReadFile(filepath.Join(sourceDir, filepath.FromSlash(relPath))) //nolint:gosec
+func renderMarkdownFile(fsys fs.FS, relPath, prefix string, batch map[string]bool) ([]byte, error) {
+	src, err := fs.ReadFile(fsys, relPath)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", relPath, err)
 	}

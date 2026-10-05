@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -48,6 +49,8 @@ func WithRenderer(r FileRenderer) UploadOption {
 // If generateIndex is true and no index.html is present in the upload, a
 // generated index page is uploaded first; if index.html already exists a
 // warning is written to stderr and generation is skipped.
+// A directory is read through an os.Root, so symlinks resolving outside it are
+// skipped with a warning; a single file is read wherever its symlink points.
 // Returns an UploadResult reporting the relative paths of the uploaded sources
 // (not including any generated index.html) and the complete set of keys written.
 func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath string, generateIndex bool, stderr io.Writer, opts ...UploadOption) (*UploadResult, error) {
@@ -70,17 +73,26 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 		return nil, fmt.Errorf("stat %s: %w", localPath, err)
 	}
 
-	sourceDir := localPath
-	if !info.IsDir() {
-		sourceDir = filepath.Dir(localPath)
+	var fsys fs.FS
+	var relPaths []string
+	if info.IsDir() {
+		root, err := os.OpenRoot(localPath)
+		if err != nil {
+			return nil, fmt.Errorf("open %s: %w", localPath, err)
+		}
+		// Sources open lazily during uploadPlan, so the root must outlive it.
+		defer root.Close() //nolint:errcheck
+		fsys = root.FS()
+		relPaths, err = render.ListFiles(fsys, stderr)
+		if err != nil {
+			return nil, fmt.Errorf("scan files: %w", err)
+		}
+	} else {
+		fsys = os.DirFS(filepath.Dir(localPath))
+		relPaths = []string{filepath.Base(localPath)}
 	}
 
-	relPaths, err := collectRelativePaths(localPath, info.IsDir())
-	if err != nil {
-		return nil, fmt.Errorf("scan files: %w", err)
-	}
-
-	sources, sharedAssets, err := renderer.Plan(relPaths, sourceDir, prefix)
+	sources, sharedAssets, err := renderer.Plan(relPaths, fsys, prefix)
 	if err != nil {
 		return nil, fmt.Errorf("plan: %w", err)
 	}
@@ -171,25 +183,6 @@ func uploadSharedAssets(ctx context.Context, up Uploader, bucket, prefix string,
 		fmt.Fprintln(stderr, "done") //nolint:errcheck
 	}
 	return nil
-}
-
-func collectRelativePaths(localPath string, isDir bool) ([]string, error) {
-	if !isDir {
-		return []string{filepath.Base(localPath)}, nil
-	}
-	var paths []string
-	err := filepath.WalkDir(localPath, func(path string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return err
-		}
-		rel, err := filepath.Rel(localPath, path)
-		if err != nil {
-			return err
-		}
-		paths = append(paths, filepath.ToSlash(rel))
-		return nil
-	})
-	return paths, err
 }
 
 func uploadGeneratedIndex(ctx context.Context, up Uploader, bucket, prefix string, files, supporting []string, stderr io.Writer) error {
