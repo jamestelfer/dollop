@@ -1,11 +1,15 @@
 package render
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"strings"
 
 	"github.com/yuin/goldmark"
@@ -96,6 +100,9 @@ func (dr *d2Rewriter) Transform(doc *ast.Document, reader text.Reader, _ parser.
 
 		code := codeBlockText(cb, src)
 		diagram, err := dr.render(context.Background(), code)
+		if err == nil {
+			err = checkSVGLinks(diagram.SVG)
+		}
 		if err != nil {
 			// d2 reports one problem per line; keep the warning to one line
 			msg := strings.ReplaceAll(strings.TrimSpace(err.Error()), "\n", "; ")
@@ -120,6 +127,45 @@ func (dr *d2Rewriter) Transform(doc *ast.Document, reader text.Reader, _ parser.
 	for _, r := range replacements {
 		r.old.Parent().ReplaceChild(r.old.Parent(), r.old, r.new)
 	}
+}
+
+// checkSVGLinks rejects an SVG with any href that is neither relative nor
+// http(s), bar data:image/ on <image>. The SVG is also opened standalone,
+// where a javascript: link runs; an <image> never runs script.
+func checkSVGLinks(svg []byte) error {
+	dec := xml.NewDecoder(bytes.NewReader(svg))
+	for {
+		tok, err := dec.Token()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("parse svg: %w", err)
+		}
+		start, ok := tok.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		for _, attr := range start.Attr {
+			if attr.Name.Local == "href" && !allowedSVGLink(start.Name.Local, attr.Value) {
+				return fmt.Errorf("link %q: only relative, http(s) and image data URLs are allowed", attr.Value)
+			}
+		}
+	}
+}
+
+func allowedSVGLink(element, href string) bool {
+	u, err := url.Parse(href)
+	if err != nil {
+		return false
+	}
+	switch u.Scheme {
+	case "", "http", "https":
+		return true
+	case "data":
+		return element == "image" && strings.HasPrefix(strings.ToLower(u.Opaque), "image/")
+	}
+	return false
 }
 
 // d2AssetName derives the prefix-relative SVG name from the diagram source, so

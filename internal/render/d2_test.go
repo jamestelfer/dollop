@@ -238,3 +238,108 @@ func TestD2_DefaultRendererUsesRealD2(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Contains(t, string(got[0].Content), "<svg")
 }
+
+func fixedSVG(svg string) render.D2RenderFunc {
+	return func(_ context.Context, _ []byte) (d2render.Diagram, error) {
+		return d2render.Diagram{SVG: []byte(svg), Width: 1, Height: 1}, nil
+	}
+}
+
+func TestD2_AllowedLinksKeepDiagram(t *testing.T) {
+	hrefs := []string{
+		"other.html", "../up/page.html", "/root.html", "#frag", "",
+		"https://example.com/x", "HTTP://example.com", "//example.com/x",
+	}
+	for _, href := range hrefs {
+		t.Run(href, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "doc.md", "```d2\na -> b\n```\n")
+
+			svg := `<svg xmlns:xlink="http://www.w3.org/1999/xlink"><a href="` + href + `" xlink:href="` + href + `"></a><image href="` + href + `"/></svg>`
+			var stderr bytes.Buffer
+			r := render.NewMarkdownRendererWithD2(&stderr, fixedSVG(svg))
+			_, assets, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
+			require.NoError(t, err)
+
+			assert.Len(t, d2Assets(assets), 1)
+			assert.Empty(t, stderr.String())
+		})
+	}
+}
+
+func TestD2_ImageDataURIKeepsDiagram(t *testing.T) {
+	for _, href := range []string{"data:image/png;base64,iVBORw0KGgo=", "DATA:Image/svg+xml,&lt;svg/&gt;"} {
+		t.Run(href, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "doc.md", "```d2\na -> b\n```\n")
+
+			var stderr bytes.Buffer
+			r := render.NewMarkdownRendererWithD2(&stderr, fixedSVG(`<svg><image href="`+href+`"/></svg>`))
+			_, assets, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
+			require.NoError(t, err)
+
+			assert.Len(t, d2Assets(assets), 1)
+			assert.Empty(t, stderr.String())
+		})
+	}
+}
+
+func TestD2_DisallowedLinksFallBackToCode(t *testing.T) {
+	svgs := map[string]string{
+		"javascript href":       `<svg><a href="javascript:alert(1)"></a></svg>`,
+		"uppercase scheme":      `<svg><a href="JavaScript:alert(1)"></a></svg>`,
+		"entity-encoded scheme": `<svg><a href="&#106;avascript:alert(1)"></a></svg>`,
+		"tab in scheme":         `<svg><a href="java&#9;script:alert(1)"></a></svg>`,
+		"leading space":         `<svg><a href=" javascript:alert(1)"></a></svg>`,
+		"xlink href only":       `<svg xmlns:xlink="http://www.w3.org/1999/xlink"><a xlink:href="javascript:alert(1)"></a></svg>`,
+		"data uri on link":      `<svg><a href="data:image/svg+xml,&lt;svg/&gt;"></a></svg>`,
+		"non-image data uri":    `<svg><image href="data:text/html,&lt;script&gt;alert(1)&lt;/script&gt;"/></svg>`,
+		"vbscript":              `<svg><a href="vbscript:msgbox"></a></svg>`,
+		"malformed svg":         `<svg><a href="x"></svg>`,
+	}
+	for name, svg := range svgs {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "doc.md", "```d2\na -> b\n```\n")
+
+			var stderr bytes.Buffer
+			r := render.NewMarkdownRendererWithD2(&stderr, fixedSVG(svg))
+			sources, assets, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
+			require.NoError(t, err)
+
+			assert.Empty(t, d2Assets(assets))
+			assert.Contains(t, openSource(t, sources, "doc.html"), "<pre")
+			assert.Contains(t, stderr.String(), "warning: doc.md: d2 diagram 1: ")
+		})
+	}
+}
+
+func TestD2_RealD2Links(t *testing.T) {
+	cases := map[string]struct {
+		src     string
+		allowed bool
+	}{
+		"https link and icon": {"a: {link: https://example.com; icon: https://icons.terrastruct.com/essentials/087-display.svg}\n", true},
+		"relative link":       {"a: {link: ./other.html}\n", true},
+		"javascript link":     {"a: {link: \"javascript:alert(1)\"}\n", false},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "doc.md", "```d2\n"+tc.src+"```\n")
+
+			var stderr bytes.Buffer
+			r := render.NewMarkdownRendererWithD2(&stderr, d2render.Render)
+			_, assets, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
+			require.NoError(t, err)
+
+			if tc.allowed {
+				assert.Len(t, d2Assets(assets), 1)
+				assert.Empty(t, stderr.String())
+			} else {
+				assert.Empty(t, d2Assets(assets))
+				assert.Contains(t, stderr.String(), "only relative, http(s) and image data URLs are allowed")
+			}
+		})
+	}
+}
