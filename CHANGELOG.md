@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.11.0](https://github.com/jamestelfer/dollop/compare/v1.10.0...v1.11.0) (2026-10-05)
+
+
+### Features
+
+* restyle rendered markdown and add an optional shared body font ([#63](https://github.com/jamestelfer/dollop/issues/63)) ([f9f92bb](https://github.com/jamestelfer/dollop/commit/f9f92bbb0c214c7e0d11979fa7cdac9d68676386))
+
+
+### Bug Fixes
+
+* **deps:** update dependency go to v1.27.1 ([#66](https://github.com/jamestelfer/dollop/issues/66)) ([4fe3b08](https://github.com/jamestelfer/dollop/commit/4fe3b084dddcff6004135954f7b1acf842a9dc86))
+* **deps:** update github actions ([#65](https://github.com/jamestelfer/dollop/issues/65)) ([6d181ae](https://github.com/jamestelfer/dollop/commit/6d181ae1fc6f3b4c029c69151e2bcd402dccd26d))
+* replace deprecated Homebrew cask stanzas ([#62](https://github.com/jamestelfer/dollop/issues/62)) ([05e6e6e](https://github.com/jamestelfer/dollop/commit/05e6e6efc21c761ac53c0f7381a4ef0a166f2f62))
+
 ## [1.10.0](https://github.com/jamestelfer/dollop/compare/v1.9.1...v1.10.0) (2026-07-06)
 
 
