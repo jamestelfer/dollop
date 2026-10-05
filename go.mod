@@ -12,10 +12,10 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli/v3 v3.9.0
-	github.com/yuin/goldmark v1.8.2
-	github.com/yuin/goldmark-emoji v1.0.6
+	github.com/yuin/goldmark-emoji/v2 v2.0.2
 	github.com/yuin/goldmark-highlighting/v2 v2.0.0-20230729083705-37449abec8cc
-	github.com/yuin/goldmark-meta v1.1.0
+	github.com/yuin/goldmark-meta/v2 v2.0.2
+	github.com/yuin/goldmark/v2 v2.1.6
 	github.com/zalando/go-keyring v0.2.8
 	go.abhg.dev/goldmark/anchor v0.2.0
 	golang.org/x/term v0.43.0
@@ -39,7 +39,8 @@ require (
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/yuin/goldmark v1.7.10 // indirect
+	go.yaml.in/yaml/v4 v4.0.0-rc.6 // indirect
 	golang.org/x/net v0.26.0 // indirect
 	golang.org/x/sys v0.44.0 // indirect
-	gopkg.in/yaml.v2 v2.3.0 // indirect
 )
