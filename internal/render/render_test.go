@@ -916,3 +916,29 @@ func TestMarkdownRenderer_RelativeLinkResolution(t *testing.T) {
 		})
 	}
 }
+
+// TestMarkdownRenderer_RendersDuringPlan verifies that markdown is rendered when
+// Plan runs: Open serves the stored result and does not read the source again.
+func TestMarkdownRenderer_RendersDuringPlan(t *testing.T) {
+	dir := t.TempDir()
+	mdPath := filepath.Join(dir, "doc.md")
+	require.NoError(t, os.WriteFile(mdPath, []byte("# Hello"), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(mdPath, []byte("# Changed"), 0o600))
+
+	html := openSource(t, sources, "doc.html")
+	assert.Contains(t, html, "Hello")
+	assert.NotContains(t, html, "Changed")
+}
+
+// TestMarkdownRenderer_UnreadableMarkdownFailsPlan verifies that a markdown file
+// that cannot be read is reported by Plan, before anything is uploaded.
+func TestMarkdownRenderer_UnreadableMarkdownFailsPlan(t *testing.T) {
+	r := render.NewMarkdownRenderer()
+	_, _, err := r.Plan([]string{"missing.md"}, rootFS(t, t.TempDir()), "flash/1/testid")
+	require.ErrorContains(t, err, "missing.md")
+}
