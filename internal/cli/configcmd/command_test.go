@@ -70,8 +70,7 @@ func run(t *testing.T, cfgPath string, kr config.KeyringStore, pt *config.Plaint
 	}
 	err := app.Run(context.Background(), append([]string{"dollop"}, args...))
 	if err != nil {
-		var ec cli.ExitCoder
-		if errors.As(err, &ec) {
+		if ec, ok := errors.AsType[cli.ExitCoder](err); ok {
 			return outBuf.String(), errBuf.String(), ec.ExitCode()
 		}
 		return outBuf.String(), errBuf.String(), 1

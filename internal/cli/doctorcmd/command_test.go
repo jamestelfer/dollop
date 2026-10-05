@@ -114,8 +114,7 @@ func runDoctorDeps(t *testing.T, opts doctorOpts, cfg config.Config, hasKey, has
 	}
 	err := app.Run(context.Background(), []string{"dollop", "doctor"})
 	if err != nil {
-		var ec cli.ExitCoder
-		if errors.As(err, &ec) {
+		if ec, ok := errors.AsType[cli.ExitCoder](err); ok {
 			return outBuf.String(), errBuf.String(), ec.ExitCode()
 		}
 		return outBuf.String(), errBuf.String(), 1
