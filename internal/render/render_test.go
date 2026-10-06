@@ -2,6 +2,8 @@ package render_test
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"io/fs"
 	"os"
@@ -722,8 +724,29 @@ func TestMarkdownRenderer_CSSPathRootLevel(t *testing.T) {
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "notes.html")
-	assert.Contains(t, html, `href="github-markdown.css"`)
-	assert.Contains(t, html, `href="dollop-markdown.css"`)
+	assert.Contains(t, html, `href="github-markdown.css?v=`)
+	assert.Contains(t, html, `href="dollop-markdown.css?v=`)
+}
+
+// TestMarkdownRenderer_SharedAssetsVersioned verifies every per-prefix shared
+// asset is referenced with a ?v= query derived from its content. The assets
+// are served with a long max-age under fixed names, so without the version an
+// update that changes them is masked by edge and browser caches.
+func TestMarkdownRenderer_SharedAssetsVersioned(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "sub"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "sub", "page.md"), []byte("Hello"), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	sources, assets, err := r.Plan([]string{"sub/page.md"}, rootFS(t, dir), "flash/1/testid")
+	require.NoError(t, err)
+
+	html := openSource(t, sources, "sub/page.html")
+	for _, a := range assets {
+		sum := sha256.Sum256(a.Content)
+		want := "../" + a.Name + "?v=" + hex.EncodeToString(sum[:])[:10]
+		assert.Contains(t, html, `="`+want+`"`, "asset %s must be referenced with its content version", a.Name)
+	}
 }
 
 // TestMarkdownRenderer_CSSPathOneLevelDeep verifies that a file one directory
@@ -738,8 +761,8 @@ func TestMarkdownRenderer_CSSPathOneLevelDeep(t *testing.T) {
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "sub/page.html")
-	assert.Contains(t, html, `href="../github-markdown.css"`)
-	assert.Contains(t, html, `href="../dollop-markdown.css"`)
+	assert.Contains(t, html, `href="../github-markdown.css?v=`)
+	assert.Contains(t, html, `href="../dollop-markdown.css?v=`)
 }
 
 // TestMarkdownRenderer_TypographyLayerAfterBase verifies the dollop typography
@@ -754,8 +777,8 @@ func TestMarkdownRenderer_TypographyLayerAfterBase(t *testing.T) {
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
-	base := strings.Index(html, `href="github-markdown.css"`)
-	layer := strings.Index(html, `href="dollop-markdown.css"`)
+	base := strings.Index(html, `href="github-markdown.css?v=`)
+	layer := strings.Index(html, `href="dollop-markdown.css?v=`)
 	require.NotEqual(t, -1, base)
 	require.NotEqual(t, -1, layer)
 	assert.Less(t, base, layer, "typography layer must follow the base stylesheet")

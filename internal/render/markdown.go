@@ -113,14 +113,7 @@ func (m *markdownRenderer) Plan(relPaths []string, fsys fs.FS, prefix string) ([
 	// reference the shared, version-pinned copy under deps/mermaid/<v>/ (published
 	// once via `dollop deps publish`). Only the CSS, logo and d2 diagram assets
 	// are per-prefix.
-	assets := append([]SharedAsset{
-		{Name: "github-markdown.css", ContentType: "text/css; charset=utf-8", Content: githubMarkdownCSS},
-		{Name: "dollop-markdown.css", ContentType: "text/css; charset=utf-8", Content: dollopMarkdownCSS},
-		{Name: "highlight-github.css", ContentType: "text/css; charset=utf-8", Content: highlightGithubCSS},
-		{Name: "dollop-light.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopLightSVG},
-		{Name: "dollop-dark.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopDarkSVG},
-		{Name: "dollop-favicon.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopFaviconSVG},
-	}, diagramAssets...)
+	assets := append(append([]SharedAsset{}, sharedAssets...), diagramAssets...)
 
 	return sources, assets, nil
 }
@@ -345,15 +338,15 @@ func (m *markdownRenderer) renderMarkdownFile(fsys fs.FS, relPath, prefix string
 
 	data := pageData{
 		Title:            title,
-		CSSPath:          depthPrefix + "github-markdown.css",
-		ThemeCSSPath:     depthPrefix + "dollop-markdown.css",
-		HighlightCSSPath: depthPrefix + "highlight-github.css",
+		CSSPath:          assetRef(depthPrefix, "github-markdown.css"),
+		ThemeCSSPath:     assetRef(depthPrefix, "dollop-markdown.css"),
+		HighlightCSSPath: assetRef(depthPrefix, "highlight-github.css"),
 		MermaidScript:    mermaidScript,
 		FontFaceCSS:      fontFaceCSS(bucketRootPath(prefix, relPath)),
 		FontFamily:       fontFamily,
-		LogoLightPath:    depthPrefix + "dollop-light.svg",
-		LogoDarkPath:     depthPrefix + "dollop-dark.svg",
-		FaviconPath:      depthPrefix + "dollop-favicon.svg",
+		LogoLightPath:    assetRef(depthPrefix, "dollop-light.svg"),
+		LogoDarkPath:     assetRef(depthPrefix, "dollop-dark.svg"),
+		FaviconPath:      assetRef(depthPrefix, "dollop-favicon.svg"),
 		Body:             template.HTML(sanitizeHTML(bodyBuf.String())), //nolint:gosec
 		SourcePath:       filepath.Base(relPath),
 	}

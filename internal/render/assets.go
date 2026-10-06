@@ -1,7 +1,9 @@
 package render
 
 import (
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 )
 
 // github-markdown-css v5.9.0 — https://github.com/sindresorhus/github-markdown-css
@@ -38,4 +40,34 @@ type SharedAsset struct {
 	Name        string
 	ContentType string
 	Content     []byte
+}
+
+// sharedAssets are the fixed-name assets uploaded at every prefix root that
+// holds rendered markdown. They are served with a long max-age, so pages
+// reference them through assetRef rather than by bare name.
+var sharedAssets = []SharedAsset{
+	{Name: "github-markdown.css", ContentType: "text/css; charset=utf-8", Content: githubMarkdownCSS},
+	{Name: "dollop-markdown.css", ContentType: "text/css; charset=utf-8", Content: dollopMarkdownCSS},
+	{Name: "highlight-github.css", ContentType: "text/css; charset=utf-8", Content: highlightGithubCSS},
+	{Name: "dollop-light.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopLightSVG},
+	{Name: "dollop-dark.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopDarkSVG},
+	{Name: "dollop-favicon.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopFaviconSVG},
+}
+
+// assetVersions maps each shared asset name to a short hash of its content.
+var assetVersions = func() map[string]string {
+	v := make(map[string]string, len(sharedAssets))
+	for _, a := range sharedAssets {
+		sum := sha256.Sum256(a.Content)
+		v[a.Name] = hex.EncodeToString(sum[:])[:10]
+	}
+	return v
+}()
+
+// assetRef returns the page-relative URL of a shared asset with a ?v= query
+// holding its content hash. The object key stays the bare name; the query
+// only changes the cache key, so an update that changes an asset is never
+// masked by a stale edge or browser copy of the previous version.
+func assetRef(depthPrefix, name string) string {
+	return depthPrefix + name + "?v=" + assetVersions[name]
 }
