@@ -42,13 +42,18 @@ var _ upload.ListingUploader = (*fakeUploader)(nil)
 
 func runCreate(t *testing.T, up upload.ListingUploader, args ...string) (stdout, stderr string, code int) {
 	t.Helper()
+	return runCreateWithName(t, up, func() (string, error) { return "happy-cat.aB3.x9Z.q2M", nil }, args...)
+}
+
+func runCreateWithName(t *testing.T, up upload.ListingUploader, newName func() (string, error), args ...string) (stdout, stderr string, code int) {
+	t.Helper()
 	var outBuf, errBuf bytes.Buffer
 	cmd := createcmd.New(
 		up,
 		"test-bucket",
 		"", // no base_url in unit tests; URL will be just the prefix path
 		func() (string, error) { return "testid", nil },
-		func() string { return "happy-cat" },
+		newName,
 	)
 	app := &cli.Command{
 		Name:           "dollop",
@@ -142,10 +147,22 @@ func TestCreate_Keep(t *testing.T) {
 	up := &fakeUploader{}
 	stdout, _, code := runCreate(t, up, "create", "--keep", path)
 	require.Equal(t, 0, code)
-	assert.Equal(t, "keep/happy-cat/index.html", up.calls[0])
+	assert.Equal(t, "keep/happy-cat.aB3.x9Z.q2M/index.html", up.calls[0])
 	// index.html in the upload → no filename suffix on URL
-	assert.Contains(t, stdout, "keep/happy-cat/")
+	assert.Contains(t, stdout, "keep/happy-cat.aB3.x9Z.q2M/")
 	assert.NotContains(t, strings.TrimSpace(stdout), "index.html")
+}
+
+func TestCreate_KeepNameError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f.txt")
+	require.NoError(t, os.WriteFile(path, []byte("x"), 0600))
+
+	up := &fakeUploader{}
+	stdout, _, code := runCreateWithName(t, up, func() (string, error) { return "", errors.New("no entropy") }, "create", "--keep", path)
+	assert.NotEqual(t, 0, code)
+	assert.Empty(t, stdout, "no URL should be printed when name generation fails")
+	assert.Empty(t, up.calls, "nothing should be uploaded when name generation fails")
 }
 
 func TestCreate_KeepAndDaysMutuallyExclusive(t *testing.T) {

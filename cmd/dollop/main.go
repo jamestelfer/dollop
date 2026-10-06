@@ -93,7 +93,9 @@ func run(ctx context.Context, args []string) error {
 		cfg.Bucket,
 		cfg.BaseURL,
 		func() (string, error) { return nanoid.New() },
-		func() string { return petname.Generate(2, "-") },
+		func() (string, error) {
+			return upload.NewKeepName(func() string { return petname.Generate(2, "-") }, nanoid.Generate)
+		},
 	)
 	updateCmd := updatecmd.New(
 		client,
