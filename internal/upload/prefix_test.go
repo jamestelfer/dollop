@@ -1,6 +1,7 @@
 package upload_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/jamestelfer/dollop/internal/upload"
@@ -16,6 +17,50 @@ func TestEphemeralPrefix(t *testing.T) {
 
 func TestPermanentPrefix(t *testing.T) {
 	assert.Equal(t, "keep/happy-dog", upload.PermanentPrefix("happy-dog"))
+}
+
+func TestNewKeepName_Format(t *testing.T) {
+	var gotAlphabet string
+	var gotSize int
+	name, err := upload.NewKeepName(
+		func() string { return "happy-otter" },
+		func(alphabet string, size int) (string, error) {
+			gotAlphabet, gotSize = alphabet, size
+			return "aB3x9Zq2M", nil
+		},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "happy-otter.aB3.x9Z.q2M", name)
+	assert.Equal(t, upload.KeepSuffixAlphabet, gotAlphabet)
+	assert.Equal(t, 9, gotSize)
+}
+
+func TestNewKeepName_GenerateError(t *testing.T) {
+	_, err := upload.NewKeepName(
+		func() string { return "happy-otter" },
+		func(string, int) (string, error) { return "", errors.New("boom") },
+	)
+	require.Error(t, err)
+}
+
+func TestNewKeepName_ShortSuffixRejected(t *testing.T) {
+	_, err := upload.NewKeepName(
+		func() string { return "happy-otter" },
+		func(string, int) (string, error) { return "abc", nil },
+	)
+	require.Error(t, err)
+}
+
+func TestKeepSuffixAlphabet(t *testing.T) {
+	assert.Len(t, upload.KeepSuffixAlphabet, 62)
+	assert.Regexp(t, `^[0-9A-Za-z]+$`, upload.KeepSuffixAlphabet)
+}
+
+func TestNewKeepName_ResolvesAsPrefix(t *testing.T) {
+	prefix := upload.PermanentPrefix("happy-otter.aB3.x9Z.q2M")
+	got, err := upload.ResolvePrefix("https://drop.example.com", "https://drop.example.com/"+prefix+"/notes.html")
+	require.NoError(t, err)
+	assert.Equal(t, prefix, got)
 }
 
 func TestPublicURL(t *testing.T) {

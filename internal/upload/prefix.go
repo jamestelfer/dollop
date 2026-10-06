@@ -13,6 +13,41 @@ func EphemeralPrefix(days int, id string) string {
 	return fmt.Sprintf("flash/%d/%s", days, id)
 }
 
+// KeepSuffixAlphabet is the character set for the random suffix of a
+// permanent upload name. It excludes nanoid's default '-' and '_' so the
+// suffix groups stay visually distinct from the petname.
+const KeepSuffixAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
+// keepSuffixGroups and keepSuffixGroupLen shape the random suffix: three
+// dot-separated groups of three characters (~53.6 bits over 62 symbols).
+const (
+	keepSuffixGroups   = 3
+	keepSuffixGroupLen = 3
+)
+
+// NewKeepName returns a permanent upload name of the form
+// <petname>.<abc>.<def>.<ghi>, e.g. happy-otter.aB3.x9Z.q2M. The petname keeps
+// the link memorable; the random suffix makes it impractical to guess.
+// petname supplies the readable part; generate draws size random characters
+// from alphabet (e.g. nanoid.Generate).
+func NewKeepName(petname func() string, generate func(alphabet string, size int) (string, error)) (string, error) {
+	size := keepSuffixGroups * keepSuffixGroupLen
+	suffix, err := generate(KeepSuffixAlphabet, size)
+	if err != nil {
+		return "", fmt.Errorf("generate keep suffix: %w", err)
+	}
+	if len(suffix) != size {
+		return "", fmt.Errorf("generate keep suffix: got %d characters, want %d", len(suffix), size)
+	}
+
+	parts := make([]string, 0, keepSuffixGroups+1)
+	parts = append(parts, petname())
+	for i := 0; i < size; i += keepSuffixGroupLen {
+		parts = append(parts, suffix[i:i+keepSuffixGroupLen])
+	}
+	return strings.Join(parts, "."), nil
+}
+
 // PermanentPrefix returns the R2 key prefix for a permanent upload.
 func PermanentPrefix(name string) string {
 	return "keep/" + name

@@ -16,13 +16,13 @@ import (
 // uploader must also list objects (upload.ListingUploader) so the command can
 // check whether the shared mermaid engine is published.
 // newID generates the nanoid for ephemeral uploads; newName generates the
-// petname for permanent uploads.
+// name (petname plus random suffix) for permanent uploads.
 func New(
 	uploader upload.ListingUploader,
 	bucket string,
 	baseURL string,
 	newID func() (string, error),
-	newName func() string,
+	newName func() (string, error),
 ) cli.Command {
 	return cli.Command{
 		Name:      "create",
@@ -40,8 +40,9 @@ allowed values are 1, 7, and 14.
   dollop create --days 14 backup/        # directory; link expires in 14 days
 
 Use --keep when the link should never expire. The URL will contain a
-memorable two-word petname instead of a random ID. --keep and --days
-are mutually exclusive.
+memorable petname followed by a random suffix (e.g. keep/hardy-emu.T9y.QbT.TDJ/)
+so the link cannot practically be guessed. --keep and --days are mutually
+exclusive.
 
   dollop create --keep notes.txt
   dollop create --keep project/`,
@@ -104,7 +105,11 @@ are mutually exclusive.
 
 			var prefix string
 			if keep {
-				prefix = upload.PermanentPrefix(newName())
+				name, err := newName()
+				if err != nil {
+					return cli.Exit(fmt.Sprintf("generate name: %v", err), 1)
+				}
+				prefix = upload.PermanentPrefix(name)
 			} else {
 				switch days {
 				case 1, 7, 14:
