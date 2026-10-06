@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.12.1](https://github.com/jamestelfer/dollop/compare/v1.12.0...v1.12.1) (2026-10-06)
+
+
+### Bug Fixes
+
+* **deps:** update go dependencies ([#77](https://github.com/jamestelfer/dollop/issues/77)) ([6ca0af2](https://github.com/jamestelfer/dollop/commit/6ca0af24ab5645a718e3bd8971de1fc490b525d8))
+* reduce padding around rendered d2 diagrams ([#79](https://github.com/jamestelfer/dollop/issues/79)) ([0e5ae64](https://github.com/jamestelfer/dollop/commit/0e5ae64fb6875e0388bb937b5f3621ad86fb84c1))
+
 ## [1.12.0](https://github.com/jamestelfer/dollop/compare/v1.11.0...v1.12.0) (2026-10-05)
 
 
