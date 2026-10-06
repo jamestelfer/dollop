@@ -105,3 +105,16 @@ func TestRender_ScriptInLabelRejected(t *testing.T) {
 	_, err := Render(context.Background(), []byte(src))
 	require.ErrorContains(t, err, "<script>")
 }
+
+func TestRender_DefaultPaddingIsTight(t *testing.T) {
+	tight, err := Render(context.Background(), []byte("a -> b\n"))
+	require.NoError(t, err)
+	src := "vars: {\n  d2-config: {\n    pad: 100\n  }\n}\na -> b\n"
+	wide, err := Render(context.Background(), []byte(src))
+	require.NoError(t, err)
+
+	// the source's pad overrides the default; each side differs by 100-defaultPad
+	diff := 2 * int(100-defaultPad)
+	assert.Equal(t, wide.Width-diff, tight.Width)
+	assert.Equal(t, wide.Height-diff, tight.Height)
+}

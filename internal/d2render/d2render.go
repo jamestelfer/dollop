@@ -25,6 +25,10 @@ import (
 
 const defaultEngine = "tala"
 
+// defaultPad is the padding, in pixels, around the diagram inside the SVG.
+// d2's own default (100) leaves wide margins; the page already spaces figures.
+const defaultPad int64 = 16
+
 // Diagram is the rendered form of one d2 source.
 type Diagram struct {
 	SVG           []byte
@@ -39,7 +43,7 @@ var viewBoxRE = regexp.MustCompile(`viewBox="0 0 (\d+) (\d+)"`)
 func Render(ctx context.Context, src []byte) (Diagram, error) {
 	input := string(src)
 
-	engine, err := layoutEngine(input)
+	engine, pad, err := sourceConfig(input)
 	if err != nil {
 		return Diagram{}, err
 	}
@@ -58,6 +62,7 @@ func Render(ctx context.Context, src []byte) (Diagram, error) {
 	renderOpts := &d2svg.RenderOpts{
 		ThemeID:     &d2themescatalog.NeutralDefault.ID,
 		DarkThemeID: &d2themescatalog.DarkMauve.ID,
+		Pad:         &pad,
 	}
 
 	diagram, _, err := d2lib.Compile(log.WithDefault(ctx), input, compileOpts, renderOpts)
@@ -80,18 +85,23 @@ func Render(ctx context.Context, src []byte) (Diagram, error) {
 	return Diagram{SVG: svg, Width: width, Height: height}, nil
 }
 
-// layoutEngine returns the engine named by the source's d2-config, or
-// defaultEngine. d2lib cannot express this default: an engine passed in its
-// options overrides the source, and with none passed it falls back to dagre.
-func layoutEngine(input string) (string, error) {
+// sourceConfig returns the layout engine and padding named by the source's
+// d2-config, falling back to defaultEngine and defaultPad. d2lib cannot express
+// these defaults: options passed to it override the source, and with none
+// passed it falls back to its own (dagre, 100px padding).
+func sourceConfig(input string) (engine string, pad int64, err error) {
 	_, config, err := d2compiler.Compile("", strings.NewReader(input), nil)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
+	engine, pad = defaultEngine, defaultPad
 	if config != nil && config.LayoutEngine != nil {
-		return *config.LayoutEngine, nil
+		engine = *config.LayoutEngine
 	}
-	return defaultEngine, nil
+	if config != nil && config.Pad != nil {
+		pad = *config.Pad
+	}
+	return engine, pad, nil
 }
 
 func resolveLayout(engine string) (d2graph.LayoutGraph, error) {
