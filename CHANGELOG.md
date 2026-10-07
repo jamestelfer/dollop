@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.13.0](https://github.com/jamestelfer/dollop/compare/v1.12.1...v1.13.0) (2026-10-07)
+
+
+### Features
+
+* add random suffix to --keep upload names to prevent guessing ([#81](https://github.com/jamestelfer/dollop/issues/81)) ([4dfd8c1](https://github.com/jamestelfer/dollop/commit/4dfd8c16314025816f76d2592425650fd569bb26))
+* add selectable page themes built on semantic CSS tokens ([#86](https://github.com/jamestelfer/dollop/issues/86)) ([7615108](https://github.com/jamestelfer/dollop/commit/761510817bf6077ce5c5e26f8a2b7aae4ebee22c))
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/urfave/cli/v3 to v3.14.0 ([#85](https://github.com/jamestelfer/dollop/issues/85)) ([91dda5a](https://github.com/jamestelfer/dollop/commit/91dda5a04e8f845ab1663e5d983bd21d948b9e3f))
+* increase link contrast in light mode ([#82](https://github.com/jamestelfer/dollop/issues/82)) ([4aa9586](https://github.com/jamestelfer/dollop/commit/4aa9586956541d068d943beeda4a9a3eee3b7724))
+* version shared asset URLs so updates bypass stale caches ([#83](https://github.com/jamestelfer/dollop/issues/83)) ([cc0d55c](https://github.com/jamestelfer/dollop/commit/cc0d55c5cdfadaf2b80a9bbb0ed0920fc31112b1))
+
 ## [1.12.1](https://github.com/jamestelfer/dollop/compare/v1.12.0...v1.12.1) (2026-10-06)
 
 
