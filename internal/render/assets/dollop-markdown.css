@@ -131,7 +131,7 @@ body {
 
 /*
  * Heading permalinks (¶) stay hidden until the heading is hovered or the link
- * has keyboard focus. Opacity, not display, so the link keeps its place in
+ * has keyboard focus; touch devices show them faintly instead. Opacity, not display, so the link keeps its place in
  * the line and stays focusable.
  */
 .markdown-body .anchor {
@@ -144,6 +144,10 @@ body {
 .markdown-body :is(h1, h2, h3, h4, h5, h6):hover .anchor,
 .markdown-body .anchor:focus-visible {
   opacity: 1;
+}
+/* Devices that cannot hover keep a faint, always-visible permalink. */
+@media (hover: none) {
+  .markdown-body .anchor { opacity: 0.4; }
 }
 @media (prefers-reduced-motion: reduce) {
   .markdown-body .anchor { transition: none; }
