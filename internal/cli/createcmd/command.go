@@ -3,6 +3,7 @@ package createcmd
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/jamestelfer/dollop/internal/cli/urlout"
 	"github.com/jamestelfer/dollop/internal/deps"
@@ -45,7 +46,10 @@ so the link cannot practically be guessed. --keep and --days are mutually
 exclusive.
 
   dollop create --keep notes.txt
-  dollop create --keep project/`,
+  dollop create --keep project/
+
+Rendered .md pages use the "tide" theme by default; choose another with
+--theme (tide, estuary or lichen).`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:  "index",
@@ -54,6 +58,11 @@ exclusive.
 			&cli.BoolFlag{
 				Name:  "no-render",
 				Usage: "disable automatic rendering of .md files to .html",
+			},
+			&cli.StringFlag{
+				Name:  "theme",
+				Usage: "page theme for rendered .md files: " + strings.Join(render.ThemeNames(), ", "),
+				Value: render.DefaultTheme,
 			},
 			&cli.StringFlag{
 				Name:   "copy-dir",
@@ -92,6 +101,11 @@ exclusive.
 			copyDir := cmd.String("copy-dir")
 			localPath := cmd.Args().Get(0)
 
+			theme, err := render.LookupTheme(cmd.String("theme"))
+			if err != nil {
+				return cli.Exit(err.Error(), 1)
+			}
+
 			activeUploader := uploader
 			if copyDir != "" {
 				fmt.Fprintf(cmd.Root().ErrWriter, "note: writing to local directory %s instead of R2\n", copyDir) //nolint:errcheck
@@ -125,7 +139,7 @@ exclusive.
 
 			var uploadOpts []upload.UploadOption
 			if !noRender {
-				uploadOpts = append(uploadOpts, upload.WithRenderer(render.NewMarkdownRendererWithStderr(cmd.Root().ErrWriter)))
+				uploadOpts = append(uploadOpts, upload.WithRenderer(render.NewMarkdownRendererWithStderr(cmd.Root().ErrWriter, render.WithTheme(theme))))
 			}
 
 			result, err := upload.UploadFiles(ctx, activeUploader, bucket, prefix, localPath, genIndex, cmd.Root().ErrWriter, uploadOpts...)

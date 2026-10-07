@@ -12,9 +12,12 @@ var htmlTmplSrc string
 var htmlTmpl = template.Must(template.New("page").Parse(htmlTmplSrc))
 
 type pageData struct {
-	Title            string
-	CSSPath          string
+	Title   string
+	CSSPath string
+	// ThemeCSSPath is the selected theme's token stylesheet; LayoutCSSPath is
+	// the layout layer that reads those tokens.
 	ThemeCSSPath     string
+	LayoutCSSPath    string
 	HighlightCSSPath string
 	// MermaidScript is the full <script type="module"> element that loads the
 	// shared mermaid engine, or empty when the document has no mermaid fence. It
@@ -22,15 +25,19 @@ type pageData struct {
 	// user-controlled content), so it is emitted verbatim; interpolating the path
 	// into a JS string context would mangle its slashes.
 	MermaidScript template.HTML
-	// FontFaceCSS declares the optional shared body font. Like MermaidScript it is
-	// built server-side from constants and a relative climb path.
-	FontFaceCSS   template.CSS
-	FontFamily    string
-	LogoLightPath string
-	LogoDarkPath  string
-	FaviconPath   string
-	Body          template.HTML
-	SourcePath    string
+	// FontFaceCSS declares the optional shared body font, and FontFamily names
+	// it for the fallback loader; both are empty when the theme does not use
+	// it. Like MermaidScript it is built server-side from constants and a
+	// relative climb path.
+	FontFaceCSS template.CSS
+	FontFamily  string
+	// FontStylesheet is the theme's web-font stylesheet URL, if any.
+	FontStylesheet string
+	LogoLightPath  string
+	LogoDarkPath   string
+	FaviconPath    string
+	Body           template.HTML
+	SourcePath     string
 }
 
 func renderTemplate(data pageData) ([]byte, error) {

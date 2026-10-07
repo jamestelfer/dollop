@@ -35,19 +35,32 @@ func NewMarkdownRenderer() Renderer {
 
 // NewMarkdownRendererWithStderr returns a Renderer that writes collision and
 // diagram warnings to stderr.
-func NewMarkdownRendererWithStderr(stderr io.Writer) Renderer {
-	return NewMarkdownRendererWithD2(stderr, d2render.Render)
+func NewMarkdownRendererWithStderr(stderr io.Writer, opts ...Option) Renderer {
+	return NewMarkdownRendererWithD2(stderr, d2render.Render, opts...)
 }
 
 // NewMarkdownRendererWithD2 returns a Renderer that renders d2 fences with the
 // given function instead of the real d2 engine.
-func NewMarkdownRendererWithD2(stderr io.Writer, d2 D2RenderFunc) Renderer {
-	return &markdownRenderer{stderr: stderr, d2: d2}
+func NewMarkdownRendererWithD2(stderr io.Writer, d2 D2RenderFunc, opts ...Option) Renderer {
+	m := &markdownRenderer{stderr: stderr, d2: d2, theme: defaultTheme()}
+	for _, o := range opts {
+		o(m)
+	}
+	return m
+}
+
+// Option configures a markdown Renderer.
+type Option func(*markdownRenderer)
+
+// WithTheme renders pages with the given theme instead of DefaultTheme.
+func WithTheme(t Theme) Option {
+	return func(m *markdownRenderer) { m.theme = t }
 }
 
 type markdownRenderer struct {
 	stderr io.Writer
 	d2     D2RenderFunc
+	theme  Theme
 }
 
 func (m *markdownRenderer) Plan(relPaths []string, fsys fs.FS, prefix string) ([]Source, []SharedAsset, error) {
@@ -112,8 +125,8 @@ func (m *markdownRenderer) Plan(relPaths []string, fsys fs.FS, prefix string) ([
 	// The mermaid engine is no longer shipped per-prefix: rendered pages
 	// reference the shared, version-pinned copy under deps/mermaid/<v>/ (published
 	// once via `dollop deps publish`). Only the CSS, logo and d2 diagram assets
-	// are per-prefix.
-	assets := append(append([]SharedAsset{}, sharedAssets...), diagramAssets...)
+	// are per-prefix, plus the selected theme's token stylesheet.
+	assets := append(append(append([]SharedAsset{}, sharedAssets...), m.theme.css), diagramAssets...)
 
 	return sources, assets, nil
 }
@@ -226,6 +239,7 @@ var mdParser = goldmark.New(
 			),
 			highlighting.WithCustomStyle(styles.Get("github")),
 		),
+		&tableExtension{},
 		&alertExtension{},
 		&mermaidExtension{},
 		&d2Extension{},
@@ -339,16 +353,20 @@ func (m *markdownRenderer) renderMarkdownFile(fsys fs.FS, relPath, prefix string
 	data := pageData{
 		Title:            title,
 		CSSPath:          assetRef(depthPrefix, "github-markdown.css"),
-		ThemeCSSPath:     assetRef(depthPrefix, "dollop-markdown.css"),
+		ThemeCSSPath:     assetRef(depthPrefix, m.theme.css.Name),
+		LayoutCSSPath:    assetRef(depthPrefix, "dollop-markdown.css"),
 		HighlightCSSPath: assetRef(depthPrefix, "highlight-github.css"),
 		MermaidScript:    mermaidScript,
-		FontFaceCSS:      fontFaceCSS(bucketRootPath(prefix, relPath)),
-		FontFamily:       fontFamily,
+		FontStylesheet:   m.theme.fontStylesheet,
 		LogoLightPath:    assetRef(depthPrefix, "dollop-light.svg"),
 		LogoDarkPath:     assetRef(depthPrefix, "dollop-dark.svg"),
 		FaviconPath:      assetRef(depthPrefix, "dollop-favicon.svg"),
 		Body:             template.HTML(sanitizeHTML(bodyBuf.String())), //nolint:gosec
 		SourcePath:       filepath.Base(relPath),
+	}
+	if m.theme.sharedFont {
+		data.FontFaceCSS = fontFaceCSS(bucketRootPath(prefix, relPath))
+		data.FontFamily = fontFamily
 	}
 
 	out, err := renderTemplate(data)

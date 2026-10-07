@@ -1,0 +1,103 @@
+/*
+ * dollop theme: estuary.
+ *
+ * tide's colours with lichen's type: Bricolage Grotesque headings, IBM Plex
+ * Sans body text and IBM Plex Mono code (from Google Fonts), set to lichen's
+ * denser rhythm.
+ *
+ * See dollop-theme-tide.css for how the two token layers fit together.
+ */
+
+/* Palette */
+:root {
+  --display-face: "Bricolage Grotesque", "IBM Plex Sans", system-ui, sans-serif;
+  --default-face: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono-face: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --white: #ffffff;
+  --grey-50: #f6f8fa;
+  --grey-200: #d1d9e0;
+  --grey-200-translucent: #d1d9e0b3;
+  --grey-wash: #818b981f;
+  --grey-600: #59636e;
+  --grey-900: #1f2328;
+
+  --teal-700: #1c5d70;
+  --teal-600: #1a7a91;
+
+  --purple: #8250df;
+  --amber: #9a6700;
+  --green: #1a7f37;
+  --red: #d1242f;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --white: #0d1117;
+    --grey-50: #151b23;
+    --grey-200: #3d444d;
+    --grey-200-translucent: #3d444db3;
+    --grey-wash: #656c7633;
+    --grey-600: #9198a1;
+    --grey-900: #f0f6fc;
+
+    --teal-700: #048fe0;
+    --teal-600: #048fe0;
+
+    --purple: #ab7df8;
+    --amber: #d29922;
+    --green: #3fb950;
+    --red: #f85149;
+  }
+}
+
+/* Semantic tokens */
+:root {
+  /* type */
+  --body-face: var(--default-face);
+  --heading-face: var(--display-face);
+  --code-face: var(--mono-face);
+  --body-line-height: 1.6;
+  --heading-weight: 650;
+  --subheading-weight: 500;
+  --heading-tracking: -0.015em;
+  --subheading-tracking: 0;
+  --link-weight: 400;
+
+  /* rhythm: a tighter, denser report rhythm on a 16px / 1.6 body */
+  --block-gap: 0.875rem;
+  --list-item-gap: 0.25rem;
+  --h1-size: clamp(2rem, 5vw, 2.875rem);
+  --h1-line-height: 1.08;
+  --h1-margin: 0.5rem 0 1rem;
+  --h2-size: 1.625rem;
+  --h2-line-height: 1.2;
+  --h2-margin: 4rem 0 0.75rem;
+  --h3-size: 1.1875rem;
+  --h3-line-height: 1.35;
+  --h3-margin: 2rem 0 0.5rem;
+  --h4-size: 1.0625rem;
+  --h4-line-height: 1.4;
+  --h4-margin: 1.5rem 0 0.5rem;
+  --code-block-padding: 0.875rem 1rem;
+  --code-block-size: 0.78em;
+  --code-block-line-height: 1.55;
+
+  /* colour */
+  --page-bg: var(--white);
+  --surface-bg: var(--grey-50);
+  --text: var(--grey-900);
+  --text-muted: var(--grey-600);
+  --border: var(--grey-200);
+  --border-muted: var(--grey-200-translucent);
+  --accent: var(--teal-700);
+  --link: var(--teal-600);
+  --code-bg: var(--grey-50);
+  --inline-code-bg: var(--grey-wash);
+  --inline-code-text: var(--accent);
+
+  --alert-note: var(--accent);
+  --alert-tip: var(--green);
+  --alert-important: var(--purple);
+  --alert-warning: var(--amber);
+  --alert-caution: var(--red);
+}

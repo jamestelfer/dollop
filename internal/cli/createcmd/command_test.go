@@ -381,3 +381,41 @@ func TestCreate_URL_IndexHtml_NoSuffix(t *testing.T) {
 	assert.NotContains(t, strings.TrimSpace(stdout), "index.html")
 	assert.NotContains(t, strings.TrimSpace(stdout), "style.css")
 }
+
+func TestCreate_Theme_SelectsThemeStylesheet(t *testing.T) {
+	src := t.TempDir()
+	dst := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(src, "doc.md"), []byte("# Hi"), 0o600))
+
+	_, _, code := runCreate(t, nil, "create", "--copy-dir", dst, "--theme", "lichen", src)
+	require.Equal(t, 0, code)
+
+	root := filepath.Join(dst, "flash", "1", "testid")
+	assert.FileExists(t, filepath.Join(root, "dollop-theme-lichen.css"))
+	assert.NoFileExists(t, filepath.Join(root, "dollop-theme-tide.css"))
+	html, err := os.ReadFile(filepath.Join(root, "doc.html"))
+	require.NoError(t, err)
+	assert.Contains(t, string(html), "dollop-theme-lichen.css")
+}
+
+func TestCreate_Theme_DefaultsToTide(t *testing.T) {
+	src := t.TempDir()
+	dst := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(src, "doc.md"), []byte("# Hi"), 0o600))
+
+	_, _, code := runCreate(t, nil, "create", "--copy-dir", dst, src)
+	require.Equal(t, 0, code)
+	assert.FileExists(t, filepath.Join(dst, "flash", "1", "testid", "dollop-theme-tide.css"))
+}
+
+func TestCreate_Theme_UnknownFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "doc.md")
+	require.NoError(t, os.WriteFile(path, []byte("# Hi"), 0o600))
+
+	up := &fakeUploader{}
+	stdout, _, code := runCreate(t, up, "create", "--theme", "nope", path)
+	assert.NotEqual(t, 0, code)
+	assert.Empty(t, stdout)
+	assert.Empty(t, up.calls, "nothing should be uploaded for an unknown theme")
+}

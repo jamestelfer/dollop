@@ -12,7 +12,7 @@ import (
 const FontPrefix = "deps/fonts/pp-mori"
 
 // fontFamily is the family name the @font-face rules declare. It must match the
-// first entry of the font stack in dollop-markdown.css, and the page's
+// first entry of --primary-face in dollop-theme-tide.css, and the page's
 // font-loading script probes it to decide whether Inter is needed.
 const fontFamily = "PP Mori"
 

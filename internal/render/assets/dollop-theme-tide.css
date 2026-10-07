@@ -1,0 +1,118 @@
+/*
+ * dollop theme: tide (the default).
+ *
+ * PP Mori (falling back to Inter) on GitHub's neutral palette, with the teal
+ * accent taken from the dollop logo.
+ *
+ * A theme is two layers of custom properties:
+ *   1. palette tokens, named for what they are (--primary-face, --teal-700);
+ *   2. semantic tokens, named for what they do (--heading-face, --link), and
+ *      defined in terms of the palette.
+ * dollop-markdown.css only ever reads the semantic layer, so a new theme must
+ * define every semantic token below and nothing else needs to change.
+ *
+ * "PP Mori" is declared per page by @font-face rules that point at the shared
+ * deps/fonts/ location. It applies only when published there; otherwise the
+ * stack falls back to Inter, which the page loads from Google Fonts on demand.
+ */
+
+/* Palette */
+:root {
+  --primary-face:
+    "PP Mori", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+    Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --mono-face:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --white: #ffffff;
+  --grey-50: #f6f8fa;
+  --grey-200: #d1d9e0;
+  --grey-200-translucent: #d1d9e0b3;
+  --grey-wash: #818b981f;
+  --grey-600: #59636e;
+  --grey-900: #1f2328;
+
+  /*
+   * --teal-600 is a lighter shade of the logo teal (same hue). The logo colour
+   * itself is only 2.1:1 against body text, so links blended in; this shade
+   * keeps 5:1 against the background and reaches 3.2:1 against body text.
+   */
+  --teal-700: #1c5d70;
+  --teal-600: #1a7a91;
+
+  --purple: #8250df;
+  --amber: #9a6700;
+  --green: #1a7f37;
+  --red: #d1242f;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --white: #0d1117;
+    --grey-50: #151b23;
+    --grey-200: #3d444d;
+    --grey-200-translucent: #3d444db3;
+    --grey-wash: #656c7633;
+    --grey-600: #9198a1;
+    --grey-900: #f0f6fc;
+
+    --teal-700: #048fe0;
+    --teal-600: #048fe0;
+
+    --purple: #ab7df8;
+    --amber: #d29922;
+    --green: #3fb950;
+    --red: #f85149;
+  }
+}
+
+/* Semantic tokens */
+:root {
+  /* type */
+  --body-face: var(--primary-face);
+  --heading-face: var(--primary-face);
+  --code-face: var(--mono-face);
+  --body-line-height: 1.75;
+  --heading-weight: 700;
+  --subheading-weight: 700;
+  --heading-tracking: -0.02em;
+  --subheading-tracking: -0.01em;
+  --link-weight: 500;
+
+  /* rhythm */
+  --block-gap: 1rem;
+  --list-item-gap: 0.5rem;
+  --h1-size: 2rem;
+  --h1-line-height: 2.5rem;
+  --h1-margin: 2rem 0 1rem;
+  --h2-size: 1.5rem;
+  --h2-line-height: 2rem;
+  --h2-margin: 4.5rem 0 1rem;
+  --h3-size: 1.25rem;
+  --h3-line-height: 1.75rem;
+  --h3-margin: 2rem 0 1rem;
+  --h4-size: 1.125rem;
+  --h4-line-height: 1.5rem;
+  --h4-margin: 1.5rem 0 1rem;
+  --code-block-padding: 1.25rem 1.5rem;
+  --code-block-size: 0.875em;
+  --code-block-line-height: 1.7;
+
+  /* colour */
+  --page-bg: var(--white);
+  --surface-bg: var(--grey-50);
+  --text: var(--grey-900);
+  --text-muted: var(--grey-600);
+  --border: var(--grey-200);
+  --border-muted: var(--grey-200-translucent);
+  --accent: var(--teal-700);
+  --link: var(--teal-600);
+  --code-bg: var(--grey-50);
+  --inline-code-bg: var(--grey-wash);
+  --inline-code-text: var(--accent);
+
+  --alert-note: var(--accent);
+  --alert-tip: var(--green);
+  --alert-important: var(--purple);
+  --alert-warning: var(--amber);
+  --alert-caution: var(--red);
+}

@@ -1,0 +1,97 @@
+/*
+ * dollop theme: lichen.
+ *
+ * A field-report look: Bricolage Grotesque headings over IBM Plex Sans body
+ * text and IBM Plex Mono code, on a faintly green-grey ground with a deep teal
+ * accent. All three faces are loaded from Google Fonts.
+ *
+ * See dollop-theme-tide.css for how the two token layers fit together.
+ */
+
+/* Palette */
+:root {
+  --display-face: "Bricolage Grotesque", "IBM Plex Sans", system-ui, sans-serif;
+  --default-face: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono-face: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --ground: #f5f6f3;
+  --surface: #ffffff;
+  --ink: #18201d;
+  --slate: #56635d;
+  --rule: #d7ddd9;
+  --stone: #ecefec;
+
+  --teal: #0e6b64;
+  --amber: #a85f12;
+  --indigo: #3d4f8f;
+  --green: #2e7d32;
+  --red: #b3261e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #0f1513;
+    --surface: #161e1b;
+    --ink: #e4ebe7;
+    --slate: #9aa8a1;
+    --rule: #2a3531;
+    --stone: #1d2724;
+
+    --teal: #55c2b5;
+    --amber: #e3a55a;
+    --indigo: #93a4e6;
+    --green: #7cc683;
+    --red: #f2867e;
+  }
+}
+
+/* Semantic tokens */
+:root {
+  /* type */
+  --body-face: var(--default-face);
+  --heading-face: var(--display-face);
+  --code-face: var(--mono-face);
+  --body-line-height: 1.6;
+  --heading-weight: 650;
+  --subheading-weight: 500;
+  --heading-tracking: -0.015em;
+  --subheading-tracking: 0;
+  --link-weight: 400;
+
+  /* rhythm: a tighter, denser report rhythm on a 16px / 1.6 body */
+  --block-gap: 0.875rem;
+  --list-item-gap: 0.25rem;
+  --h1-size: clamp(2rem, 5vw, 2.875rem);
+  --h1-line-height: 1.08;
+  --h1-margin: 0.5rem 0 1rem;
+  --h2-size: 1.625rem;
+  --h2-line-height: 1.2;
+  --h2-margin: 4rem 0 0.75rem;
+  --h3-size: 1.1875rem;
+  --h3-line-height: 1.35;
+  --h3-margin: 2rem 0 0.5rem;
+  --h4-size: 1.0625rem;
+  --h4-line-height: 1.4;
+  --h4-margin: 1.5rem 0 0.5rem;
+  --code-block-padding: 0.875rem 1rem;
+  --code-block-size: 0.78em;
+  --code-block-line-height: 1.55;
+
+  /* colour */
+  --page-bg: var(--ground);
+  --surface-bg: var(--surface);
+  --text: var(--ink);
+  --text-muted: var(--slate);
+  --border: var(--rule);
+  --border-muted: var(--rule);
+  --accent: var(--teal);
+  --link: var(--teal);
+  --code-bg: var(--stone);
+  --inline-code-bg: var(--stone);
+  --inline-code-text: var(--text);
+
+  --alert-note: var(--teal);
+  --alert-tip: var(--green);
+  --alert-important: var(--indigo);
+  --alert-warning: var(--amber);
+  --alert-caution: var(--red);
+}

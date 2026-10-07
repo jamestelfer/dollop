@@ -27,7 +27,7 @@ internal/cli/depscmd/           deps subcommand tree: publish, fonts, status (sh
 internal/deps/                  fetch/verify/extract/publish the pinned mermaid ESM engine;
                                 shared Present presence check + missing-deps warning
 internal/d2render/              d2 source → SVG (TALA layout); the only package importing d2
-internal/render/                markdown→html rendering, page template, mermaid version pin,
+internal/render/                markdown→html rendering, page template, themes (token CSS), mermaid version pin,
                                 optional shared font faces, d2 fence rewriting
 internal/upload/                uploader interface, S3 client, MIME detection, prefix logic
 ```

@@ -316,3 +316,24 @@ func TestUpdate_CopyDir_WritesFilesToDisk(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "content", string(got))
 }
+
+func TestUpdate_Theme_SelectsThemeStylesheet(t *testing.T) {
+	src := t.TempDir()
+	dst := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(src, "doc.md"), []byte("# Hi"), 0o600))
+
+	up := &fakeUploader{}
+	_, _, code := runUpdate(t, up, "https://drop.example.com", "update", "--copy-dir", dst, "--theme", "lichen", "flash/7/abc", src)
+	require.Equal(t, 0, code)
+	assert.FileExists(t, filepath.Join(dst, "flash", "7", "abc", "dollop-theme-lichen.css"))
+}
+
+func TestUpdate_Theme_UnknownFails(t *testing.T) {
+	src := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(src, "doc.md"), []byte("# Hi"), 0o600))
+
+	up := &fakeUploader{}
+	_, _, code := runUpdate(t, up, "https://drop.example.com", "update", "--theme", "nope", "flash/7/abc", src)
+	assert.NotEqual(t, 0, code)
+	assert.Empty(t, up.calls)
+}
