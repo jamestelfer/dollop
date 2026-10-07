@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -174,20 +175,35 @@ func TestMarkdownRenderer_RendersHTML(t *testing.T) {
 }
 
 // TestMarkdownRenderer_DarkModeSupport verifies the rendered HTML includes the
-// color-scheme meta tag and a body style block that mirrors the dark/light
-// backgrounds from github-markdown.css so the page chrome matches the content.
+// color-scheme meta tag, and that the default theme's tokens mirror the
+// dark/light backgrounds from github-markdown.css so the page chrome matches
+// the content.
 func TestMarkdownRenderer_DarkModeSupport(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("Hello"), 0o600))
 
 	r := render.NewMarkdownRenderer()
-	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
+	sources, assets, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
 	assert.Contains(t, html, `name="color-scheme" content="light dark"`)
-	assert.Contains(t, html, `prefers-color-scheme: dark`)
-	assert.Contains(t, html, `#0d1117`) // dark bg matching --bgColor-default
+
+	theme := assetContent(t, assets, "dollop-theme-tide.css")
+	assert.Contains(t, theme, `prefers-color-scheme: dark`)
+	assert.Contains(t, theme, `#0d1117`) // dark bg matching --bgColor-default
+}
+
+// assetContent returns the content of the named shared asset.
+func assetContent(t *testing.T, assets []render.SharedAsset, name string) string {
+	t.Helper()
+	for _, a := range assets {
+		if a.Name == name {
+			return string(a.Content)
+		}
+	}
+	require.Failf(t, "asset not found", "%s", name)
+	return ""
 }
 
 // TestMarkdownRenderer_NonMarkdownPassedThrough verifies non-.md files are
@@ -778,10 +794,13 @@ func TestMarkdownRenderer_TypographyLayerAfterBase(t *testing.T) {
 
 	html := openSource(t, sources, "doc.html")
 	base := strings.Index(html, `href="github-markdown.css?v=`)
+	theme := strings.Index(html, `href="dollop-theme-tide.css?v=`)
 	layer := strings.Index(html, `href="dollop-markdown.css?v=`)
 	require.NotEqual(t, -1, base)
+	require.NotEqual(t, -1, theme)
 	require.NotEqual(t, -1, layer)
-	assert.Less(t, base, layer, "typography layer must follow the base stylesheet")
+	assert.Less(t, base, theme, "theme tokens must follow the base stylesheet")
+	assert.Less(t, theme, layer, "layout layer must follow the theme tokens")
 
 	// Inter is loaded by script only when the shared font is unavailable, never
 	// as a render-blocking stylesheet, with a noscript fallback.
@@ -891,6 +910,7 @@ func TestMarkdownRenderer_CollisionStillUploadsCSS(t *testing.T) {
 	}
 	assert.Contains(t, names, "github-markdown.css")
 	assert.Contains(t, names, "dollop-markdown.css")
+	assert.Contains(t, names, "dollop-theme-tide.css")
 	assert.Contains(t, names, "highlight-github.css")
 }
 
@@ -964,4 +984,110 @@ func TestMarkdownRenderer_UnreadableMarkdownFailsPlan(t *testing.T) {
 	r := render.NewMarkdownRenderer()
 	_, _, err := r.Plan([]string{"missing.md"}, rootFS(t, t.TempDir()), "flash/1/testid")
 	require.ErrorContains(t, err, "missing.md")
+}
+
+// TestMarkdownRenderer_LichenTheme verifies a non-default theme swaps the token
+// stylesheet, links its web fonts directly, and drops the shared PP Mori faces
+// and Inter fallback loader that only the default theme uses.
+func TestMarkdownRenderer_LichenTheme(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("# Hello"), 0o600))
+
+	theme, err := render.LookupTheme("lichen")
+	require.NoError(t, err)
+	r := render.NewMarkdownRendererWithStderr(io.Discard, render.WithTheme(theme))
+	sources, assets, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
+	require.NoError(t, err)
+
+	names := make([]string, len(assets))
+	for i, a := range assets {
+		names[i] = a.Name
+	}
+	assert.Contains(t, names, "dollop-theme-lichen.css")
+	assert.NotContains(t, names, "dollop-theme-tide.css")
+
+	html := openSource(t, sources, "doc.html")
+	assert.Contains(t, html, `href="dollop-theme-lichen.css?v=`)
+	assert.NotContains(t, html, `dollop-theme-tide.css`)
+	assert.Contains(t, html, `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage`)
+	assert.NotContains(t, html, "PP Mori")
+	assert.NotContains(t, html, "family=Inter")
+}
+
+// TestLookupTheme verifies theme selection by name, the empty-name default and
+// the error for an unknown theme.
+func TestLookupTheme(t *testing.T) {
+	def, err := render.LookupTheme("")
+	require.NoError(t, err)
+	assert.Equal(t, render.DefaultTheme, def.Name)
+	assert.Equal(t, render.DefaultTheme, render.ThemeNames()[0])
+
+	for _, name := range render.ThemeNames() {
+		th, err := render.LookupTheme(name)
+		require.NoError(t, err)
+		assert.Equal(t, name, th.Name)
+	}
+
+	_, err = render.LookupTheme("nope")
+	require.ErrorContains(t, err, `unknown theme "nope"`)
+	assert.ErrorContains(t, err, "tide, estuary, lichen")
+}
+
+// TestThemes_DefineEveryLayoutToken verifies every theme defines each token the
+// layout stylesheet reads, so a theme cannot silently leave a style unset.
+func TestThemes_DefineEveryLayoutToken(t *testing.T) {
+	layout, err := os.ReadFile("assets/dollop-markdown.css")
+	require.NoError(t, err)
+
+	// Tokens the layout reads but does not define itself, ignoring the
+	// github-markdown.css variables it re-points.
+	defined := map[string]bool{}
+	for _, m := range tokenDefRe.FindAllStringSubmatch(string(layout), -1) {
+		defined[m[1]] = true
+	}
+	var used []string
+	for _, m := range tokenUseRe.FindAllStringSubmatch(string(layout), -1) {
+		if !defined[m[1]] {
+			used = append(used, m[1])
+		}
+	}
+	require.NotEmpty(t, used)
+
+	for _, name := range render.ThemeNames() {
+		css, err := os.ReadFile("assets/dollop-theme-" + name + ".css")
+		require.NoError(t, err)
+		themeDefs := map[string]bool{}
+		for _, m := range tokenDefRe.FindAllStringSubmatch(string(css), -1) {
+			themeDefs[m[1]] = true
+		}
+		for _, tok := range used {
+			assert.True(t, themeDefs[tok], "theme %s must define %s", name, tok)
+		}
+	}
+}
+
+var (
+	tokenDefRe = regexp.MustCompile(`(--[\w-]+)\s*:`)
+	tokenUseRe = regexp.MustCompile(`var\((--[\w-]+)`)
+)
+
+// TestMarkdownRenderer_TableScrollWrapper verifies tables are wrapped in a
+// scroll container, so a full-width table can still scroll sideways on narrow
+// screens, and that column alignment survives sanitisation as an align
+// attribute (a style attribute would be stripped).
+func TestMarkdownRenderer_TableScrollWrapper(t *testing.T) {
+	dir := t.TempDir()
+	md := "| a | b | c |\n|:--|:-:|--:|\n| 1 | 2 | 3 |\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte(md), 0o600))
+
+	r := render.NewMarkdownRenderer()
+	sources, _, err := r.Plan([]string{"doc.md"}, rootFS(t, dir), "flash/1/testid")
+	require.NoError(t, err)
+
+	html := openSource(t, sources, "doc.html")
+	assert.Contains(t, html, "<div class=\"table-scroll\">\n<table>")
+	assert.Contains(t, html, "</table>\n</div>")
+	assert.Contains(t, html, `<th align="left">a</th>`)
+	assert.Contains(t, html, `<th align="center">b</th>`)
+	assert.Contains(t, html, `<td align="right">3</td>`)
 }

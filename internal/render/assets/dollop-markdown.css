@@ -1,84 +1,162 @@
 /*
- * dollop typography layer. Loaded after github-markdown.css, which still
- * supplies the colour system, alerts and task lists; this file overrides
- * type, spacing and the accent colour only.
+ * dollop layout layer. Loaded after github-markdown.css and the selected
+ * theme's token stylesheet (dollop-theme-<name>.css).
+ *
+ * Every font and colour here comes from a theme's semantic tokens; nothing in
+ * this file names a concrete face or colour. github-markdown.css still
+ * supplies structure, task lists and alert icons, and its own colour variables
+ * are re-pointed at the theme tokens below so its rules follow the theme too.
  *
  * Metrics adapted from the VitePress default theme (MIT).
- * Accent colours are taken from the dollop logo.
- *
- * "PP Mori" is declared per page by @font-face rules that point at the shared
- * deps/fonts/ location. It applies only when published there; otherwise the
- * stack falls back to Inter, which the page loads from Google Fonts on demand.
  */
 
-/*
- * --dollop-link is a lighter shade of the logo teal (same hue). The logo
- * colour itself is only 2.1:1 against body text, so links blended in; this
- * shade keeps 5:1 against the background and reaches 3.2:1 against body text.
- */
-:root {
-  --dollop-accent: #1c5d70;
-  --dollop-link: #1a7a91;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --dollop-accent: #048fe0;
-    --dollop-link: var(--dollop-accent);
-  }
+/* Page chrome */
+body {
+  margin: 0;
+  padding-top: 2.5rem;
+  background-color: var(--page-bg);
 }
 
+.page-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.4rem 1rem;
+  background-color: var(--page-bg);
+  border-bottom: 1px solid var(--border);
+}
+.page-header img {
+  height: 100%;
+}
+@supports (height: stretch) {
+  .page-header img { height: stretch; }
+}
+.page-header a {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  line-height: 1.4em;
+  height: 1.4em;
+  vertical-align: baseline;
+  font-weight: 900;
+}
+.page-header a:hover { border-color: var(--accent); color: var(--accent); }
+
+.page-content {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 6rem;
+}
+
+/* Theme tokens mapped onto github-markdown.css's colour system. */
 .markdown-body {
-  --fgColor-accent: var(--dollop-accent);
-  font-family:
-    "PP Mori", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
-    Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --fgColor-default: var(--text);
+  --fgColor-muted: var(--text-muted);
+  --fgColor-accent: var(--accent);
+  --bgColor-default: var(--page-bg);
+  --bgColor-muted: var(--surface-bg);
+  --bgColor-neutral-muted: var(--inline-code-bg);
+  --borderColor-default: var(--border);
+  --borderColor-muted: var(--border-muted);
+  --fontStack-monospace: var(--code-face);
+
+  background-color: transparent;
+  font-family: var(--body-face);
   font-optical-sizing: auto;
-  line-height: 1.75;
+  line-height: var(--body-line-height);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Headings: no rule under h1, a rule above h2 to separate sections. */
+/* Headings: no rules; whitespace alone separates sections. */
 .markdown-body h1,
 .markdown-body h2,
 .markdown-body h3,
 .markdown-body h4 {
-  font-weight: 700;
+  font-family: var(--heading-face);
+}
+.markdown-body h1,
+.markdown-body h2 {
+  font-weight: var(--heading-weight);
+  letter-spacing: var(--heading-tracking);
+}
+.markdown-body h3,
+.markdown-body h4 {
+  font-weight: var(--subheading-weight);
+  letter-spacing: var(--subheading-tracking);
 }
 .markdown-body h1 {
-  margin: 2rem 0 1rem;
+  margin: var(--h1-margin);
   padding-bottom: 0;
   border-bottom: 0;
-  font-size: 2rem;
-  line-height: 2.5rem;
-  letter-spacing: -0.02em;
+  font-size: var(--h1-size);
+  line-height: var(--h1-line-height);
 }
 .markdown-body h2 {
-  margin: 3rem 0 1rem;
-  padding: 1.5rem 0 0;
+  margin: var(--h2-margin);
+  padding: 0;
   border-bottom: 0;
-  border-top: 1px solid var(--borderColor-muted);
-  font-size: 1.5rem;
-  line-height: 2rem;
-  letter-spacing: -0.02em;
+  border-top: 0;
+  font-size: var(--h2-size);
+  line-height: var(--h2-line-height);
 }
 .markdown-body h3 {
-  margin: 2rem 0 1rem;
-  font-size: 1.25rem;
-  line-height: 1.75rem;
-  letter-spacing: -0.01em;
+  margin: var(--h3-margin);
+  font-size: var(--h3-size);
+  line-height: var(--h3-line-height);
 }
 .markdown-body h4 {
-  margin: 1.5rem 0 1rem;
-  font-size: 1.125rem;
-  line-height: 1.5rem;
-  letter-spacing: -0.01em;
+  margin: var(--h4-margin);
+  font-size: var(--h4-size);
+  line-height: var(--h4-line-height);
+}
+
+/* Vertical rhythm between blocks. */
+.markdown-body :is(p, blockquote, ul, ol, dl, pre, details) {
+  margin-top: 0;
+  margin-bottom: var(--block-gap);
+}
+
+/*
+ * Heading permalinks (¶) stay hidden until the heading is hovered or the link
+ * has keyboard focus; touch devices show them faintly instead. Opacity, not display, so the link keeps its place in
+ * the line and stays focusable.
+ */
+.markdown-body .anchor {
+  font-size: 1rem;
+  float: unset;
+  margin-left: unset;
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+}
+.markdown-body :is(h1, h2, h3, h4, h5, h6):hover .anchor,
+.markdown-body .anchor:focus-visible {
+  opacity: 1;
+}
+/* Devices that cannot hover keep a faint, always-visible permalink. */
+@media (hover: none) {
+  .markdown-body .anchor { opacity: 0.4; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .markdown-body .anchor { transition: none; }
 }
 
 .markdown-body a {
-  color: var(--dollop-link);
-  font-weight: 500;
+  color: var(--link);
+  font-weight: var(--link-weight);
   text-decoration: underline;
   text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
   text-decoration-thickness: 1px;
@@ -98,7 +176,7 @@
 .markdown-body li + li,
 .markdown-body li > ul,
 .markdown-body li > ol {
-  margin-top: 0.5rem;
+  margin-top: var(--list-item-gap);
 }
 
 .markdown-body blockquote {
@@ -110,11 +188,11 @@
   height: 1px;
 }
 
-/* Inline code takes the accent colour; fenced blocks keep syntax colours. */
+/* Inline code takes its own colour; fenced blocks keep syntax colours. */
 .markdown-body :not(pre) > code {
   padding: 3px 6px;
   font-size: 0.875em;
-  color: var(--fgColor-accent);
+  color: var(--inline-code-text);
   border-radius: 4px;
 }
 .markdown-body h1 > code,
@@ -126,29 +204,70 @@
 }
 
 .markdown-body pre {
-  padding: 1.25rem 1.5rem;
-  font-size: 0.875em;
-  line-height: 1.7;
+  padding: var(--code-block-padding);
+  font-size: var(--code-block-size);
+  line-height: var(--code-block-line-height);
+  background-color: var(--code-bg);
   border-radius: 8px;
 }
 
-.markdown-body table {
+/*
+ * Tables: full width with rules between rows only, and a small uppercase
+ * header over a heavier rule. The renderer wraps each table in .table-scroll
+ * so wide tables scroll sideways rather than overflow.
+ */
+.markdown-body .table-scroll {
   margin: 1.25rem 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.markdown-body table {
+  display: table;
+  width: 100%;
+  margin: 0;
+  overflow: visible;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+.markdown-body table tr,
+.markdown-body table tr:nth-child(2n) {
+  background-color: transparent;
+  border-top: 0;
 }
 .markdown-body table th,
 .markdown-body table td {
-  padding: 8px 16px;
-  font-size: 14px;
-  line-height: 1.5rem;
+  padding: 9px 12px;
+  vertical-align: top;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+}
+.markdown-body table th:not([align]),
+.markdown-body table td:not([align]) {
+  text-align: start;
 }
 .markdown-body table th {
-  color: var(--fgColor-muted);
-  background-color: var(--bgColor-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1.5px solid var(--text);
 }
+.markdown-body table td > :last-child {
+  margin-bottom: 0;
+}
+.markdown-body table td ul,
+.markdown-body table td ol {
+  margin: 4px 0 0;
+}
+
+.markdown-body a.d2 img { max-width: 100%; height: auto; }
 
 /* Alerts: tinted box in place of the left bar. */
 .markdown-body .markdown-alert {
-  --alert-tint: var(--borderColor-default);
+  --alert-tint: var(--border);
   padding: 1rem;
   font-size: 14px;
   line-height: 1.5rem;
@@ -160,18 +279,30 @@
   margin-bottom: 0.5rem;
   font-weight: 700;
 }
+/* :is() matches github-markdown.css's per-type title selectors in specificity. */
+.markdown-body
+  .markdown-alert:is(
+    .markdown-alert-note,
+    .markdown-alert-important,
+    .markdown-alert-warning,
+    .markdown-alert-tip,
+    .markdown-alert-caution
+  )
+  .markdown-alert-title {
+  color: var(--alert-tint);
+}
 .markdown-body .markdown-alert.markdown-alert-note {
-  --alert-tint: var(--fgColor-accent);
+  --alert-tint: var(--alert-note);
 }
 .markdown-body .markdown-alert.markdown-alert-important {
-  --alert-tint: var(--borderColor-done-emphasis);
+  --alert-tint: var(--alert-important);
 }
 .markdown-body .markdown-alert.markdown-alert-warning {
-  --alert-tint: var(--borderColor-attention-emphasis);
+  --alert-tint: var(--alert-warning);
 }
 .markdown-body .markdown-alert.markdown-alert-tip {
-  --alert-tint: var(--borderColor-success-emphasis);
+  --alert-tint: var(--alert-tip);
 }
 .markdown-body .markdown-alert.markdown-alert-caution {
-  --alert-tint: var(--borderColor-danger-emphasis);
+  --alert-tint: var(--alert-caution);
 }

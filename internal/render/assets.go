@@ -11,7 +11,8 @@ import (
 //go:embed assets/github-markdown.css
 var githubMarkdownCSS []byte
 
-// Typography layer over github-markdown.css; it must be linked after it.
+// Layout layer over github-markdown.css; it must be linked after it and after
+// the selected theme's token stylesheet (see theme.go).
 //
 //go:embed assets/dollop-markdown.css
 var dollopMarkdownCSS []byte
@@ -43,8 +44,9 @@ type SharedAsset struct {
 }
 
 // sharedAssets are the fixed-name assets uploaded at every prefix root that
-// holds rendered markdown. They are served with a long max-age, so pages
-// reference them through assetRef rather than by bare name.
+// holds rendered markdown, alongside the selected theme's stylesheet. They are
+// served with a long max-age, so pages reference them through assetRef rather
+// than by bare name.
 var sharedAssets = []SharedAsset{
 	{Name: "github-markdown.css", ContentType: "text/css; charset=utf-8", Content: githubMarkdownCSS},
 	{Name: "dollop-markdown.css", ContentType: "text/css; charset=utf-8", Content: dollopMarkdownCSS},
@@ -54,10 +56,15 @@ var sharedAssets = []SharedAsset{
 	{Name: "dollop-favicon.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopFaviconSVG},
 }
 
-// assetVersions maps each shared asset name to a short hash of its content.
+// assetVersions maps each shared asset name (including every theme's
+// stylesheet) to a short hash of its content.
 var assetVersions = func() map[string]string {
-	v := make(map[string]string, len(sharedAssets))
-	for _, a := range sharedAssets {
+	all := append([]SharedAsset{}, sharedAssets...)
+	for _, t := range themes {
+		all = append(all, t.css)
+	}
+	v := make(map[string]string, len(all))
+	for _, a := range all {
 		sum := sha256.Sum256(a.Content)
 		v[a.Name] = hex.EncodeToString(sum[:])[:10]
 	}

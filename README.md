@@ -198,7 +198,30 @@ If a diagram cannot be rendered, dollop prints a warning naming the file and
 the error, and publishes that block as plain code. The rest of the upload is
 unaffected. Imports of other d2 files are not supported.
 
+### Themes
+
+`create` and `update` take `--theme` to choose how rendered pages look:
+
+| Theme | Look |
+|---|---|
+| `tide` (default) | PP Mori or Inter on GitHub's neutral palette, with the dollop teal accent |
+| `estuary` | tide's colours with lichen's Bricolage Grotesque and IBM Plex type (from Google Fonts) and denser rhythm |
+| `lichen` | Bricolage Grotesque headings and IBM Plex text (from Google Fonts) on a soft green-grey ground |
+
+```
+dollop create --theme lichen notes.md
+```
+
+Each theme is a token stylesheet (`internal/render/assets/dollop-theme-<name>.css`).
+It names a small palette (`--primary-face`, `--teal-700`, …) and defines the
+semantic tokens (`--heading-face`, `--body-face`, `--h2-size`, `--block-gap`,
+`--link`, `--code-bg`, …) from it. The layout stylesheet (`dollop-markdown.css`) reads only the
+semantic tokens. To add a theme, define every semantic token and register the
+theme in `internal/render/theme.go`.
+
 ### Fonts
+
+The fonts below apply to the default `tide` theme.
 
 Rendered pages use [Inter](https://rsms.me/inter/), loaded from Google Fonts.
 The request is made only when the optional body font below is unavailable.
