@@ -129,10 +129,24 @@ body {
   margin-bottom: var(--block-gap);
 }
 
+/*
+ * Heading permalinks (¶) stay hidden until the heading is hovered or the link
+ * has keyboard focus. Opacity, not display, so the link keeps its place in
+ * the line and stays focusable.
+ */
 .markdown-body .anchor {
   font-size: 1rem;
   float: unset;
   margin-left: unset;
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+}
+.markdown-body :is(h1, h2, h3, h4, h5, h6):hover .anchor,
+.markdown-body .anchor:focus-visible {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .markdown-body .anchor { transition: none; }
 }
 
 .markdown-body a {
