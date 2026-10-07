@@ -138,6 +138,7 @@ body {
   font-size: 1rem;
   float: unset;
   margin-left: unset;
+  text-decoration: none;
   opacity: 0;
   transition: opacity 0.15s ease-in-out;
 }
