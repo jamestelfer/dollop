@@ -17,6 +17,7 @@
   pointer-events: none;
 }
 .md-icon {
+  --md-icon-arrow: var(--accent);
   width: 1.1em;
   height: 1.1em;
   vertical-align: -0.15em;
@@ -64,6 +65,15 @@ body {
   font-weight: 900;
 }
 .page-header a:hover { border-color: var(--accent); color: var(--accent); }
+/* Drawn like the logo beside it: the full button height, in the text colour
+   with an accent arrow, and unchanged on hover. The svg's viewBox is cropped
+   to the glyph so it fills the height. */
+.page-header .page-header-icon {
+  display: block;
+  height: 100%;
+  width: auto;
+  color: var(--text);
+}
 
 .page-content {
   max-width: 46rem;

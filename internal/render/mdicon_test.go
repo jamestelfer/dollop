@@ -56,3 +56,29 @@ func TestMarkdownIcon_LiteralsAndSanitization(t *testing.T) {
 	assert.NotContains(t, html, "evil.example")
 	assert.NotContains(t, html, "<script>alert(1)</script>")
 }
+
+func TestMarkdownIcon_ArrowUsesThemeAccent(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "page.md"), []byte("::md-icon::\n"), 0600))
+	sources, assets, err := render.NewMarkdownRenderer().Plan([]string{"page.md"}, rootFS(t, dir), "flash/1/testid")
+	require.NoError(t, err)
+	html := openSource(t, sources, "page.html")
+
+	// the arrow strokes with a custom property, which inherits into <use> trees
+	assert.Contains(t, html, `<path d="M14 13l2 2l2 -2m-2 2v-6" style="stroke: var(--md-icon-arrow, currentColor)" />`)
+
+	var css string
+	for _, a := range assets {
+		if a.Name == "dollop-markdown.css" {
+			css = string(a.Content)
+		}
+	}
+	assert.Contains(t, css, "--md-icon-arrow: var(--accent);", "the arrow takes the theme's accent, as the logo does")
+}
+
+func TestMarkdownIcon_HeaderIconCroppedToGlyph(t *testing.T) {
+	html := renderIconMarkdown(t, "# Page\n")
+
+	// cropped to the glyph's bounds so it fills the header button like the logo
+	assert.Contains(t, html, `<svg class="md-icon page-header-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="16" viewBox="2 4 20 16"`)
+}

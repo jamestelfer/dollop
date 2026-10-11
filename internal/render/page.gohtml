@@ -45,11 +45,11 @@ and the stylesheet never blocks rendering. */}}
   <symbol id="dollop-md-icon" viewBox="0 0 24 24">
     <rect x="3" y="5" width="18" height="14" rx="2" />
     <path d="M7 15v-6l2 2l2 -2v6" />
-    <path d="M14 13l2 2l2 -2m-2 2v-6" />
+    <path d="M14 13l2 2l2 -2m-2 2v-6" style="stroke: var(--md-icon-arrow, currentColor)" />
   </symbol>
 </svg>
 <header class="page-header">
-  <a href="{{.SourcePath}}" aria-label="Markdown source" title="Markdown source"><svg class="md-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#dollop-md-icon" /></svg></a>
+  <a href="{{.SourcePath}}" aria-label="Markdown source" title="Markdown source"><svg class="md-icon page-header-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="16" viewBox="2 4 20 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#dollop-md-icon" width="24" height="24" /></svg></a>
   <a href="https://github.com/jamestelfer/dollop"><picture>
     <source media="(prefers-color-scheme: dark)" srcset="{{.LogoDarkPath}}">
     <img src="{{.LogoLightPath}}" alt="dollop logo">
