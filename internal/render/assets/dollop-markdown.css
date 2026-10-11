@@ -16,11 +16,13 @@
   overflow: hidden;
   pointer-events: none;
 }
+/* The svg is cropped to the glyph, so its bottom edge (the border's) sits on
+   the baseline; 0.75em puts the top near cap height. */
 .md-icon {
   --md-icon-arrow: var(--accent);
-  width: 1.1em;
-  height: 1.1em;
-  vertical-align: -0.15em;
+  width: auto;
+  height: 0.75em;
+  vertical-align: baseline;
 }
 
 /* Page chrome */

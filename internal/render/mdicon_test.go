@@ -82,3 +82,12 @@ func TestMarkdownIcon_HeaderIconCroppedToGlyph(t *testing.T) {
 	// cropped to the glyph's bounds so it fills the header button like the logo
 	assert.Contains(t, html, `<svg class="md-icon page-header-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="16" viewBox="2 4 20 16"`)
 }
+
+func TestMarkdownIcon_InlineIconCroppedToGlyph(t *testing.T) {
+	html := renderIconMarkdown(t, "See ::md-icon:: here\n")
+
+	// cropped to the glyph so the svg's bottom edge is the border's, which
+	// then sits on the text baseline
+	assert.Contains(t, html, `<svg class="md-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="16" viewBox="2 4 20 16"`)
+	assert.Contains(t, html, `role="img" aria-label="Markdown source"><use href="#dollop-md-icon" width="24" height="24" /></svg>`)
+}
