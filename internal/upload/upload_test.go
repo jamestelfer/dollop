@@ -562,6 +562,12 @@ func TestUploadFiles_Index_NoRender_ExistingIndexMarkdownSkipsGeneration(t *test
 	assert.Contains(t, stderr, "warning: index.md already present")
 }
 
+func TestUploadFiles_NoRender_ExistingIndexMarkdownIsTheEntry(t *testing.T) {
+	_, res, _ := uploadTree(t, map[string]string{"index.md": "# Mine", "a.txt": "a"}, false)
+
+	assert.Equal(t, "index.md", res.Entry, "the user's index page is the entry, not the first file alphabetically")
+}
+
 func TestUploadFiles_Index_UploadsAssetsTheIndexPageNeeds(t *testing.T) {
 	up, res, _ := uploadTree(t, map[string]string{"data.csv": "a,b"}, true, upload.WithRenderer(render.NewMarkdownRenderer()))
 

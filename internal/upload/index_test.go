@@ -55,3 +55,26 @@ func TestGenerateIndexMarkdown_EscapesNamesAndPaths(t *testing.T) {
 	// a leading segment with a colon must not read as a URL scheme
 	assert.Contains(t, s, "- [c:d.txt](./c:d.txt)")
 }
+
+func TestFirstFile(t *testing.T) {
+	tests := []struct {
+		name  string
+		files []string
+		want  string
+	}{
+		{"single file", []string{"photo.jpg"}, "photo.jpg"},
+		{"single nested file", []string{"sub/file.txt"}, "sub/file.txt"},
+		{"multiple files, picks alphabetical first", []string{"z.txt", "a.txt", "m.txt"}, "a.txt"},
+		{"multiple files already sorted", []string{"apple.txt", "banana.txt"}, "apple.txt"},
+		{"no files", nil, ""},
+		{"empty files slice", []string{}, ""},
+		{"html preferred over md same stem", []string{"notes.md", "notes.html"}, "notes.html"},
+		{"html preferred over md multiple files", []string{"z.md", "z.html", "a.txt"}, "a.txt"},
+		{"md alone no html", []string{"readme.md"}, "readme.md"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, firstFile(tc.files))
+		})
+	}
+}

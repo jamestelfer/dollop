@@ -30,23 +30,31 @@ type entryPlan struct {
 
 // planEntry decides which entry page, if any, to generate for sources:
 //
-//  1. an index.html or index.md already present is left alone;
+//  1. an index.html or index.md already present is left alone, and is the
+//     entry;
 //  2. a README at the upload root gets an index.html redirecting to it, and the
 //     URL points at the README directly;
-//  3. otherwise, when generateIndex is set, an index.md listing the sources
+//  3. with no generateIndex, the URL points at the first file;
+//  4. otherwise, when generateIndex is set, an index.md listing the sources
 //     (and the shared assets as supporting files) is generated and planned
 //     through renderer with fsys underneath it. When renderer does not turn it
 //     into index.html, an index.html redirecting to index.md is added.
 func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []render.Source, assets []render.SharedAsset, generateIndex bool, stderr io.Writer) (entryPlan, error) {
 	relPaths := relPathsOf(sources)
 
-	for _, existing := range []string{"index.html", "index.md"} {
-		if slices.Contains(relPaths, existing) {
-			if generateIndex {
-				fmt.Fprintf(stderr, "warning: %s already present, skipping index generation\n", existing) //nolint:errcheck
-			}
-			return entryPlan{entry: URLSuffix(relPaths)}, nil
+	skipIndex := func(existing string) {
+		if generateIndex {
+			fmt.Fprintf(stderr, "warning: %s already present, skipping index generation\n", existing) //nolint:errcheck
 		}
+	}
+	switch {
+	case slices.Contains(relPaths, "index.html"):
+		skipIndex("index.html")
+		return entryPlan{}, nil
+	case slices.Contains(relPaths, "index.md"):
+		// unrendered, so linked directly rather than served at the root
+		skipIndex("index.md")
+		return entryPlan{entry: "index.md"}, nil
 	}
 
 	if readme, target, ok := findReadme(relPaths); ok {
@@ -61,7 +69,7 @@ func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []re
 	}
 
 	if !generateIndex {
-		return entryPlan{entry: URLSuffix(relPaths)}, nil
+		return entryPlan{entry: firstFile(relPaths)}, nil
 	}
 
 	supporting := make([]string, len(assets))

@@ -162,28 +162,3 @@ func TestResolvePrefix_RoundTripsPublicURL(t *testing.T) {
 		assert.Equal(t, prefix, got)
 	}
 }
-
-func TestURLSuffix(t *testing.T) {
-	tests := []struct {
-		name  string
-		files []string
-		want  string
-	}{
-		{"index.html in files", []string{"index.html"}, ""},
-		{"index.html among multiple files", []string{"index.html", "photo.jpg"}, ""},
-		{"single file", []string{"photo.jpg"}, "photo.jpg"},
-		{"single nested file", []string{"sub/file.txt"}, "sub/file.txt"},
-		{"multiple files, picks alphabetical first", []string{"z.txt", "a.txt", "m.txt"}, "a.txt"},
-		{"multiple files already sorted", []string{"apple.txt", "banana.txt"}, "apple.txt"},
-		{"no files", nil, ""},
-		{"empty files slice", []string{}, ""},
-		{"html preferred over md same stem", []string{"notes.md", "notes.html"}, "notes.html"},
-		{"html preferred over md multiple files", []string{"z.md", "z.html", "a.txt"}, "a.txt"},
-		{"md alone no html", []string{"readme.md"}, "readme.md"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, upload.URLSuffix(tc.files))
-		})
-	}
-}

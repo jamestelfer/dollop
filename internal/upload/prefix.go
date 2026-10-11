@@ -3,7 +3,6 @@ package upload
 import (
 	"fmt"
 	"net/url"
-	"slices"
 	"sort"
 	"strings"
 )
@@ -137,17 +136,9 @@ func splitBaseURL(baseURL string) (host, path string) {
 	return u.Host, strings.Trim(u.Path, "/")
 }
 
-// URLSuffix returns the filename component to append to the public URL based
-// on the upload contents:
-//
-//  1. index.html present in files → "" (browser will load it)
-//  2. exactly one file → that file's relative path
-//  3. multiple files → the first path in alphabetical order
-//  4. no files → ""
-func URLSuffix(files []string) string {
-	if slices.Contains(files, "index.html") {
-		return ""
-	}
+// firstFile returns the file the public URL points at when the upload has no
+// entry page: the only file, or the first in alphabetical order ("" for none).
+func firstFile(files []string) string {
 	switch len(files) {
 	case 0:
 		return ""
