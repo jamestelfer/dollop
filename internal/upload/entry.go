@@ -7,7 +7,6 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
-	"path"
 	"slices"
 	"strings"
 
@@ -92,12 +91,12 @@ func findReadme(relPaths []string) (readme, target string, ok bool) {
 	for _, p := range relPaths {
 		present[p] = true
 	}
-	for _, ext := range []string{".md", ".markdown"} {
+	for _, ext := range markdownExts {
 		for _, p := range relPaths {
 			if strings.Contains(p, "/") || !strings.EqualFold(p, "readme"+ext) {
 				continue
 			}
-			if html := strings.TrimSuffix(p, path.Ext(p)) + ".html"; present[html] {
+			if html := strings.TrimSuffix(p, extOf(p)) + ".html"; present[html] {
 				return p, html, true
 			}
 			return p, p, true
@@ -113,24 +112,16 @@ func redirectSource(target string) (render.Source, error) {
 	if err := redirectTmpl.Execute(&buf, target); err != nil {
 		return render.Source{}, fmt.Errorf("generate redirect: %w", err)
 	}
-	return htmlSource("index.html", buf.Bytes()), nil
-}
-
-func htmlSource(relPath string, html []byte) render.Source {
+	html := buf.Bytes()
 	return render.Source{
-		RelPath:     relPath,
+		RelPath:     "index.html",
 		ContentType: "text/html; charset=utf-8",
 		Size:        int64(len(html)),
 		Open: func() (io.ReadSeekCloser, error) {
-			return nopSeekCloser{bytes.NewReader(html)}, nil
+			return &memFile{Reader: bytes.NewReader(html), name: "index.html"}, nil
 		},
-	}
+	}, nil
 }
-
-// nopSeekCloser wraps *bytes.Reader to satisfy io.ReadSeekCloser with a no-op Close.
-type nopSeekCloser struct{ *bytes.Reader }
-
-func (nopSeekCloser) Close() error { return nil }
 
 func relPathsOf(sources []render.Source) []string {
 	relPaths := make([]string, len(sources))

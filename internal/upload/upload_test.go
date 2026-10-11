@@ -102,14 +102,7 @@ func TestUploadFiles_UploaderError(t *testing.T) {
 }
 
 func TestUploadFiles_Index_NoRender_RedirectsToGeneratedMarkdown(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "report.pdf"), []byte("pdf"), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("notes"), 0o600))
-
-	up := &fakeUploader{}
-	var stderr bytes.Buffer
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr)
-	require.NoError(t, err)
+	up, res, stderr := uploadTree(t, map[string]string{"report.pdf": "pdf", "notes.txt": "notes"}, true)
 
 	// with no renderer the listing is published as raw markdown...
 	md := bodyOf(t, up, "flash/1/abc/index.md")
@@ -119,20 +112,14 @@ func TestUploadFiles_Index_NoRender_RedirectsToGeneratedMarkdown(t *testing.T) {
 	// ...and index.html sends the browser to it
 	assert.Contains(t, bodyOf(t, up, "flash/1/abc/index.html"), `location.replace("index.md")`)
 
-	assert.NotContains(t, stderr.String(), "warning")
+	assert.NotContains(t, stderr, "warning")
 	assert.Empty(t, res.Entry)
 	// generated pages are not in the returned file list
 	assert.ElementsMatch(t, []string{"notes.txt", "report.pdf"}, res.SourceRelPaths)
 }
 
 func TestUploadFiles_Index_SupportingFilesCollapsed(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello"), 0o600))
-
-	up := &fakeUploader{}
-	var stderr bytes.Buffer
-	_, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
-	require.NoError(t, err)
+	up, _, _ := uploadTree(t, map[string]string{"notes.md": "# Hello"}, true, upload.WithRenderer(render.NewMarkdownRenderer()))
 
 	s := bodyOf(t, up, "flash/1/abc/index.html")
 	// the markdown is folded into its rendered page as the source link
@@ -449,6 +436,33 @@ func TestHumanSize(t *testing.T) {
 	}
 }
 
+// uploadTree writes files (slash-separated relative path → content) to a temp
+// directory, uploads it to flash/1/abc, and returns the uploader, the result
+// and what was written to stderr.
+func uploadTree(t *testing.T, files map[string]string, index bool, opts ...upload.UploadOption) (*fakeUploader, *upload.UploadResult, string) {
+	t.Helper()
+	dir := t.TempDir()
+	for rel, content := range files {
+		path := filepath.Join(dir, filepath.FromSlash(rel))
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+	}
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, index, &stderr, opts...)
+	require.NoError(t, err)
+	return up, res, stderr.String()
+}
+
+// keysOf returns the keys uploaded, in order.
+func keysOf(up *fakeUploader) []string {
+	keys := make([]string, len(up.calls))
+	for i, c := range up.calls {
+		keys[i] = c.key
+	}
+	return keys
+}
+
 // bodyOf returns the uploaded body for key, failing the test when key was not
 // uploaded.
 func bodyOf(t *testing.T, up *fakeUploader, key string) string {
@@ -463,14 +477,7 @@ func bodyOf(t *testing.T, up *fakeUploader, key string) string {
 }
 
 func TestUploadFiles_Readme_RedirectsIndexToRenderedReadme(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Project"), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("notes"), 0o600))
-
-	up := &fakeUploader{}
-	var stderr bytes.Buffer
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
-	require.NoError(t, err)
+	up, res, _ := uploadTree(t, map[string]string{"README.md": "# Project", "notes.txt": "notes"}, false, upload.WithRenderer(render.NewMarkdownRenderer()))
 
 	s := bodyOf(t, up, "flash/1/abc/index.html")
 	assert.Contains(t, s, `location.replace("README.html")`)
@@ -484,13 +491,7 @@ func TestUploadFiles_Readme_RedirectsIndexToRenderedReadme(t *testing.T) {
 }
 
 func TestUploadFiles_Readme_NoRender_RedirectsToRawMarkdown(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "readme.md"), []byte("# Project"), 0o600))
-
-	up := &fakeUploader{}
-	var stderr bytes.Buffer
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr)
-	require.NoError(t, err)
+	up, res, _ := uploadTree(t, map[string]string{"readme.md": "# Project"}, false)
 
 	assert.Contains(t, bodyOf(t, up, "flash/1/abc/index.html"), `location.replace("readme.md")`)
 	assert.Equal(t, "readme.md", res.Entry)
@@ -511,61 +512,31 @@ func TestUploadFiles_Readme_SingleFileGetsRedirect(t *testing.T) {
 }
 
 func TestUploadFiles_Readme_WinsOverIndexFlag(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Project"), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "data.csv"), []byte("a,b"), 0o600))
-
-	up := &fakeUploader{}
-	var stderr bytes.Buffer
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
-	require.NoError(t, err)
+	up, res, stderr := uploadTree(t, map[string]string{"README.md": "# Project", "data.csv": "a,b"}, true, upload.WithRenderer(render.NewMarkdownRenderer()))
 
 	s := bodyOf(t, up, "flash/1/abc/index.html")
 	assert.Contains(t, s, `location.replace("README.html")`)
 	assert.NotContains(t, s, "data.csv", "the index is the redirect, not a listing")
-	assert.Contains(t, stderr.String(), "warning: README.md present")
+	assert.Contains(t, stderr, "warning: README.md present")
 	assert.Equal(t, "README.html", res.Entry)
 }
 
 func TestUploadFiles_Readme_ExistingIndexIsKept(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Project"), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("<h1>mine</h1>"), 0o600))
-
-	up := &fakeUploader{}
-	var stderr bytes.Buffer
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
-	require.NoError(t, err)
+	up, res, _ := uploadTree(t, map[string]string{"README.md": "# Project", "index.html": "<h1>mine</h1>"}, false, upload.WithRenderer(render.NewMarkdownRenderer()))
 
 	assert.Equal(t, "<h1>mine</h1>", bodyOf(t, up, "flash/1/abc/index.html"))
 	assert.Empty(t, res.Entry)
 }
 
 func TestUploadFiles_Readme_NestedReadmeIgnored(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, "docs"), 0o700))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "docs", "README.md"), []byte("# Docs"), 0o600))
+	up, res, _ := uploadTree(t, map[string]string{"docs/README.md": "# Docs"}, false, upload.WithRenderer(render.NewMarkdownRenderer()))
 
-	up := &fakeUploader{}
-	var stderr bytes.Buffer
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
-	require.NoError(t, err)
-
-	for _, c := range up.calls {
-		assert.NotEqual(t, "flash/1/abc/index.html", c.key, "only a README at the upload root gets a redirect")
-	}
+	assert.NotContains(t, keysOf(up), "flash/1/abc/index.html", "only a README at the upload root gets a redirect")
 	assert.Equal(t, "docs/README.html", res.Entry)
 }
 
 func TestUploadFiles_Index_RendersGeneratedMarkdownWithTheme(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello"), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "data.csv"), []byte("a,b"), 0o600))
-
-	up := &fakeUploader{}
-	var stderr bytes.Buffer
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
-	require.NoError(t, err)
+	up, res, stderr := uploadTree(t, map[string]string{"notes.md": "# Hello", "data.csv": "a,b"}, true, upload.WithRenderer(render.NewMarkdownRenderer()))
 
 	md := bodyOf(t, up, "flash/1/abc/index.md")
 	assert.Contains(t, md, "# Files")
@@ -580,34 +551,19 @@ func TestUploadFiles_Index_RendersGeneratedMarkdownWithTheme(t *testing.T) {
 
 	assert.Empty(t, res.Entry, "the URL points at the generated index")
 	assert.NotContains(t, res.SourceRelPaths, "index.md", "generated pages are not reported as sources")
-	assert.NotContains(t, stderr.String(), "warning")
+	assert.NotContains(t, stderr, "warning")
 }
 
 func TestUploadFiles_Index_NoRender_ExistingIndexMarkdownSkipsGeneration(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.md"), []byte("# Mine"), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Project"), 0o600))
-
-	up := &fakeUploader{}
-	var stderr bytes.Buffer
-	_, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr)
-	require.NoError(t, err)
+	up, _, stderr := uploadTree(t, map[string]string{"index.md": "# Mine", "README.md": "# Project"}, true)
 
 	assert.Equal(t, "# Mine", bodyOf(t, up, "flash/1/abc/index.md"), "the user's index.md is not replaced")
-	for _, c := range up.calls {
-		assert.NotEqual(t, "flash/1/abc/index.html", c.key, "neither a listing nor a README redirect is generated")
-	}
-	assert.Contains(t, stderr.String(), "warning: index.md already present")
+	assert.NotContains(t, keysOf(up), "flash/1/abc/index.html", "neither a listing nor a README redirect is generated")
+	assert.Contains(t, stderr, "warning: index.md already present")
 }
 
 func TestUploadFiles_Index_UploadsAssetsTheIndexPageNeeds(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "data.csv"), []byte("a,b"), 0o600))
-
-	up := &fakeUploader{}
-	var stderr bytes.Buffer
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
-	require.NoError(t, err)
+	up, res, _ := uploadTree(t, map[string]string{"data.csv": "a,b"}, true, upload.WithRenderer(render.NewMarkdownRenderer()))
 
 	// the rendered index needs the page stylesheets even though the upload
 	// itself has no markdown
@@ -620,13 +576,7 @@ func TestUploadFiles_Index_UploadsAssetsTheIndexPageNeeds(t *testing.T) {
 }
 
 func TestUploadFiles_Index_SharedAssetsUploadedOnce(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hi"), 0o600))
-
-	up := &fakeUploader{}
-	var stderr bytes.Buffer
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
-	require.NoError(t, err)
+	_, res, _ := uploadTree(t, map[string]string{"notes.md": "# Hi"}, true, upload.WithRenderer(render.NewMarkdownRenderer()))
 
 	seen := map[string]int{}
 	for _, k := range res.WrittenKeys {

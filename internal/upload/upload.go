@@ -28,8 +28,7 @@ type UploadOption func(*uploadOptions)
 // UploadResult reports what UploadFiles wrote.
 type UploadResult struct {
 	// SourceRelPaths holds the relative paths of the uploaded source files (not
-	// the generated index, not shared assets). It is used to choose the public
-	// URL suffix.
+	// generated entry pages, not shared assets).
 	SourceRelPaths []string
 	// Entry is the relative path the public URL should point at, or "" for the
 	// prefix root (an index.html is published there).

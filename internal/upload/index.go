@@ -36,7 +36,7 @@ func buildIndexEntries(files []string) []indexEntry {
 			continue
 		}
 		stem := strings.TrimSuffix(f, extOf(f))
-		for _, ext := range []string{".md", ".markdown"} {
+		for _, ext := range markdownExts {
 			if cand := stem + ext; present[cand] {
 				sourceOf[f] = cand
 				folded[cand] = true
@@ -99,6 +99,9 @@ var mdEscaper = func() *strings.Replacer {
 	}
 	return strings.NewReplacer(pairs...)
 }()
+
+// markdownExts are the extensions of markdown files, in order of preference.
+var markdownExts = []string{".md", ".markdown"}
 
 func isHTMLExt(path string) bool {
 	return strings.EqualFold(extOf(path), ".html")
