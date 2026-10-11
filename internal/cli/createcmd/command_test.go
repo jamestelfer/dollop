@@ -419,3 +419,16 @@ func TestCreate_Theme_UnknownFails(t *testing.T) {
 	assert.Empty(t, stdout)
 	assert.Empty(t, up.calls, "nothing should be uploaded for an unknown theme")
 }
+
+func TestCreate_Readme_RedirectsIndexAndLinksReadme(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Project"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0o600))
+
+	up := &fakeUploader{}
+	stdout, stderr, code := runCreate(t, up, "create", dir)
+	require.Equal(t, 0, code, stderr)
+
+	assert.Contains(t, up.calls, "flash/1/testid/index.html")
+	assert.True(t, strings.HasSuffix(strings.TrimSpace(stdout), "/flash/1/testid/README.html"), stdout)
+}

@@ -165,29 +165,25 @@ func TestResolvePrefix_RoundTripsPublicURL(t *testing.T) {
 
 func TestURLSuffix(t *testing.T) {
 	tests := []struct {
-		name      string
-		indexFlag bool
-		files     []string
-		want      string
+		name  string
+		files []string
+		want  string
 	}{
-		{"index flag, no files", true, nil, ""},
-		{"index flag, single file", true, []string{"photo.jpg"}, ""},
-		{"index flag, multiple files", true, []string{"a.txt", "b.txt"}, ""},
-		{"index.html in files", false, []string{"index.html"}, ""},
-		{"index.html among multiple files", false, []string{"index.html", "photo.jpg"}, ""},
-		{"single file", false, []string{"photo.jpg"}, "photo.jpg"},
-		{"single nested file", false, []string{"sub/file.txt"}, "sub/file.txt"},
-		{"multiple files, picks alphabetical first", false, []string{"z.txt", "a.txt", "m.txt"}, "a.txt"},
-		{"multiple files already sorted", false, []string{"apple.txt", "banana.txt"}, "apple.txt"},
-		{"no files", false, nil, ""},
-		{"empty files slice", false, []string{}, ""},
-		{"html preferred over md same stem", false, []string{"notes.md", "notes.html"}, "notes.html"},
-		{"html preferred over md multiple files", false, []string{"z.md", "z.html", "a.txt"}, "a.txt"},
-		{"md alone no html", false, []string{"readme.md"}, "readme.md"},
+		{"index.html in files", []string{"index.html"}, ""},
+		{"index.html among multiple files", []string{"index.html", "photo.jpg"}, ""},
+		{"single file", []string{"photo.jpg"}, "photo.jpg"},
+		{"single nested file", []string{"sub/file.txt"}, "sub/file.txt"},
+		{"multiple files, picks alphabetical first", []string{"z.txt", "a.txt", "m.txt"}, "a.txt"},
+		{"multiple files already sorted", []string{"apple.txt", "banana.txt"}, "apple.txt"},
+		{"no files", nil, ""},
+		{"empty files slice", []string{}, ""},
+		{"html preferred over md same stem", []string{"notes.md", "notes.html"}, "notes.html"},
+		{"html preferred over md multiple files", []string{"z.md", "z.html", "a.txt"}, "a.txt"},
+		{"md alone no html", []string{"readme.md"}, "readme.md"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, upload.URLSuffix(tc.indexFlag, tc.files))
+			assert.Equal(t, tc.want, upload.URLSuffix(tc.files))
 		})
 	}
 }

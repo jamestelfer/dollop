@@ -138,16 +138,13 @@ func splitBaseURL(baseURL string) (host, path string) {
 }
 
 // URLSuffix returns the filename component to append to the public URL based
-// on the upload contents and whether --index was requested:
+// on the upload contents:
 //
-//  1. --index flag or index.html present in files → "" (browser will load it)
+//  1. index.html present in files → "" (browser will load it)
 //  2. exactly one file → that file's relative path
 //  3. multiple files → the first path in alphabetical order
 //  4. no files → ""
-func URLSuffix(indexFlag bool, files []string) string {
-	if indexFlag {
-		return ""
-	}
+func URLSuffix(files []string) string {
 	if slices.Contains(files, "index.html") {
 		return ""
 	}

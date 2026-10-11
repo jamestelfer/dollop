@@ -49,7 +49,11 @@ exclusive.
   dollop create --keep project/
 
 Rendered .md pages use the "tide" theme by default; choose another with
---theme (tide, estuary or lichen).`,
+--theme (tide, estuary or lichen).
+
+A README.md at the top of the upload also gets an index.html that
+redirects to it, unless the upload already has its own index page. The
+printed URL points at the README directly.`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:  "index",
@@ -156,8 +160,7 @@ Rendered .md pages use the "tide" theme by default; choose another with
 				}
 			}
 
-			suffix := upload.URLSuffix(genIndex, result.SourceRelPaths)
-			url := upload.PublicURL(baseURL, prefix, suffix)
+			url := upload.PublicURL(baseURL, prefix, result.Entry)
 			if _, err := fmt.Fprintln(cmd.Root().Writer, urlout.Format(url, urlout.IsTerminalWriter(cmd.Root().Writer))); err != nil {
 				return cli.Exit(fmt.Sprintf("write output: %v", err), 1)
 			}

@@ -43,8 +43,8 @@ written to stderr.
   dollop update flash/7/abc123 site/
   dollop update keep/happy-cat notes.md
 
-Rendering of .md files and shared assets works exactly as in 'create';
-use --no-render to disable it, --theme to choose the page theme, and
+Rendering of .md files, shared assets and the README redirect work
+exactly as in 'create'; use --no-render to disable it, --theme to choose the page theme, and
 --index to generate an index.html.`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
@@ -142,8 +142,7 @@ func newAction(uploader upload.SyncUploader, bucket, baseURL string) cli.ActionF
 			warnMissingMermaidDeps(ctx, activeUploader, bucket, localPath, cmd.Root().ErrWriter)
 		}
 
-		suffix := upload.URLSuffix(genIndex, result.SourceRelPaths)
-		url := upload.PublicURL(baseURL, prefix, suffix)
+		url := upload.PublicURL(baseURL, prefix, result.Entry)
 		if _, err := fmt.Fprintln(cmd.Root().Writer, urlout.Format(url, urlout.IsTerminalWriter(cmd.Root().Writer))); err != nil {
 			return cli.Exit(fmt.Sprintf("write output: %v", err), 1)
 		}

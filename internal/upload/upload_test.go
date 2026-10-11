@@ -471,3 +471,111 @@ func TestHumanSize(t *testing.T) {
 		assert.Equal(t, tc.want, upload.HumanSize(tc.n), "n=%d", tc.n)
 	}
 }
+
+// bodyOf returns the uploaded body for key, failing the test when key was not
+// uploaded.
+func bodyOf(t *testing.T, up *fakeUploader, key string) string {
+	t.Helper()
+	for _, c := range up.calls {
+		if c.key == key {
+			return string(c.body)
+		}
+	}
+	require.Failf(t, "key not uploaded", "%s was not uploaded", key)
+	return ""
+}
+
+func TestUploadFiles_Readme_RedirectsIndexToRenderedReadme(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Project"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("notes"), 0o600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	require.NoError(t, err)
+
+	s := bodyOf(t, up, "flash/1/abc/index.html")
+	assert.Contains(t, s, `location.replace("README.html")`)
+	assert.Contains(t, s, `<noscript><meta http-equiv="refresh" content="0; url=README.html"></noscript>`)
+
+	// the printed URL goes straight to the rendered README, not via the redirect
+	assert.Equal(t, "README.html", res.Entry)
+	// the generated redirect is not one of the uploaded sources
+	assert.ElementsMatch(t, []string{"README.md", "README.html", "notes.txt"}, res.SourceRelPaths)
+	assert.Contains(t, res.WrittenKeys, "flash/1/abc/index.html")
+}
+
+func TestUploadFiles_Readme_NoRender_RedirectsToRawMarkdown(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "readme.md"), []byte("# Project"), 0o600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr)
+	require.NoError(t, err)
+
+	assert.Contains(t, bodyOf(t, up, "flash/1/abc/index.html"), `location.replace("readme.md")`)
+	assert.Equal(t, "readme.md", res.Entry)
+}
+
+func TestUploadFiles_Readme_SingleFileGetsRedirect(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "Readme.markdown")
+	require.NoError(t, os.WriteFile(path, []byte("# Project"), 0o600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", path, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	require.NoError(t, err)
+
+	assert.Contains(t, bodyOf(t, up, "flash/1/abc/index.html"), `location.replace("Readme.html")`)
+	assert.Equal(t, "Readme.html", res.Entry)
+}
+
+func TestUploadFiles_Readme_WinsOverIndexFlag(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Project"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "data.csv"), []byte("a,b"), 0o600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	require.NoError(t, err)
+
+	s := bodyOf(t, up, "flash/1/abc/index.html")
+	assert.Contains(t, s, `location.replace("README.html")`)
+	assert.NotContains(t, s, "data.csv", "the index is the redirect, not a listing")
+	assert.Contains(t, stderr.String(), "warning: README.md present")
+	assert.Equal(t, "README.html", res.Entry)
+}
+
+func TestUploadFiles_Readme_ExistingIndexIsKept(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Project"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("<h1>mine</h1>"), 0o600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	require.NoError(t, err)
+
+	assert.Equal(t, "<h1>mine</h1>", bodyOf(t, up, "flash/1/abc/index.html"))
+	assert.Empty(t, res.Entry)
+}
+
+func TestUploadFiles_Readme_NestedReadmeIgnored(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "docs"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "docs", "README.md"), []byte("# Docs"), 0o600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	require.NoError(t, err)
+
+	for _, c := range up.calls {
+		assert.NotEqual(t, "flash/1/abc/index.html", c.key, "only a README at the upload root gets a redirect")
+	}
+	assert.Equal(t, "docs/README.html", res.Entry)
+}

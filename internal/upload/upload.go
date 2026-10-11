@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/jamestelfer/dollop/internal/render"
 )
@@ -30,6 +31,9 @@ type UploadResult struct {
 	// the generated index, not shared assets). It is used to choose the public
 	// URL suffix.
 	SourceRelPaths []string
+	// Entry is the relative path the public URL should point at, or "" for the
+	// prefix root (an index.html is published there).
+	Entry string
 	// WrittenKeys is the complete set of object keys written this run: every
 	// source, every shared asset, and any generated index. The update touch pass
 	// uses it to tell freshly-written objects from untouched pre-existing ones.
@@ -46,13 +50,15 @@ func WithRenderer(r FileRenderer) UploadOption {
 
 // UploadFiles uploads localPath (file or directory) to bucket under prefix.
 // Each completed key is written to stderr. Files are uploaded sequentially.
-// If generateIndex is true and no index.html is present in the upload, a
-// generated index page is uploaded first; if index.html already exists a
-// warning is written to stderr and generation is skipped.
+// A README at the upload root gets a generated index.html redirecting to it.
+// Otherwise, if generateIndex is true and no index.html is present in the
+// upload, a generated index page is uploaded after the sources; if index.html
+// already exists a warning is written to stderr and generation is skipped.
 // A directory is read through an os.Root, so symlinks resolving outside it are
 // skipped with a warning; a single file is read wherever its symlink points.
 // Returns an UploadResult reporting the relative paths of the uploaded sources
-// (not including any generated index.html) and the complete set of keys written.
+// (not including any generated index.html), the entry the public URL should
+// point at, and the complete set of keys written.
 func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath string, generateIndex bool, stderr io.Writer, opts ...UploadOption) (*UploadResult, error) {
 	if up == nil {
 		return nil, fmt.Errorf("uploader is not configured")
@@ -97,21 +103,22 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 		return nil, fmt.Errorf("plan: %w", err)
 	}
 
-	writtenKeys, err := uploadPlan(ctx, up, bucket, prefix, sources, sharedAssets, generateIndex, stderr)
+	plan, err := planEntry(sources, sharedAssets, generateIndex, stderr)
 	if err != nil {
 		return nil, err
 	}
 
-	sourceRelPaths := make([]string, len(sources))
-	for i, src := range sources {
-		sourceRelPaths[i] = src.RelPath
+	writtenKeys, err := uploadPlan(ctx, up, bucket, prefix, append(slices.Clip(sources), plan.generated...), sharedAssets, stderr)
+	if err != nil {
+		return nil, err
 	}
-	return &UploadResult{SourceRelPaths: sourceRelPaths, WrittenKeys: writtenKeys}, nil
+
+	return &UploadResult{SourceRelPaths: relPathsOf(sources), Entry: plan.entry, WrittenKeys: writtenKeys}, nil
 }
 
-// uploadPlan uploads the shared assets, an optional generated index, and the
-// sources, returning the full set of object keys written (in that order).
-func uploadPlan(ctx context.Context, up Uploader, bucket, prefix string, sources []render.Source, sharedAssets []render.SharedAsset, generateIndex bool, stderr io.Writer) ([]string, error) {
+// uploadPlan uploads the shared assets and then the sources, returning the
+// full set of object keys written (in that order).
+func uploadPlan(ctx context.Context, up Uploader, bucket, prefix string, sources []render.Source, sharedAssets []render.SharedAsset, stderr io.Writer) ([]string, error) {
 	var writtenKeys []string
 
 	if err := uploadSharedAssets(ctx, up, bucket, prefix, sharedAssets, stderr); err != nil {
@@ -119,16 +126,6 @@ func uploadPlan(ctx context.Context, up Uploader, bucket, prefix string, sources
 	}
 	for _, asset := range sharedAssets {
 		writtenKeys = append(writtenKeys, prefix+"/"+asset.Name)
-	}
-
-	if generateIndex {
-		indexKey, err := maybeUploadGeneratedIndex(ctx, up, bucket, prefix, sources, sharedAssets, stderr)
-		if err != nil {
-			return nil, err
-		}
-		if indexKey != "" {
-			writtenKeys = append(writtenKeys, indexKey)
-		}
 	}
 
 	for _, src := range sources {
@@ -141,37 +138,6 @@ func uploadPlan(ctx context.Context, up Uploader, bucket, prefix string, sources
 	return writtenKeys, nil
 }
 
-// maybeUploadGeneratedIndex uploads a generated index.html for sources unless
-// one is already present, in which case it warns and skips generation. It
-// returns the key of the generated index, or "" when generation was skipped.
-func maybeUploadGeneratedIndex(ctx context.Context, up Uploader, bucket, prefix string, sources []render.Source, assets []render.SharedAsset, stderr io.Writer) (string, error) {
-	if containsIndex(sources) {
-		fmt.Fprintln(stderr, "warning: index.html already present, skipping index generation") //nolint:errcheck
-		return "", nil
-	}
-	srcRelPaths := make([]string, len(sources))
-	for i, src := range sources {
-		srcRelPaths[i] = src.RelPath
-	}
-	supporting := make([]string, len(assets))
-	for i, a := range assets {
-		supporting[i] = a.Name
-	}
-	if err := uploadGeneratedIndex(ctx, up, bucket, prefix, srcRelPaths, supporting, stderr); err != nil {
-		return "", err
-	}
-	return prefix + "/index.html", nil
-}
-
-func containsIndex(sources []render.Source) bool {
-	for _, src := range sources {
-		if src.RelPath == "index.html" {
-			return true
-		}
-	}
-	return false
-}
-
 func uploadSharedAssets(ctx context.Context, up Uploader, bucket, prefix string, assets []render.SharedAsset, stderr io.Writer) error {
 	for _, asset := range assets {
 		key := prefix + "/" + asset.Name
@@ -182,21 +148,6 @@ func uploadSharedAssets(ctx context.Context, up Uploader, bucket, prefix string,
 		}
 		fmt.Fprintln(stderr, "done") //nolint:errcheck
 	}
-	return nil
-}
-
-func uploadGeneratedIndex(ctx context.Context, up Uploader, bucket, prefix string, files, supporting []string, stderr io.Writer) error {
-	html, err := generateIndexHTML(files, supporting)
-	if err != nil {
-		return fmt.Errorf("generate index: %w", err)
-	}
-	key := prefix + "/index.html"
-	fmt.Fprintf(stderr, "uploading [index.html] %s...", HumanSize(int64(len(html)))) //nolint:errcheck
-	if err := up.PutObject(ctx, bucket, key, "text/html; charset=utf-8", bytes.NewReader(html)); err != nil {
-		fmt.Fprintln(stderr, "failed") //nolint:errcheck
-		return fmt.Errorf("upload %s: %w", key, err)
-	}
-	fmt.Fprintln(stderr, "done") //nolint:errcheck
 	return nil
 }
 
