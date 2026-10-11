@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.14.0](https://github.com/jamestelfer/dollop/compare/v1.13.0...v1.14.0) (2026-10-11)
+
+
+### Features
+
+* render --index from markdown and redirect index.html to a root README ([#91](https://github.com/jamestelfer/dollop/issues/91)) ([ec8b51d](https://github.com/jamestelfer/dollop/commit/ec8b51ddeaa90b6c1aace5cd35a72b45c819d38e))
+
+
+### Bug Fixes
+
+* **deps:** pin dependencies ([#89](https://github.com/jamestelfer/dollop/issues/89)) ([542bfbf](https://github.com/jamestelfer/dollop/commit/542bfbf537a011e2075eb30221e372094e703f61))
+* **deps:** update dependency go to v1.27.2 ([#94](https://github.com/jamestelfer/dollop/issues/94)) ([d07804f](https://github.com/jamestelfer/dollop/commit/d07804fc8a37ead439b8bad3f6d5f28ca2e6812e))
+* **deps:** update dependency goreleaser to v2.18.3 ([#95](https://github.com/jamestelfer/dollop/issues/95)) ([3e0b388](https://github.com/jamestelfer/dollop/commit/3e0b388d09272a3937b3c12b7aa2e74e3b8086c6))
+* **deps:** update go dependencies ([#88](https://github.com/jamestelfer/dollop/issues/88)) ([38dfb34](https://github.com/jamestelfer/dollop/commit/38dfb34faf46b7724c2b3be5f090b12c57b547ab))
+
 ## [1.13.0](https://github.com/jamestelfer/dollop/compare/v1.12.1...v1.13.0) (2026-10-07)
 
 
