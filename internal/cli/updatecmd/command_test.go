@@ -337,3 +337,41 @@ func TestUpdate_Theme_UnknownFails(t *testing.T) {
 	assert.NotEqual(t, 0, code)
 	assert.Empty(t, up.calls)
 }
+
+func TestUpdate_Readme_RedirectsIndexAndLinksReadme(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Project"), 0o600))
+
+	up := &fakeUploader{}
+	stdout, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", "flash/7/abc", dir)
+	require.Equal(t, 0, code, stderr)
+
+	assert.Contains(t, up.calls, "flash/7/abc/index.html")
+	assert.Equal(t, "https://drop.example.com/flash/7/abc/README.html", strings.TrimSpace(stdout))
+}
+
+func TestUpdate_Readme_KeepsPublishedIndex(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Project"), 0o600))
+
+	up := &fakeFullUploader{existing: []string{"keep/site/index.html"}}
+	stdout, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", "keep/site", dir)
+	require.Equal(t, 0, code, stderr)
+
+	assert.NotContains(t, up.put, "keep/site/index.html", "the published index.html is not replaced by a README redirect")
+	assert.Contains(t, stderr, "index.html already published")
+	assert.Equal(t, "https://drop.example.com/keep/site/", strings.TrimSpace(stdout))
+}
+
+func TestUpdate_Index_KeepsPublishedIndex(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0o600))
+
+	up := &fakeFullUploader{existing: []string{"keep/site/index.md"}}
+	_, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", "--index", "keep/site", dir)
+	require.Equal(t, 0, code, stderr)
+
+	assert.NotContains(t, up.put, "keep/site/index.md")
+	assert.NotContains(t, up.put, "keep/site/index.html")
+	assert.Contains(t, stderr, "index.md already published, skipping index generation")
+}

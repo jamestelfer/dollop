@@ -5,54 +5,81 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestGenerateIndexHTML_PairsMarkdownSource(t *testing.T) {
-	html, err := generateIndexHTML([]string{"notes.md", "notes.html", "data.json"}, nil)
-	require.NoError(t, err)
-	s := string(html)
+func TestGenerateIndexMarkdown_PairsMarkdownSource(t *testing.T) {
+	s := string(generateIndexMarkdown([]string{"notes.md", "notes.html", "data.json"}, nil))
 
-	// the rendered HTML is a top-level entry
-	assert.Contains(t, s, `href="notes.html"`)
-	// the markdown is linked only as the source alongside it, never as its own item
-	assert.Equal(t, 1, strings.Count(s, `href="notes.md"`), "markdown should appear exactly once, as the source link")
-	assert.Contains(t, s, `class="source"`)
+	// the rendered HTML is a top-level entry with the markdown linked beside it
+	assert.Contains(t, s, "- [notes.html](notes.html) [::md-icon::](notes.md)\n")
+	assert.Equal(t, 1, strings.Count(s, "(notes.md)"), "markdown should appear exactly once, as the source link")
 	// unrelated files remain plain entries
-	assert.Contains(t, s, `href="data.json"`)
+	assert.Contains(t, s, "- [data.json](data.json)\n")
 }
 
-func TestGenerateIndexHTML_HTMLWithoutSourceHasNoSourceLink(t *testing.T) {
-	html, err := generateIndexHTML([]string{"page.html"}, nil)
-	require.NoError(t, err)
-	s := string(html)
+func TestGenerateIndexMarkdown_HTMLWithoutSourceHasNoSourceLink(t *testing.T) {
+	s := string(generateIndexMarkdown([]string{"page.html"}, nil))
 
-	assert.Contains(t, s, `href="page.html"`)
-	assert.NotContains(t, s, `class="source"`, "an HTML file with no markdown source must not get a source link")
+	assert.Contains(t, s, "- [page.html](page.html)\n")
+	assert.NotContains(t, s, "::md-icon::", "an HTML file with no markdown source must not get a source link")
 }
 
-func TestGenerateIndexHTML_MarkdownWithoutHTMLStaysTopLevel(t *testing.T) {
-	html, err := generateIndexHTML([]string{"readme.md"}, nil)
-	require.NoError(t, err)
-	s := string(html)
+func TestGenerateIndexMarkdown_MarkdownWithoutHTMLStaysTopLevel(t *testing.T) {
+	s := string(generateIndexMarkdown([]string{"readme.md"}, nil))
 
 	// when there is no rendered HTML, the .md is the entry itself
-	assert.Contains(t, s, `href="readme.md"`)
-	assert.NotContains(t, s, `class="source"`)
+	assert.Contains(t, s, "- [readme.md](readme.md)\n")
+	assert.NotContains(t, s, "::md-icon::")
 }
 
-func TestGenerateIndexHTML_SupportingSection(t *testing.T) {
-	html, err := generateIndexHTML([]string{"a.html"}, []string{"github-markdown.css", "highlight-github.css"})
-	require.NoError(t, err)
-	s := string(html)
+func TestGenerateIndexMarkdown_SupportingFilesCollapsed(t *testing.T) {
+	s := string(generateIndexMarkdown([]string{"a.html"}, []string{"github-markdown.css", "highlight-github.css"}))
 
-	assert.Contains(t, s, "Supporting files")
-	assert.Contains(t, s, `href="github-markdown.css"`)
-	assert.Contains(t, s, `href="highlight-github.css"`)
+	assert.Contains(t, s, "<details>\n<summary>Supporting files</summary>\n\n"+
+		"- [github-markdown.css](github-markdown.css)\n"+
+		"- [highlight-github.css](highlight-github.css)\n\n</details>\n")
+	assert.NotContains(t, s, "<details open", "supporting files are collapsed by default")
 }
 
-func TestGenerateIndexHTML_NoSupportingSectionWhenEmpty(t *testing.T) {
-	html, err := generateIndexHTML([]string{"a.txt"}, nil)
-	require.NoError(t, err)
-	assert.NotContains(t, string(html), "Supporting files")
+func TestGenerateIndexMarkdown_NoSupportingSectionWhenEmpty(t *testing.T) {
+	s := string(generateIndexMarkdown([]string{"a.txt"}, nil))
+	assert.NotContains(t, s, "Supporting files")
+	assert.NotContains(t, s, "<details>")
+}
+
+func TestGenerateIndexMarkdown_EscapesNamesAndPaths(t *testing.T) {
+	s := string(generateIndexMarkdown([]string{"my [draft] (v2)_*.txt", "sub dir/a:b.txt", "c:d.txt"}, nil))
+
+	assert.Contains(t, s, `- [my \[draft\] \(v2\)\_\*.txt](my%20%5Bdraft%5D%20%28v2%29_%2A.txt)`)
+	assert.Contains(t, s, "- [sub dir/a:b.txt](sub%20dir/a:b.txt)")
+	// a leading segment with a colon must not read as a URL scheme
+	assert.Contains(t, s, "- [c:d.txt](./c:d.txt)")
+}
+
+func TestGenerateIndexMarkdown_SourceIconEscapesPaths(t *testing.T) {
+	s := string(generateIndexMarkdown([]string{"c:my [draft].md", "c:my [draft].html"}, nil))
+	assert.Contains(t, s, `[::md-icon::](./c:my%20%5Bdraft%5D.md)`)
+}
+
+func TestFirstFile(t *testing.T) {
+	tests := []struct {
+		name  string
+		files []string
+		want  string
+	}{
+		{"single file", []string{"photo.jpg"}, "photo.jpg"},
+		{"single nested file", []string{"sub/file.txt"}, "sub/file.txt"},
+		{"multiple files, picks alphabetical first", []string{"z.txt", "a.txt", "m.txt"}, "a.txt"},
+		{"multiple files already sorted", []string{"apple.txt", "banana.txt"}, "apple.txt"},
+		{"no files", nil, ""},
+		{"empty files slice", []string{}, ""},
+		{"html preferred over md same stem", []string{"notes.md", "notes.html"}, "notes.html"},
+		{"html preferred over md multiple files", []string{"z.md", "z.html", "a.txt"}, "a.txt"},
+		{"md alone no html", []string{"readme.md"}, "readme.md"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, firstFile(tc.files))
+		})
+	}
 }

@@ -26,6 +26,9 @@ func (lr *linkRewriter) Transform(doc *ast.Document, _ text.Reader, _ parser.Con
 		}
 		switch node := n.(type) {
 		case *ast.Link:
+			if isMarkdownIconLink(node) {
+				return ast.WalkContinue, nil
+			}
 			rewritten := lr.rewrite(string(node.Destination))
 			if rewritten != "" {
 				node.Destination = []byte(rewritten)

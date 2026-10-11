@@ -43,13 +43,15 @@ written to stderr.
   dollop update flash/7/abc123 site/
   dollop update keep/happy-cat notes.md
 
-Rendering of .md files and shared assets works exactly as in 'create';
-use --no-render to disable it, --theme to choose the page theme, and
---index to generate an index.html.`,
+Rendering of .md files, shared assets and the README redirect work
+exactly as in 'create'; use --no-render to disable rendering, --theme
+to choose the page theme, and --index to generate an index page. An
+index page already published under the prefix is never replaced by a
+generated one; include your own index page to change it.`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:  "index",
-				Usage: "generate and upload an index.html listing all uploaded files (skipped with a warning if index.html already exists)",
+				Usage: "generate an index.md listing all uploaded files, rendered to index.html (skipped with a warning if index.html or index.md already exists, or a README.md redirect applies)",
 			},
 			&cli.BoolFlag{
 				Name:  "no-render",
@@ -113,7 +115,15 @@ func newAction(uploader upload.SyncUploader, bucket, baseURL string) cli.ActionF
 				"'dollop config auth r2-key <key>', and 'dollop config auth r2-secret <secret>' (or use --copy-dir)", 1)
 		}
 
-		var uploadOpts []upload.UploadOption
+		// Entry pages are planned from the local files, so tell the upload what
+		// is already published: an index page there is never replaced by a
+		// generated one.
+		published, err := upload.PublishedPaths(ctx, activeUploader, bucket, prefix)
+		if err != nil {
+			fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err) //nolint:errcheck
+			return cli.Exit("upload failed", 1)
+		}
+		uploadOpts := []upload.UploadOption{upload.WithPublished(published)}
 		if !noRender {
 			uploadOpts = append(uploadOpts, upload.WithRenderer(render.NewMarkdownRendererWithStderr(cmd.Root().ErrWriter, render.WithTheme(theme))))
 		}
@@ -142,8 +152,7 @@ func newAction(uploader upload.SyncUploader, bucket, baseURL string) cli.ActionF
 			warnMissingMermaidDeps(ctx, activeUploader, bucket, localPath, cmd.Root().ErrWriter)
 		}
 
-		suffix := upload.URLSuffix(genIndex, result.SourceRelPaths)
-		url := upload.PublicURL(baseURL, prefix, suffix)
+		url := upload.PublicURL(baseURL, prefix, result.Entry)
 		if _, err := fmt.Fprintln(cmd.Root().Writer, urlout.Format(url, urlout.IsTerminalWriter(cmd.Root().Writer))); err != nil {
 			return cli.Exit(fmt.Sprintf("write output: %v", err), 1)
 		}

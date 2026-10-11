@@ -144,6 +144,25 @@ On success, dollop prints the public URL of the upload:
 https://cdn.example.com/flash/7/v8p2xkqj3m/
 ```
 
+### Markdown source icons
+
+Use `::md-icon::` to insert a Markdown source icon. Wrap it
+in a Markdown link to link to the original source:
+
+```markdown
+[::md-icon::](notes.md)
+```
+
+The marker renders an inline `<svg>` referencing a single symbol defined at the
+top of the page. The icon inherits the link colour and has an accessible
+“Markdown source” label. Icon-only links keep their `.md` destination instead of
+being rewritten to `.html`; reference-style Markdown links work too. Markers
+inside code or escaped with a backslash stay literal.
+
+Generated indexes use this icon beside each rendered page, and the page header
+uses the same symbol for its source link. Arbitrary SVG in Markdown remains
+blocked by the HTML sanitizer.
+
 ### Mermaid diagrams
 
 Markdown containing ` ```mermaid ` fenced code blocks renders as diagrams in the
