@@ -64,7 +64,8 @@ func generateIndexMarkdown(files []string, supporting []string) []byte {
 	for _, e := range buildIndexEntries(files) {
 		b.WriteString("- " + mdLink(e.Name, e.Name))
 		if e.SourcePath != "" {
-			b.WriteString(" · " + mdLink("source", e.SourcePath))
+			// The fixed marker must remain unescaped so the renderer can parse it.
+			b.WriteString(" [::md-icon::](" + mdHref(e.SourcePath) + ")")
 		}
 		b.WriteString("\n")
 	}
@@ -83,12 +84,16 @@ func generateIndexMarkdown(files []string, supporting []string) []byte {
 // mdLink returns a markdown link to the relative path dest, escaping the text
 // and percent-encoding the destination.
 func mdLink(text, dest string) string {
+	return "[" + mdEscaper.Replace(text) + "](" + mdHref(dest) + ")"
+}
+
+func mdHref(dest string) string {
 	href := (&url.URL{Path: dest}).EscapedPath()
 	// a colon in the first segment would read as a URL scheme
 	if first, _, _ := strings.Cut(href, "/"); strings.Contains(first, ":") {
 		href = "./" + href
 	}
-	return "[" + mdEscaper.Replace(text) + "](" + href + ")"
+	return href
 }
 
 var mdEscaper = func() *strings.Replacer {

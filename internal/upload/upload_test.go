@@ -541,13 +541,15 @@ func TestUploadFiles_Index_RendersGeneratedMarkdownWithTheme(t *testing.T) {
 	md := bodyOf(t, up, "flash/1/abc/index.md")
 	assert.Contains(t, md, "# Files")
 	assert.Contains(t, md, "[notes.html](notes.html)")
-	assert.Contains(t, md, "[source](notes.md)")
+	assert.Contains(t, md, "[::md-icon::](notes.md)")
 	assert.Contains(t, md, "[data.csv](data.csv)")
 
 	html := bodyOf(t, up, "flash/1/abc/index.html")
 	assert.Contains(t, html, "dollop-theme-tide.css", "the index is a themed rendered page")
 	assert.Contains(t, html, `href="notes.html"`)
 	assert.Contains(t, html, `href="notes.md"`, "source links are not rewritten to .html")
+	assert.Contains(t, html, `<use href="#dollop-md-icon"`)
+	assert.Equal(t, 1, strings.Count(html, `<symbol id="dollop-md-icon"`))
 
 	assert.Empty(t, res.Entry, "the URL points at the generated index")
 	assert.NotContains(t, res.SourceRelPaths, "index.md", "generated pages are not reported as sources")

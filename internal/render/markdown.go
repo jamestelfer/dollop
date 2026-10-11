@@ -243,6 +243,7 @@ var mdParser = goldmark.New(
 		&alertExtension{},
 		&mermaidExtension{},
 		&d2Extension{},
+		&markdownIconExtension{},
 	),
 )
 
@@ -361,7 +362,7 @@ func (m *markdownRenderer) renderMarkdownFile(fsys fs.FS, relPath, prefix string
 		LogoLightPath:    assetRef(depthPrefix, "dollop-light.svg"),
 		LogoDarkPath:     assetRef(depthPrefix, "dollop-dark.svg"),
 		FaviconPath:      assetRef(depthPrefix, "dollop-favicon.svg"),
-		Body:             template.HTML(sanitizeHTML(bodyBuf.String())), //nolint:gosec
+		Body:             template.HTML(sanitizeMarkdownHTML(bodyBuf.String())), //nolint:gosec
 		SourcePath:       filepath.Base(relPath),
 	}
 	if m.theme.sharedFont {

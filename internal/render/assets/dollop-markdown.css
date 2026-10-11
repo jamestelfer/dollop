@@ -10,6 +10,18 @@
  * Metrics adapted from the VitePress default theme (MIT).
  */
 
+/* Markdown source icon: one symbol per page, reused by inline SVG references. */
+.md-icon-symbols {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+}
+.md-icon {
+  width: 1.1em;
+  height: 1.1em;
+  vertical-align: -0.15em;
+}
+
 /* Page chrome */
 body {
   margin: 0;
