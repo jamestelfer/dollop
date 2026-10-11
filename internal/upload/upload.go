@@ -103,17 +103,33 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 		return nil, fmt.Errorf("plan: %w", err)
 	}
 
-	plan, err := planEntry(sources, sharedAssets, generateIndex, stderr)
+	plan, err := planEntry(renderer, fsys, prefix, sources, sharedAssets, generateIndex, stderr)
 	if err != nil {
 		return nil, err
 	}
 
-	writtenKeys, err := uploadPlan(ctx, up, bucket, prefix, append(slices.Clip(sources), plan.generated...), sharedAssets, stderr)
+	writtenKeys, err := uploadPlan(ctx, up, bucket, prefix, append(slices.Clip(sources), plan.generated...), mergeAssets(sharedAssets, plan.assets), stderr)
 	if err != nil {
 		return nil, err
 	}
 
 	return &UploadResult{SourceRelPaths: relPathsOf(sources), Entry: plan.entry, WrittenKeys: writtenKeys}, nil
+}
+
+// mergeAssets returns a followed by the assets of b not already in a, by name.
+func mergeAssets(a, b []render.SharedAsset) []render.SharedAsset {
+	seen := make(map[string]bool, len(a))
+	for _, asset := range a {
+		seen[asset.Name] = true
+	}
+	merged := slices.Clip(a)
+	for _, asset := range b {
+		if !seen[asset.Name] {
+			seen[asset.Name] = true
+			merged = append(merged, asset)
+		}
+	}
+	return merged
 }
 
 // uploadPlan uploads the shared assets and then the sources, returning the

@@ -45,11 +45,11 @@ written to stderr.
 
 Rendering of .md files, shared assets and the README redirect work
 exactly as in 'create'; use --no-render to disable it, --theme to choose the page theme, and
---index to generate an index.html.`,
+--index to generate an index page.`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:  "index",
-				Usage: "generate and upload an index.html listing all uploaded files (skipped with a warning if index.html already exists)",
+				Usage: "generate an index.md listing all uploaded files, rendered to index.html (skipped with a warning if index.html or index.md already exists, or a README.md redirect applies)",
 			},
 			&cli.BoolFlag{
 				Name:  "no-render",

@@ -432,3 +432,16 @@ func TestCreate_Readme_RedirectsIndexAndLinksReadme(t *testing.T) {
 	assert.Contains(t, up.calls, "flash/1/testid/index.html")
 	assert.True(t, strings.HasSuffix(strings.TrimSpace(stdout), "/flash/1/testid/README.html"), stdout)
 }
+
+func TestCreate_Index_PublishesMarkdownAndRenderedIndex(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0o600))
+
+	up := &fakeUploader{}
+	stdout, stderr, code := runCreate(t, up, "create", "--index", dir)
+	require.Equal(t, 0, code, stderr)
+
+	assert.Contains(t, up.calls, "flash/1/testid/index.md")
+	assert.Contains(t, up.calls, "flash/1/testid/index.html")
+	assert.True(t, strings.HasSuffix(strings.TrimSpace(stdout), "/flash/1/testid/"), stdout)
+}

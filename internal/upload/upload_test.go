@@ -101,69 +101,46 @@ func TestUploadFiles_UploaderError(t *testing.T) {
 	assert.Contains(t, stderr.String(), "...failed")
 }
 
-func TestUploadFiles_Index_GeneratesAndUploads(t *testing.T) {
+func TestUploadFiles_Index_NoRender_RedirectsToGeneratedMarkdown(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "report.pdf"), []byte("pdf"), 0600))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("notes"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "report.pdf"), []byte("pdf"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("notes"), 0o600))
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
 	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr)
-	files := res.SourceRelPaths
 	require.NoError(t, err)
 
-	keys := make([]string, len(up.calls))
-	for i, c := range up.calls {
-		keys[i] = c.key
-	}
-	assert.Contains(t, keys, "flash/1/abc/index.html")
+	// with no renderer the listing is published as raw markdown...
+	md := bodyOf(t, up, "flash/1/abc/index.md")
+	assert.Contains(t, md, "[notes.txt](notes.txt)")
+	assert.Contains(t, md, "[report.pdf](report.pdf)")
 
-	// index.html is uploaded with the right content type
-	var indexCall *putCall
-	for i := range up.calls {
-		if up.calls[i].key == "flash/1/abc/index.html" {
-			indexCall = &up.calls[i]
-			break
-		}
-	}
-	require.NotNil(t, indexCall)
-	assert.Contains(t, indexCall.contentType, "text/html")
-	assert.Contains(t, string(indexCall.body), "notes.txt")
-	assert.Contains(t, string(indexCall.body), "report.pdf")
+	// ...and index.html sends the browser to it
+	assert.Contains(t, bodyOf(t, up, "flash/1/abc/index.html"), `location.replace("index.md")`)
 
 	assert.NotContains(t, stderr.String(), "warning")
-
-	// generated index.html is not in the returned file list
-	assert.ElementsMatch(t, []string{"notes.txt", "report.pdf"}, files)
+	assert.Empty(t, res.Entry)
+	// generated pages are not in the returned file list
+	assert.ElementsMatch(t, []string{"notes.txt", "report.pdf"}, res.SourceRelPaths)
 }
 
-func TestUploadFiles_Index_FoldsMarkdownSourceAndSupporting(t *testing.T) {
+func TestUploadFiles_Index_SupportingFilesCollapsed(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello"), 0o600))
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
 	_, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
 	require.NoError(t, err)
 
-	var indexCall *putCall
-	for i := range up.calls {
-		if up.calls[i].key == "flash/1/abc/index.html" {
-			indexCall = &up.calls[i]
-			break
-		}
-	}
-	require.NotNil(t, indexCall, "a generated index.html should be uploaded")
-	s := string(indexCall.body)
+	s := bodyOf(t, up, "flash/1/abc/index.html")
+	// the markdown is folded into its rendered page as the source link
+	assert.Equal(t, 1, strings.Count(s, `<a href="notes.md">`), "the markdown must only appear as the source link, not as its own item")
 
-	// the rendered HTML is the primary entry, with the .md folded in as its source
-	assert.Contains(t, s, `href="notes.html"`)
-	assert.Equal(t, 1, strings.Count(s, `href="notes.md"`), "the markdown must only appear as the source link, not as its own item")
-	assert.Contains(t, s, `class="source"`)
-
-	// shared assets are listed in the supporting section, not the main list
-	assert.Contains(t, s, "Supporting files")
-	assert.Contains(t, s, `href="github-markdown.css"`)
+	// shared assets are listed in a collapsed section, not the main list
+	assert.Regexp(t, `(?s)<details>\s*<summary>Supporting files</summary>.*href="github-markdown.css".*</details>`, s)
+	assert.NotContains(t, s, "<details open")
 }
 
 func TestUploadFiles_Index_SkipsIfExists(t *testing.T) {
@@ -578,4 +555,84 @@ func TestUploadFiles_Readme_NestedReadmeIgnored(t *testing.T) {
 		assert.NotEqual(t, "flash/1/abc/index.html", c.key, "only a README at the upload root gets a redirect")
 	}
 	assert.Equal(t, "docs/README.html", res.Entry)
+}
+
+func TestUploadFiles_Index_RendersGeneratedMarkdownWithTheme(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hello"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "data.csv"), []byte("a,b"), 0o600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	require.NoError(t, err)
+
+	md := bodyOf(t, up, "flash/1/abc/index.md")
+	assert.Contains(t, md, "# Files")
+	assert.Contains(t, md, "[notes.html](notes.html)")
+	assert.Contains(t, md, "[source](notes.md)")
+	assert.Contains(t, md, "[data.csv](data.csv)")
+
+	html := bodyOf(t, up, "flash/1/abc/index.html")
+	assert.Contains(t, html, "dollop-theme-tide.css", "the index is a themed rendered page")
+	assert.Contains(t, html, `href="notes.html"`)
+	assert.Contains(t, html, `href="notes.md"`, "source links are not rewritten to .html")
+
+	assert.Empty(t, res.Entry, "the URL points at the generated index")
+	assert.NotContains(t, res.SourceRelPaths, "index.md", "generated pages are not reported as sources")
+	assert.NotContains(t, stderr.String(), "warning")
+}
+
+func TestUploadFiles_Index_NoRender_ExistingIndexMarkdownSkipsGeneration(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.md"), []byte("# Mine"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Project"), 0o600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	_, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr)
+	require.NoError(t, err)
+
+	assert.Equal(t, "# Mine", bodyOf(t, up, "flash/1/abc/index.md"), "the user's index.md is not replaced")
+	for _, c := range up.calls {
+		assert.NotEqual(t, "flash/1/abc/index.html", c.key, "neither a listing nor a README redirect is generated")
+	}
+	assert.Contains(t, stderr.String(), "warning: index.md already present")
+}
+
+func TestUploadFiles_Index_UploadsAssetsTheIndexPageNeeds(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "data.csv"), []byte("a,b"), 0o600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	require.NoError(t, err)
+
+	// the rendered index needs the page stylesheets even though the upload
+	// itself has no markdown
+	assert.Contains(t, res.WrittenKeys, "flash/1/abc/github-markdown.css")
+	assert.Contains(t, res.WrittenKeys, "flash/1/abc/dollop-theme-tide.css")
+	assert.Equal(t, 1, strings.Count(strings.Join(res.WrittenKeys, "\n"), "github-markdown.css"), "each asset is uploaded once")
+
+	// they serve the index page, so they are not listed as the upload's files
+	assert.NotContains(t, bodyOf(t, up, "flash/1/abc/index.md"), "Supporting files")
+}
+
+func TestUploadFiles_Index_SharedAssetsUploadedOnce(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Hi"), 0o600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	require.NoError(t, err)
+
+	seen := map[string]int{}
+	for _, k := range res.WrittenKeys {
+		seen[k]++
+	}
+	for k, n := range seen {
+		assert.Equal(t, 1, n, "%s written more than once", k)
+	}
 }

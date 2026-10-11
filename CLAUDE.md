@@ -29,7 +29,8 @@ internal/deps/                  fetch/verify/extract/publish the pinned mermaid 
 internal/d2render/              d2 source → SVG (TALA layout); the only package importing d2
 internal/render/                markdown→html rendering, page template, themes (token CSS), mermaid version pin,
                                 optional shared font faces, d2 fence rewriting
-internal/upload/                uploader interface, S3 client, MIME detection, prefix logic
+internal/upload/                uploader interface, S3 client, MIME detection, prefix logic,
+                                entry pages (generated index.md, README redirect)
 ```
 
 The shared mermaid engine lives outside the expiring `flash/` prefixes at

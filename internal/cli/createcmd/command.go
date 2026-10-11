@@ -57,7 +57,7 @@ printed URL points at the README directly.`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:  "index",
-				Usage: "generate and upload an index.html listing all uploaded files (skipped with a warning if index.html already exists)",
+				Usage: "generate an index.md listing all uploaded files, rendered to index.html (skipped with a warning if index.html or index.md already exists, or a README.md redirect applies)",
 			},
 			&cli.BoolFlag{
 				Name:  "no-render",

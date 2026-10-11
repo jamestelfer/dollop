@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"io/fs"
 	"path"
 	"slices"
 	"strings"
@@ -19,28 +20,34 @@ var redirectTmplSrc string
 var redirectTmpl = template.Must(template.New("redirect").Parse(redirectTmplSrc))
 
 // entryPlan is the outcome of deciding how the upload is entered: the
-// generated pages to publish alongside the sources and the relative path the
-// public URL should point at ("" for the prefix root).
+// generated pages to publish alongside the sources, any shared assets those
+// pages need, and the relative path the public URL should point at ("" for the
+// prefix root).
 type entryPlan struct {
 	generated []render.Source
+	assets    []render.SharedAsset
 	entry     string
 }
 
 // planEntry decides which entry page, if any, to generate for sources:
 //
-//  1. an index.html already present is left alone;
+//  1. an index.html or index.md already present is left alone;
 //  2. a README at the upload root gets an index.html redirecting to it, and the
 //     URL points at the README directly;
-//  3. otherwise, when generateIndex is set, an index page listing the sources
-//     (and the shared assets as supporting files) is generated.
-func planEntry(sources []render.Source, assets []render.SharedAsset, generateIndex bool, stderr io.Writer) (entryPlan, error) {
+//  3. otherwise, when generateIndex is set, an index.md listing the sources
+//     (and the shared assets as supporting files) is generated and planned
+//     through renderer with fsys underneath it. When renderer does not turn it
+//     into index.html, an index.html redirecting to index.md is added.
+func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []render.Source, assets []render.SharedAsset, generateIndex bool, stderr io.Writer) (entryPlan, error) {
 	relPaths := relPathsOf(sources)
 
-	if slices.Contains(relPaths, "index.html") {
-		if generateIndex {
-			fmt.Fprintln(stderr, "warning: index.html already present, skipping index generation") //nolint:errcheck
+	for _, existing := range []string{"index.html", "index.md"} {
+		if slices.Contains(relPaths, existing) {
+			if generateIndex {
+				fmt.Fprintf(stderr, "warning: %s already present, skipping index generation\n", existing) //nolint:errcheck
+			}
+			return entryPlan{entry: URLSuffix(relPaths)}, nil
 		}
-		return entryPlan{entry: URLSuffix(relPaths)}, nil
 	}
 
 	if readme, target, ok := findReadme(relPaths); ok {
@@ -62,11 +69,19 @@ func planEntry(sources []render.Source, assets []render.SharedAsset, generateInd
 	for i, a := range assets {
 		supporting[i] = a.Name
 	}
-	html, err := generateIndexHTML(relPaths, supporting)
+	index := overlayFS{base: fsys, name: "index.md", data: generateIndexMarkdown(relPaths, supporting)}
+	generated, genAssets, err := renderer.Plan([]string{index.name}, index, prefix)
 	if err != nil {
-		return entryPlan{}, fmt.Errorf("generate index: %w", err)
+		return entryPlan{}, fmt.Errorf("plan index: %w", err)
 	}
-	return entryPlan{generated: []render.Source{htmlSource("index.html", html)}}, nil
+	if !slices.Contains(relPathsOf(generated), "index.html") {
+		redirect, err := redirectSource(index.name)
+		if err != nil {
+			return entryPlan{}, err
+		}
+		generated = append(generated, redirect)
+	}
+	return entryPlan{generated: generated, assets: genAssets}, nil
 }
 
 // findReadme returns the README at the upload root and the page it is viewed
