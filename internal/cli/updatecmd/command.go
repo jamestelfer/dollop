@@ -45,7 +45,9 @@ written to stderr.
 
 Rendering of .md files, shared assets and the README redirect work
 exactly as in 'create'; use --no-render to disable rendering, --theme
-to choose the page theme, and --index to generate an index page.`,
+to choose the page theme, and --index to generate an index page. An
+index page already published under the prefix is never replaced by a
+generated one; include your own index page to change it.`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:  "index",
@@ -113,7 +115,15 @@ func newAction(uploader upload.SyncUploader, bucket, baseURL string) cli.ActionF
 				"'dollop config auth r2-key <key>', and 'dollop config auth r2-secret <secret>' (or use --copy-dir)", 1)
 		}
 
-		var uploadOpts []upload.UploadOption
+		// Entry pages are planned from the local files, so tell the upload what
+		// is already published: an index page there is never replaced by a
+		// generated one.
+		published, err := upload.PublishedPaths(ctx, activeUploader, bucket, prefix)
+		if err != nil {
+			fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err) //nolint:errcheck
+			return cli.Exit("upload failed", 1)
+		}
+		uploadOpts := []upload.UploadOption{upload.WithPublished(published)}
 		if !noRender {
 			uploadOpts = append(uploadOpts, upload.WithRenderer(render.NewMarkdownRendererWithStderr(cmd.Root().ErrWriter, render.WithTheme(theme))))
 		}

@@ -601,3 +601,30 @@ func TestUploadFiles_NoRender_ExistingIndexMarkdownExtensionIsTheEntry(t *testin
 	assert.Equal(t, "index.markdown", res.Entry)
 	assert.Contains(t, stderr, "warning: index.markdown already present")
 }
+
+func TestUploadFiles_Published_IndexBlocksReadmeRedirect(t *testing.T) {
+	up, res, stderr := uploadTree(t, map[string]string{"README.md": "# Project"}, false,
+		upload.WithRenderer(render.NewMarkdownRenderer()), upload.WithPublished([]string{"index.html", "old.txt"}))
+
+	assert.NotContains(t, keysOf(up), "flash/1/abc/index.html", "the published index.html is not replaced")
+	assert.Contains(t, stderr, "warning: index.html already published, skipping README redirect")
+	assert.Empty(t, res.Entry, "the published index.html serves the root")
+}
+
+func TestUploadFiles_Published_IndexBlocksIndexGeneration(t *testing.T) {
+	up, res, stderr := uploadTree(t, map[string]string{"a.txt": "a"}, true,
+		upload.WithRenderer(render.NewMarkdownRenderer()), upload.WithPublished([]string{"index.md"}))
+
+	assert.NotContains(t, keysOf(up), "flash/1/abc/index.md", "the published index.md is not replaced")
+	assert.NotContains(t, keysOf(up), "flash/1/abc/index.html")
+	assert.Contains(t, stderr, "warning: index.md already published, skipping index generation")
+	assert.Equal(t, "index.md", res.Entry)
+}
+
+func TestUploadFiles_Published_LocalIndexStillUploaded(t *testing.T) {
+	up, res, stderr := uploadTree(t, map[string]string{"index.html": "<h1>new</h1>"}, false, upload.WithPublished([]string{"index.html"}))
+
+	assert.Equal(t, "<h1>new</h1>", bodyOf(t, up, "flash/1/abc/index.html"), "an index page in the upload itself replaces the published one")
+	assert.NotContains(t, stderr, "warning")
+	assert.Empty(t, res.Entry)
+}

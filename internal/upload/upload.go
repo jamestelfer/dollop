@@ -19,7 +19,8 @@ import (
 type FileRenderer = render.Renderer
 
 type uploadOptions struct {
-	renderer FileRenderer
+	renderer  FileRenderer
+	published []string
 }
 
 // UploadOption configures optional behaviour for UploadFiles.
@@ -47,10 +48,20 @@ func WithRenderer(r FileRenderer) UploadOption {
 	}
 }
 
+// WithPublished reports the relative paths already published under the
+// prefix, so a generated entry page never replaces an index page already
+// there. update supplies it; a fresh prefix has nothing published.
+func WithPublished(relPaths []string) UploadOption {
+	return func(o *uploadOptions) {
+		o.published = relPaths
+	}
+}
+
 // UploadFiles uploads localPath (file or directory) to bucket under prefix.
 // Each completed key is written to stderr. Files are uploaded sequentially.
 // After the sources, an entry page may be generated (see planEntry): none when
-// the upload has its own index.html or index.md, an index.html redirecting to
+// the upload has its own index page or one is already published (see
+// WithPublished), an index.html redirecting to
 // a root README, or, when generateIndex is true, an index.md listing the
 // sources, planned through the renderer. A skipped --index is warned about on
 // stderr.
@@ -103,7 +114,7 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 		return nil, fmt.Errorf("plan: %w", err)
 	}
 
-	plan, err := planEntry(renderer, fsys, prefix, sources, sharedAssets, generateIndex, stderr)
+	plan, err := planEntry(renderer, fsys, prefix, sources, sharedAssets, o.published, generateIndex, stderr)
 	if err != nil {
 		return nil, err
 	}

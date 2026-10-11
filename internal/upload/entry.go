@@ -30,36 +30,41 @@ type entryPlan struct {
 
 // planEntry decides which entry page, if any, to generate for sources:
 //
-//  1. an index.html or markdown index already present is left alone, and is the
+//  1. an index.html or markdown index in the upload is left alone, and is the
 //     entry;
-//  2. a README at the upload root gets an index.html redirecting to it, and the
+//  2. an index page already published under the prefix (published holds the
+//     relative paths there) is never replaced: nothing is generated and it is
+//     the entry;
+//  3. a README at the upload root gets an index.html redirecting to it, and the
 //     URL points at the README directly;
-//  3. with no generateIndex, the URL points at the first file;
-//  4. otherwise, when generateIndex is set, an index.md listing the sources
-//     (and the shared assets as supporting files) is generated and planned
-//     through renderer with fsys underneath it. When renderer does not turn it
-//     into index.html, an index.html redirecting to index.md is added.
-func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []render.Source, assets []render.SharedAsset, generateIndex bool, stderr io.Writer) (entryPlan, error) {
+//  4. with no generateIndex, the URL points at the first file;
+//  5. otherwise an index.md listing the sources (and the shared assets as
+//     supporting files) is generated and planned through renderer with fsys
+//     underneath it. When renderer does not turn it into index.html, an
+//     index.html redirecting to index.md is added.
+func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []render.Source, assets []render.SharedAsset, published []string, generateIndex bool, stderr io.Writer) (entryPlan, error) {
 	relPaths := relPathsOf(sources)
 
-	skipIndex := func(existing string) {
+	if existing, entry, ok := findIndexPage(relPaths); ok {
 		if generateIndex {
 			fmt.Fprintf(stderr, "warning: %s already present, skipping index generation\n", existing) //nolint:errcheck
 		}
-	}
-	if slices.Contains(relPaths, "index.html") {
-		skipIndex("index.html")
-		return entryPlan{}, nil
-	}
-	for _, ext := range markdownExts {
-		// unrendered, so linked directly rather than served at the root
-		if existing := "index" + ext; slices.Contains(relPaths, existing) {
-			skipIndex(existing)
-			return entryPlan{entry: existing}, nil
-		}
+		return entryPlan{entry: entry}, nil
 	}
 
-	if readme, target, ok := findReadme(relPaths); ok {
+	readme, target, hasReadme := findReadme(relPaths)
+
+	if existing, entry, ok := findIndexPage(published); ok {
+		switch {
+		case hasReadme:
+			fmt.Fprintf(stderr, "warning: %s already published, skipping README redirect\n", existing) //nolint:errcheck
+		case generateIndex:
+			fmt.Fprintf(stderr, "warning: %s already published, skipping index generation\n", existing) //nolint:errcheck
+		}
+		return entryPlan{entry: entry}, nil
+	}
+
+	if hasReadme {
 		if generateIndex {
 			fmt.Fprintf(stderr, "warning: %s present, index.html redirects to %s instead of listing files\n", readme, target) //nolint:errcheck
 		}
@@ -91,6 +96,21 @@ func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []re
 		generated = append(generated, redirect)
 	}
 	return entryPlan{generated: generated, assets: genAssets}, nil
+}
+
+// findIndexPage returns the index page among relPaths and the URL entry for
+// it: an index.html is served at the prefix root (""), while an unrendered
+// markdown index is linked directly.
+func findIndexPage(relPaths []string) (page, entry string, ok bool) {
+	if slices.Contains(relPaths, "index.html") {
+		return "index.html", "", true
+	}
+	for _, ext := range markdownExts {
+		if page := "index" + ext; slices.Contains(relPaths, page) {
+			return page, page, true
+		}
+	}
+	return "", "", false
 }
 
 // findReadme returns the README at the upload root and the page it is viewed

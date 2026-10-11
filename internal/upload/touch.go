@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 )
 
 // TouchUntouched resets the lifecycle expiry clock on every object under prefix
@@ -36,4 +37,18 @@ func TouchUntouched(ctx context.Context, lister ObjectLister, copier ObjectCopie
 		fmt.Fprintln(stderr, "done") //nolint:errcheck
 	}
 	return nil
+}
+
+// PublishedPaths lists the objects already stored under prefix, as paths
+// relative to it.
+func PublishedPaths(ctx context.Context, lister ObjectLister, bucket, prefix string) ([]string, error) {
+	keys, err := lister.ListObjects(ctx, bucket, prefix)
+	if err != nil {
+		return nil, fmt.Errorf("list objects under %s: %w", prefix, err)
+	}
+	relPaths := make([]string, len(keys))
+	for i, k := range keys {
+		relPaths[i] = strings.TrimPrefix(k, prefix+"/")
+	}
+	return relPaths, nil
 }
