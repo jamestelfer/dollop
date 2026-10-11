@@ -592,3 +592,12 @@ func TestUploadFiles_Index_SharedAssetsUploadedOnce(t *testing.T) {
 		assert.Equal(t, 1, n, "%s written more than once", k)
 	}
 }
+
+func TestUploadFiles_NoRender_ExistingIndexMarkdownExtensionIsTheEntry(t *testing.T) {
+	up, res, stderr := uploadTree(t, map[string]string{"index.markdown": "# Mine", "a.txt": "a"}, true)
+
+	assert.NotContains(t, keysOf(up), "flash/1/abc/index.html", "no listing is generated over the user's index page")
+	assert.NotContains(t, keysOf(up), "flash/1/abc/index.md")
+	assert.Equal(t, "index.markdown", res.Entry)
+	assert.Contains(t, stderr, "warning: index.markdown already present")
+}

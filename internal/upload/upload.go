@@ -49,10 +49,11 @@ func WithRenderer(r FileRenderer) UploadOption {
 
 // UploadFiles uploads localPath (file or directory) to bucket under prefix.
 // Each completed key is written to stderr. Files are uploaded sequentially.
-// A README at the upload root gets a generated index.html redirecting to it.
-// Otherwise, if generateIndex is true and no index.html is present in the
-// upload, a generated index page is uploaded after the sources; if index.html
-// already exists a warning is written to stderr and generation is skipped.
+// After the sources, an entry page may be generated (see planEntry): none when
+// the upload has its own index.html or index.md, an index.html redirecting to
+// a root README, or, when generateIndex is true, an index.md listing the
+// sources, planned through the renderer. A skipped --index is warned about on
+// stderr.
 // A directory is read through an os.Root, so symlinks resolving outside it are
 // skipped with a warning; a single file is read wherever its symlink points.
 // Returns an UploadResult reporting the relative paths of the uploaded sources

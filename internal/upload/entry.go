@@ -30,7 +30,7 @@ type entryPlan struct {
 
 // planEntry decides which entry page, if any, to generate for sources:
 //
-//  1. an index.html or index.md already present is left alone, and is the
+//  1. an index.html or markdown index already present is left alone, and is the
 //     entry;
 //  2. a README at the upload root gets an index.html redirecting to it, and the
 //     URL points at the README directly;
@@ -47,14 +47,16 @@ func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []re
 			fmt.Fprintf(stderr, "warning: %s already present, skipping index generation\n", existing) //nolint:errcheck
 		}
 	}
-	switch {
-	case slices.Contains(relPaths, "index.html"):
+	if slices.Contains(relPaths, "index.html") {
 		skipIndex("index.html")
 		return entryPlan{}, nil
-	case slices.Contains(relPaths, "index.md"):
+	}
+	for _, ext := range markdownExts {
 		// unrendered, so linked directly rather than served at the root
-		skipIndex("index.md")
-		return entryPlan{entry: "index.md"}, nil
+		if existing := "index" + ext; slices.Contains(relPaths, existing) {
+			skipIndex(existing)
+			return entryPlan{entry: existing}, nil
+		}
 	}
 
 	if readme, target, ok := findReadme(relPaths); ok {

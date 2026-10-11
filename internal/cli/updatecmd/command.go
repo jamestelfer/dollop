@@ -44,8 +44,8 @@ written to stderr.
   dollop update keep/happy-cat notes.md
 
 Rendering of .md files, shared assets and the README redirect work
-exactly as in 'create'; use --no-render to disable it, --theme to choose the page theme, and
---index to generate an index page.`,
+exactly as in 'create'; use --no-render to disable rendering, --theme
+to choose the page theme, and --index to generate an index page.`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:  "index",
