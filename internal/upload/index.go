@@ -28,9 +28,14 @@ type indexEntry struct {
 // link rather than appearing as its own top-level item. Files with no such
 // relationship remain plain entries. Order is preserved.
 func buildIndexEntries(files []string) []indexEntry {
-	present := make(map[string]bool, len(files))
+	// markdown files keyed by stem plus lowercased extension: the renderer
+	// accepts any case of extension and always writes a lowercase .html.
+	markdownByKey := make(map[string]string)
 	for _, f := range files {
-		present[f] = true
+		ext := extOf(f)
+		if lower := strings.ToLower(ext); slices.Contains(markdownExts, lower) {
+			markdownByKey[strings.TrimSuffix(f, ext)+lower] = f
+		}
 	}
 
 	// map each rendered HTML to its markdown source, and record which markdown
@@ -43,7 +48,7 @@ func buildIndexEntries(files []string) []indexEntry {
 		}
 		stem := strings.TrimSuffix(f, extOf(f))
 		for _, ext := range markdownExts {
-			if cand := stem + ext; present[cand] {
+			if cand, ok := markdownByKey[stem+ext]; ok {
 				sourceOf[f] = cand
 				folded[cand] = true
 				break
@@ -131,6 +136,7 @@ type indexDir struct {
 	name    string
 	entries []indexEntry
 	dirs    []*indexDir
+	byName  map[string]*indexDir
 	files   int
 	pages   int
 }
@@ -143,12 +149,16 @@ func buildIndexTree(entries []indexEntry) *indexDir {
 		d := root
 		segments := strings.Split(e.Name, "/")
 		for _, seg := range segments[:len(segments)-1] {
-			i := slices.IndexFunc(d.dirs, func(c *indexDir) bool { return c.name == seg })
-			if i < 0 {
-				d.dirs = append(d.dirs, &indexDir{name: seg})
-				i = len(d.dirs) - 1
+			sub, ok := d.byName[seg]
+			if !ok {
+				sub = &indexDir{name: seg}
+				if d.byName == nil {
+					d.byName = make(map[string]*indexDir)
+				}
+				d.byName[seg] = sub
+				d.dirs = append(d.dirs, sub)
 			}
-			d = d.dirs[i]
+			d = sub
 		}
 		d.entries = append(d.entries, e)
 	}

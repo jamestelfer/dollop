@@ -406,14 +406,14 @@ body {
 .markdown-body .file-index li {
   --glyph: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z'/><path d='M14 2v4a2 2 0 0 0 2 2h4'/></svg>");
 }
-.markdown-body .file-index li:has(> a[href$=".html"], > p > a[href$=".html"]) {
+.markdown-body .file-index li:has(> a[href$=".html" i], > p > a[href$=".html" i]) {
   --glyph: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z'/><path d='M14 2v4a2 2 0 0 0 2 2h4'/><path d='M10 9H8'/><path d='M16 13H8'/><path d='M16 17H8'/></svg>");
 }
-.markdown-body .file-index li:has(> a[href$=".html"], > p > a[href$=".html"])::before {
+.markdown-body .file-index li:has(> a[href$=".html" i], > p > a[href$=".html" i])::before {
   background-color: var(--accent);
 }
 /* Supporting files keep the body colour so pages, in the link colour, lead. */
-.markdown-body .file-index a:not([href$=".html"], :has(.md-icon)) {
+.markdown-body .file-index a:not([href$=".html" i], :has(.md-icon)) {
   color: var(--text);
   font-weight: normal;
 }

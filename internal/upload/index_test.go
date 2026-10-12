@@ -30,6 +30,15 @@ func TestGenerateIndexMarkdown_PairsMarkdownSource(t *testing.T) {
 	assert.Contains(t, s, "- [data.json](data.json)\n")
 }
 
+func TestGenerateIndexMarkdown_PairsMarkdownSourceAnyCase(t *testing.T) {
+	// the renderer writes NOTES.MD to NOTES.html
+	s := genIndex(t, []string{"NOTES.MD", "NOTES.html", "b.Markdown", "b.html"}, nil)
+
+	assert.Contains(t, s, "- [NOTES.html](NOTES.html) [::md-icon::](NOTES.MD)\n")
+	assert.Contains(t, s, "- [b.html](b.html) [::md-icon::](b.Markdown)\n")
+	assert.Contains(t, s, `<p class="index-meta">2 files · 2 pages</p>`)
+}
+
 func TestGenerateIndexMarkdown_HTMLWithoutSourceHasNoSourceLink(t *testing.T) {
 	s := genIndex(t, []string{"page.html"}, nil)
 
