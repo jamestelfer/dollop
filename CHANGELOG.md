@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.15.0](https://github.com/jamestelfer/dollop/compare/v1.14.0...v1.15.0) (2026-10-12)
+
+
+### Features
+
+* show the uploaded directory tree in the generated index ([#96](https://github.com/jamestelfer/dollop/issues/96)) ([90d230e](https://github.com/jamestelfer/dollop/commit/90d230ee2bc52b2e847c420746dfc5f581d090c5))
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/aws/smithy-go to v1.28.4 ([#97](https://github.com/jamestelfer/dollop/issues/97)) ([79a39aa](https://github.com/jamestelfer/dollop/commit/79a39aa2ceed89f4e486771061b041b2c27e6643))
+
 ## [1.14.0](https://github.com/jamestelfer/dollop/compare/v1.13.0...v1.14.0) (2026-10-11)
 
 
