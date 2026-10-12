@@ -539,7 +539,7 @@ func TestUploadFiles_Index_RendersGeneratedMarkdownWithTheme(t *testing.T) {
 	up, res, stderr := uploadTree(t, map[string]string{"notes.md": "# Hello", "data.csv": "a,b"}, true, upload.WithRenderer(render.NewMarkdownRenderer()))
 
 	md := bodyOf(t, up, "flash/1/abc/index.md")
-	assert.Contains(t, md, "# Files")
+	assert.Contains(t, md, `<p class="index-meta">2 files · 1 page · expires <time datetime="`)
 	assert.Contains(t, md, "[notes.html](notes.html)")
 	assert.Contains(t, md, "[::md-icon::](notes.md)")
 	assert.Contains(t, md, "[data.csv](data.csv)")
@@ -554,6 +554,39 @@ func TestUploadFiles_Index_RendersGeneratedMarkdownWithTheme(t *testing.T) {
 	assert.Empty(t, res.Entry, "the URL points at the generated index")
 	assert.NotContains(t, res.SourceRelPaths, "index.md", "generated pages are not reported as sources")
 	assert.NotContains(t, stderr, "warning")
+}
+
+func TestUploadFiles_Index_TitledByUploadDirectory(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "q3_review")
+	require.NoError(t, os.MkdirAll(dir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0o600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	_, err := upload.UploadFiles(context.Background(), up, "bucket", "keep/emu.abc.def.ghi", dir, true, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	require.NoError(t, err)
+
+	html := bodyOf(t, up, "keep/emu.abc.def.ghi/index.html")
+	assert.Contains(t, html, "<title>q3_review</title>", "the page title comes from the frontmatter, unescaped")
+	assert.Contains(t, html, `<p class="index-meta">1 file · permanent</p>`)
+}
+
+func TestUploadFiles_Index_RendersDirectoryTree(t *testing.T) {
+	up, _, _ := uploadTree(t, map[string]string{
+		"top.txt":           "t",
+		"docs/guide.md":     "# Guide",
+		"docs/img/logo.png": "png",
+	}, true, upload.WithRenderer(render.NewMarkdownRenderer()))
+
+	html := bodyOf(t, up, "flash/1/abc/index.html")
+	// each directory is a <details> inside its own list item, holding the
+	// nested list as rendered markdown rather than raw text.
+	assert.Regexp(t, `(?s)<div class="file-index">\s*<ul>\s*<li>\s*<p><a href="top.txt">top.txt</a></p>\s*</li>\s*`+
+		`<li>\s*<details open="">\s*<summary>docs/ <small>2 files</small></summary>\s*<ul>\s*`+
+		`<li>\s*<p><a href="docs/guide.html">guide.html</a> <a href="docs/guide.md"><svg[^>]*>.*?</svg></a></p>\s*</li>\s*`+
+		`<li>\s*<details>\s*<summary>img/ <small>1 file</small></summary>\s*<ul>\s*`+
+		`<li><a href="docs/img/logo.png">logo.png</a></li>\s*</ul>\s*</details>\s*</li>\s*`+
+		`</ul>\s*</details>\s*</li>\s*</ul>\s*</div>`, html)
 }
 
 func TestUploadFiles_Index_NoRender_ExistingIndexMarkdownSkipsGeneration(t *testing.T) {
