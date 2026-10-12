@@ -35,7 +35,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.4 // indirect
-	github.com/aws/smithy-go v1.28.3 // indirect
+	github.com/aws/smithy-go v1.28.4 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/d2lang/dagro v0.2.1 // indirect
 	github.com/d2lang/elk-go v0.2.0 // indirect
