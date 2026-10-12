@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"time"
 
 	"github.com/jamestelfer/dollop/internal/render"
 )
@@ -114,7 +115,8 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 		return nil, fmt.Errorf("plan: %w", err)
 	}
 
-	plan, err := planEntry(renderer, fsys, prefix, sources, sharedAssets, o.published, generateIndex, stderr)
+	heading := indexHeading{Title: uploadTitle(localPath), Lifetime: lifetimeOf(prefix, time.Now())}
+	plan, err := planEntry(renderer, fsys, prefix, sources, sharedAssets, o.published, generateIndex, heading, stderr)
 	if err != nil {
 		return nil, err
 	}
@@ -125,6 +127,15 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 	}
 
 	return &UploadResult{SourceRelPaths: relPathsOf(sources), Entry: plan.entry, WrittenKeys: writtenKeys}, nil
+}
+
+// uploadTitle names the upload at localPath for its index page: the base name
+// of the directory or file, resolved first so "." names the directory itself.
+func uploadTitle(localPath string) string {
+	if abs, err := filepath.Abs(localPath); err == nil {
+		localPath = abs
+	}
+	return filepath.Base(localPath)
 }
 
 // mergeAssets returns a followed by the assets of b not already in a, by name.

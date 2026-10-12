@@ -38,11 +38,11 @@ type entryPlan struct {
 //  3. a README at the upload root gets an index.html redirecting to it, and the
 //     URL points at the README directly;
 //  4. with no generateIndex, the URL points at the first file;
-//  5. otherwise an index.md listing the sources (and the shared assets as
-//     supporting files) is generated and planned through renderer with fsys
+//  5. otherwise an index.md listing the sources under heading (and the shared
+//     assets as supporting files) is generated and planned through renderer with fsys
 //     underneath it. When renderer does not turn it into index.html, an
 //     index.html redirecting to index.md is added.
-func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []render.Source, assets []render.SharedAsset, published []string, generateIndex bool, stderr io.Writer) (entryPlan, error) {
+func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []render.Source, assets []render.SharedAsset, published []string, generateIndex bool, heading indexHeading, stderr io.Writer) (entryPlan, error) {
 	relPaths := relPathsOf(sources)
 
 	if existing, entry, ok := findIndexPage(relPaths); ok {
@@ -83,7 +83,11 @@ func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []re
 	for i, a := range assets {
 		supporting[i] = a.Name
 	}
-	index := overlayFS{base: fsys, name: "index.md", data: generateIndexMarkdown(relPaths, supporting)}
+	listing, err := generateIndexMarkdown(heading, relPaths, supporting)
+	if err != nil {
+		return entryPlan{}, err
+	}
+	index := overlayFS{base: fsys, name: "index.md", data: listing}
 	generated, genAssets, err := renderer.Plan([]string{index.name}, index, prefix)
 	if err != nil {
 		return entryPlan{}, fmt.Errorf("plan index: %w", err)
