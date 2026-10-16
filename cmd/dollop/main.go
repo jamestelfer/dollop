@@ -13,6 +13,7 @@ import (
 	"github.com/jamestelfer/dollop/internal/cli/createcmd"
 	"github.com/jamestelfer/dollop/internal/cli/depscmd"
 	"github.com/jamestelfer/dollop/internal/cli/doctorcmd"
+	"github.com/jamestelfer/dollop/internal/cli/getcmd"
 	"github.com/jamestelfer/dollop/internal/cli/updatecmd"
 	"github.com/jamestelfer/dollop/internal/config"
 	"github.com/jamestelfer/dollop/internal/deps"
@@ -78,6 +79,7 @@ func run(ctx context.Context, args []string) error {
 	// reachability check used only by doctor.
 	var client upload.SyncUploader
 	var lister upload.BucketLister
+	var reader upload.ObjectReader
 	if cfg.AccountID != "" && accessKey != "" && secretKey != "" {
 		s3up, s3err := upload.NewS3Uploader(cfg.AccountID, accessKey, secretKey)
 		if s3err != nil {
@@ -85,6 +87,7 @@ func run(ctx context.Context, args []string) error {
 		}
 		client = s3up
 		lister = s3up
+		reader = s3up
 	}
 
 	cfgCmd := configcmd.New(kr, pt, cfgPath)
@@ -102,6 +105,7 @@ func run(ctx context.Context, args []string) error {
 		cfg.Bucket,
 		cfg.BaseURL,
 	)
+	getCmd := getcmd.New(reader, cfg.Bucket, cfg.BaseURL)
 	doctorCmd := doctorcmd.New(
 		cfg,
 		cfgPath,
@@ -154,8 +158,9 @@ First-time setup (run once):
 Quick start:
   dollop create photo.jpg              # share a file; link expires in 1 day
   dollop create --days 7 archive.zip   # share a file; link expires in 7 days
-  dollop create --keep project/        # share a directory with a permanent link`,
-		Commands: []*cli.Command{&cfgCmd, &createCmd, &updateCmd, &doctorCmd, &depsCmd},
+  dollop create --keep project/        # share a directory with a permanent link
+  dollop get <url> downloads/          # download an upload`,
+		Commands: []*cli.Command{&cfgCmd, &createCmd, &updateCmd, &getCmd, &doctorCmd, &depsCmd},
 	}
 	return app.Run(ctx, args)
 }

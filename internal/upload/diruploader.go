@@ -77,6 +77,24 @@ func (d *DirUploader) ReadObjectHead(_ context.Context, _, key string, n int64) 
 	return data, nil
 }
 
+// GetObject opens the file at key and returns it with its size. A missing
+// file (or a directory) wraps ErrObjectNotFound, as a missing R2 object does.
+func (d *DirUploader) GetObject(_ context.Context, _, key string) (io.ReadCloser, int64, error) {
+	path := filepath.Join(d.Root, filepath.FromSlash(key))
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		if err == nil || os.IsNotExist(err) {
+			return nil, 0, fmt.Errorf("get %s: %w", key, ErrObjectNotFound)
+		}
+		return nil, 0, fmt.Errorf("get %s: %w", key, err)
+	}
+	f, err := os.Open(path) //nolint:gosec // key is a bucket key under Root, as in PutObject
+	if err != nil {
+		return nil, 0, fmt.Errorf("get %s: %w", key, err)
+	}
+	return f, info.Size(), nil
+}
+
 // CopyObject is the DirUploader equivalent of an R2 self-copy touch: it advances
 // the modification time of the file at key without altering its contents, so an
 // integration round-trip can observe the lifecycle clock reset. A missing key is

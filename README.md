@@ -163,6 +163,25 @@ A `README.md` at the top of the upload or prefix wins over a listing and gets a
 redirect instead, and an index page in the uploaded `<path>` is always
 published as-is. `--index` and `--index-overwrite` cannot be combined.
 
+### Downloading an upload
+
+`dollop get <url-or-path> [target-dir]` downloads from a single upload into
+`target-dir` (default: the current directory). The reference is the URL
+printed by `create`, or a bare `flash/<days>/<id>` or `keep/<name>` path,
+optionally followed by a path inside the upload:
+
+```
+dollop get https://cdn.example.com/flash/7/v8p2xkqj3m/   # whole upload
+dollop get flash/7/v8p2xkqj3m/docs out/                  # one directory
+dollop get keep/happy-cat/report.pdf                     # one file
+```
+
+Objects are downloaded exactly as stored, including rendered `.html` pages.
+Only a single upload can be fetched: other prefixes, the bucket root, and
+paths with empty, `.` or `..` segments are refused. Existing files are never
+overwritten without `--force`, and all targets are checked before anything is
+downloaded.
+
 ### Markdown source icons
 
 Use `::md-icon::` to insert a Markdown source icon. Wrap it
