@@ -289,6 +289,12 @@ body {
 
 .markdown-body a.d2 img { max-width: 100%; height: auto; }
 
+.markdown-body pre.mermaid {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
 /* Alerts: tinted box in place of the left bar. */
 .markdown-body .markdown-alert {
   --alert-tint: var(--border);
