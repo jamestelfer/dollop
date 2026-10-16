@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.0](https://github.com/jamestelfer/dollop/compare/v1.16.0...v1.17.0) (2026-10-16)
+
+
+### Features
+
+* add get command to download an upload ([#104](https://github.com/jamestelfer/dollop/issues/104)) ([bd12aab](https://github.com/jamestelfer/dollop/commit/bd12aabc3710c57be4ecf6a54a219c08b330de6f))
+
 ## [1.16.0](https://github.com/jamestelfer/dollop/compare/v1.15.0...v1.16.0) (2026-10-16)
 
 
