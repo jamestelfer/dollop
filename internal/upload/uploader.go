@@ -79,3 +79,18 @@ var ErrObjectNotFound = errors.New("object not found")
 type ObjectHeadReader interface {
 	ReadObjectHead(ctx context.Context, bucket, key string, n int64) ([]byte, error)
 }
+
+// ObjectGetter reads a whole object, returning its body and size in bytes. The
+// caller must close the body. A missing key returns an error wrapping
+// ErrObjectNotFound.
+type ObjectGetter interface {
+	GetObject(ctx context.Context, bucket, key string) (io.ReadCloser, int64, error)
+}
+
+// ObjectReader is the capability set the get command depends on: list the keys
+// under a prefix and read whole objects. Both S3Uploader and DirUploader
+// satisfy it.
+type ObjectReader interface {
+	ObjectLister
+	ObjectGetter
+}

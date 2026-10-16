@@ -97,6 +97,22 @@ func (u *S3Uploader) ReadObjectHead(ctx context.Context, bucket, key string, n i
 	return data, nil
 }
 
+// GetObject returns the body and size of key. The caller must close the body.
+// A missing key wraps ErrObjectNotFound.
+func (u *S3Uploader) GetObject(ctx context.Context, bucket, key string) (io.ReadCloser, int64, error) {
+	out, err := u.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		if _, ok := errors.AsType[*types.NoSuchKey](err); ok {
+			return nil, 0, fmt.Errorf("get %s in bucket %s: %w", key, bucket, ErrObjectNotFound)
+		}
+		return nil, 0, fmt.Errorf("failed to get %s in bucket %s: %w", key, bucket, err)
+	}
+	return out.Body, aws.ToInt64(out.ContentLength), nil
+}
+
 // CopyObject touches key in bucket by self-copying it in place with
 // MetadataDirective COPY, preserving its content and metadata while resetting
 // its modification time (and thus the R2 lifecycle expiry clock). A successful
