@@ -56,12 +56,34 @@ and the stylesheet never blocks rendering. */}}
   </picture></a>
 </header>
 <div class="page-content">
+{{- with .TOC}}
+<details class="page-toc-inline">
+<summary>On this page</summary>
+{{template "toc-list" .}}
+</details>
+{{- end}}
 <div class="markdown-body">
 {{.Body}}
 </div>
 </div>
+{{- with .TOC}}
+<aside class="page-toc-column">
+<nav class="page-toc" aria-label="On this page">
+<p class="page-toc-title">On this page</p>
+<div class="page-toc-track">
+{{template "toc-list" .}}
+</div>
+</nav>
+</aside>
+<script src="{{$.TOCScriptPath}}" defer></script>
+{{- end}}
 {{- if .MermaidScript}}
 {{.MermaidScript}}
 {{- end}}
 </body>
 </html>
+{{define "toc-list"}}<ul class="page-toc-list">
+{{- range .}}
+<li><a class="page-toc-link" href="#{{.ID}}" data-depth="{{.Depth}}">{{.Text}}</a></li>
+{{- end}}
+</ul>{{end}}

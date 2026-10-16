@@ -364,6 +364,10 @@ func (m *markdownRenderer) renderMarkdownFile(fsys fs.FS, relPath, prefix string
 		FaviconPath:      assetRef(depthPrefix, "dollop-favicon.svg"),
 		Body:             template.HTML(sanitizeMarkdownHTML(bodyBuf.String())), //nolint:gosec
 		SourcePath:       filepath.Base(relPath),
+		TOC:              tableOfContents(doc, src),
+	}
+	if data.TOC != nil {
+		data.TOCScriptPath = assetRef(depthPrefix, "dollop-toc.js")
 	}
 	if m.theme.sharedFont {
 		data.FontFaceCSS = fontFaceCSS(bucketRootPath(prefix, relPath))
