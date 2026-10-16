@@ -26,6 +26,12 @@ var dollopMarkdownCSS []byte
 //go:embed assets/highlight-github.css
 var highlightGithubCSS []byte
 
+// Animates the "On this page" track; the clerk style is adapted from
+// Fumadocs (MIT).
+//
+//go:embed assets/dollop-toc.js
+var dollopTOCJS []byte
+
 //go:embed assets/dollop-light.svg
 var dollopLightSVG []byte
 
@@ -51,6 +57,7 @@ var sharedAssets = []SharedAsset{
 	{Name: "github-markdown.css", ContentType: "text/css; charset=utf-8", Content: githubMarkdownCSS},
 	{Name: "dollop-markdown.css", ContentType: "text/css; charset=utf-8", Content: dollopMarkdownCSS},
 	{Name: "highlight-github.css", ContentType: "text/css; charset=utf-8", Content: highlightGithubCSS},
+	{Name: "dollop-toc.js", ContentType: "text/javascript; charset=utf-8", Content: dollopTOCJS},
 	{Name: "dollop-light.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopLightSVG},
 	{Name: "dollop-dark.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopDarkSVG},
 	{Name: "dollop-favicon.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopFaviconSVG},

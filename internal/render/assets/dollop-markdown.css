@@ -423,3 +423,103 @@ body {
   color: var(--text);
   font-weight: normal;
 }
+
+/*
+ * "On this page". Narrow viewports get a collapsible list above the content;
+ * wide ones a fixed column beside it, where dollop-toc.js draws the clerk-style
+ * track (adapted from Fumadocs, MIT). Without the script the column is a plain
+ * indented list.
+ */
+html {
+  scroll-padding-top: 3.5rem; /* clear the fixed header on fragment jumps */
+}
+.page-toc-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.page-toc-link {
+  display: block;
+  padding: 0.25rem 0;
+  color: var(--text-muted);
+  line-height: 1.4;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  transition: color 0.15s ease-in-out;
+}
+.page-toc-link:hover,
+.page-toc-link.active {
+  color: var(--text);
+}
+
+.page-toc-inline {
+  margin-bottom: 2rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--body-face);
+  font-size: 0.875rem;
+}
+.page-toc-inline summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.page-toc-inline .page-toc-list { margin-top: 0.5rem; }
+.page-toc-inline .page-toc-link[data-depth="3"] { padding-left: 0.75rem; }
+.page-toc-inline .page-toc-link[data-depth="4"] { padding-left: 1.5rem; }
+
+.page-toc-column { display: none; }
+
+@media (min-width: 80rem) {
+  .page-toc-inline { display: none; }
+  /* Sits in the right gutter, clear of the 46rem content column. */
+  .page-toc-column {
+    display: block;
+    position: fixed;
+    top: 4.5rem;
+    left: calc(50% + 24.5rem);
+    width: 14rem;
+    max-height: calc(100vh - 6.5rem);
+    overflow-y: auto;
+    font-family: var(--body-face);
+    font-size: 0.8125rem;
+  }
+}
+.page-toc-title {
+  margin: 0 0 0.5rem;
+  color: var(--text);
+  font-weight: 600;
+}
+/* dollop-toc.js moves the thumb by setting these on the track. */
+.page-toc-track {
+  --track-top: 0px;
+  --track-bottom: 0px;
+  position: relative;
+}
+/* Each depth's text sits 12px past its line (see lineOffset in dollop-toc.js). */
+.page-toc .page-toc-link { padding-left: 20px; }
+.page-toc .page-toc-link[data-depth="3"] { padding-left: 32px; }
+.page-toc .page-toc-link[data-depth="4"] { padding-left: 44px; }
+.page-toc-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.page-toc-line-base path { stroke: var(--border); }
+.page-toc-line-thumb path { stroke: var(--accent); }
+.page-toc-line-thumb {
+  clip-path: polygon(
+    0 var(--track-top), 100% var(--track-top),
+    100% var(--track-bottom), 0 var(--track-bottom)
+  );
+}
+.page-toc-track.ready .page-toc-line-thumb {
+  transition: clip-path 0.25s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-toc-link,
+  .page-toc-track.ready .page-toc-line-thumb { transition: none; }
+}

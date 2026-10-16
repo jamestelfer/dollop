@@ -38,6 +38,10 @@ type pageData struct {
 	FaviconPath    string
 	Body           template.HTML
 	SourcePath     string
+	// TOC lists the page's h2–h4 headings, or is nil when the page has too few
+	// for an "On this page" widget; TOCScriptPath animates it.
+	TOC           []tocEntry
+	TOCScriptPath string
 }
 
 func renderTemplate(data pageData) ([]byte, error) {

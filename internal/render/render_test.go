@@ -747,11 +747,12 @@ func TestMarkdownRenderer_CSSPathRootLevel(t *testing.T) {
 // TestMarkdownRenderer_SharedAssetsVersioned verifies every per-prefix shared
 // asset is referenced with a ?v= query derived from its content. The assets
 // are served with a long max-age under fixed names, so without the version an
-// update that changes them is masked by edge and browser caches.
+// update that changes them is masked by edge and browser caches. The page has
+// enough headings for a TOC, so it references the TOC script too.
 func TestMarkdownRenderer_SharedAssetsVersioned(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "sub"), 0o700))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "sub", "page.md"), []byte("Hello"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "sub", "page.md"), []byte("## One\n\n## Two\n"), 0o600))
 
 	r := render.NewMarkdownRenderer()
 	sources, assets, err := r.Plan([]string{"sub/page.md"}, rootFS(t, dir), "flash/1/testid")
