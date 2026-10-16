@@ -2,6 +2,7 @@ package upload
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -71,6 +72,29 @@ func (u *S3Uploader) ListObjects(ctx context.Context, bucket, prefix string) ([]
 		}
 	}
 	return keys, nil
+}
+
+// ReadObjectHead returns up to n bytes from the start of key with a ranged
+// GetObject, reading no further than n even if the server ignores the range.
+// A missing key wraps ErrObjectNotFound.
+func (u *S3Uploader) ReadObjectHead(ctx context.Context, bucket, key string, n int64) ([]byte, error) {
+	out, err := u.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+		Range:  aws.String(fmt.Sprintf("bytes=0-%d", n-1)),
+	})
+	if err != nil {
+		if _, ok := errors.AsType[*types.NoSuchKey](err); ok {
+			return nil, fmt.Errorf("read %s in bucket %s: %w", key, bucket, ErrObjectNotFound)
+		}
+		return nil, fmt.Errorf("failed to read %s in bucket %s: %w", key, bucket, err)
+	}
+	defer out.Body.Close() //nolint:errcheck
+	data, err := io.ReadAll(io.LimitReader(out.Body, n))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %s in bucket %s: %w", key, bucket, err)
+	}
+	return data, nil
 }
 
 // CopyObject touches key in bucket by self-copying it in place with

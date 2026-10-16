@@ -173,5 +173,8 @@ func allowedSVGLink(element, href string) bool {
 // across pages resolves to one object.
 func d2AssetName(src []byte) string {
 	sum := sha256.Sum256(src)
-	return "d2/" + hex.EncodeToString(sum[:])[:12] + ".svg"
+	return "d2/" + hex.EncodeToString(sum[:])[:d2HashLen] + ".svg"
 }
+
+// d2HashLen is the number of hex digits of content hash in a d2 asset name.
+const d2HashLen = 12

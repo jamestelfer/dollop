@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -41,6 +43,10 @@ func (f *fakeUploader) ListObjects(_ context.Context, _, _ string) ([]string, er
 
 func (f *fakeUploader) CopyObject(_ context.Context, _, _ string) error { return nil }
 
+func (f *fakeUploader) ReadObjectHead(_ context.Context, _, key string, _ int64) ([]byte, error) {
+	return nil, fmt.Errorf("%s: %w", key, upload.ErrObjectNotFound)
+}
+
 var (
 	_ upload.SyncUploader = (*fakeUploader)(nil)
 	_ upload.SyncUploader = (*fakeFullUploader)(nil)
@@ -50,9 +56,11 @@ var (
 // flash/ touch pass can be exercised. existing seeds objects already under the
 // prefix; ListObjects reports those plus everything PutObject wrote this run.
 type fakeFullUploader struct {
-	existing []string // pre-existing keys under the prefix
-	put      []string // keys written this run
-	copied   []string // keys touched (self-copied)
+	existing []string          // pre-existing keys under the prefix
+	contents map[string]string // bodies of pre-existing keys; others read as empty
+	readErr  error             // returned by ReadObjectHead when set
+	put      []string          // keys written this run
+	copied   []string          // keys touched (self-copied)
 	copyErr  error
 }
 
@@ -72,6 +80,17 @@ func (f *fakeFullUploader) ListObjects(_ context.Context, _, _ string) ([]string
 		keys = append(keys, k)
 	}
 	return keys, nil
+}
+
+func (f *fakeFullUploader) ReadObjectHead(_ context.Context, _, key string, n int64) ([]byte, error) {
+	if f.readErr != nil {
+		return nil, f.readErr
+	}
+	if !slices.Contains(f.existing, key) {
+		return nil, fmt.Errorf("%s: %w", key, upload.ErrObjectNotFound)
+	}
+	body := f.contents[key]
+	return []byte(body[:min(int64(len(body)), n)]), nil
 }
 
 func (f *fakeFullUploader) CopyObject(_ context.Context, _, key string) error {
@@ -374,4 +393,76 @@ func TestUpdate_Index_KeepsPublishedIndex(t *testing.T) {
 	assert.NotContains(t, up.put, "keep/site/index.md")
 	assert.NotContains(t, up.put, "keep/site/index.html")
 	assert.Contains(t, stderr, "index.md already published, skipping index generation")
+}
+
+func TestUpdate_IndexOverwrite_ReplacesPublishedIndex(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0o600))
+
+	up := &fakeFullUploader{existing: []string{"keep/site/index.md", "keep/site/index.html", "keep/site/old.txt"}}
+	stdout, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", "--index-overwrite", "keep/site", dir)
+	require.Equal(t, 0, code, stderr)
+
+	assert.Contains(t, up.put, "keep/site/index.md")
+	assert.Contains(t, up.put, "keep/site/index.html")
+	assert.NotContains(t, stderr, "warning")
+	assert.Equal(t, "https://drop.example.com/keep/site/", strings.TrimSpace(stdout))
+}
+
+func TestUpdate_IndexAndIndexOverwrite_MutuallyExclusive(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0o600))
+
+	up := &fakeFullUploader{}
+	_, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", "--index", "--index-overwrite", "keep/site", dir)
+
+	assert.NotEqual(t, 0, code)
+	assert.Contains(t, stderr, "option index cannot be set along with option index-overwrite")
+	assert.Empty(t, up.put, "nothing is uploaded")
+}
+
+const markedListing = "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"dollop-generated\" content=\"listing\">\n"
+
+func TestUpdate_GeneratedListing_RefreshedWithoutFlag(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0o600))
+
+	up := &fakeFullUploader{
+		existing: []string{"keep/site/index.html", "keep/site/index.md", "keep/site/old.txt"},
+		contents: map[string]string{"keep/site/index.html": markedListing, "keep/site/index.md": "---\ntitle: Site\n---\n"},
+	}
+	stdout, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", "keep/site", dir)
+	require.Equal(t, 0, code, stderr)
+
+	assert.Contains(t, up.put, "keep/site/index.html", "the generated listing is refreshed")
+	assert.Contains(t, up.put, "keep/site/index.md")
+	assert.NotContains(t, stderr, "warning")
+	assert.Equal(t, "https://drop.example.com/keep/site/", strings.TrimSpace(stdout))
+}
+
+func TestUpdate_UserIndex_KeptWithoutFlag(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0o600))
+
+	up := &fakeFullUploader{
+		existing: []string{"keep/site/index.html"},
+		contents: map[string]string{"keep/site/index.html": "<h1>mine</h1>"},
+	}
+	_, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", "--index", "keep/site", dir)
+	require.Equal(t, 0, code, stderr)
+
+	assert.NotContains(t, up.put, "keep/site/index.html")
+	assert.Contains(t, stderr, "use --index-overwrite")
+}
+
+func TestUpdate_IndexInspectionFailure_NonZeroExit(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0o600))
+
+	up := &fakeFullUploader{existing: []string{"keep/site/index.html"}, readErr: errors.New("access denied")}
+	_, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", "keep/site", dir)
+
+	assert.NotEqual(t, 0, code)
+	assert.Contains(t, stderr, "access denied")
+	assert.Empty(t, up.put, "nothing is uploaded when provenance cannot be read")
 }

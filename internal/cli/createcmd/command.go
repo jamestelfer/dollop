@@ -100,7 +100,10 @@ printed URL points at the README directly.`,
 
 			days := cmd.Int("days")
 			keep := cmd.Bool("keep")
-			genIndex := cmd.Bool("index")
+			genIndex := upload.IndexNone
+			if cmd.Bool("index") {
+				genIndex = upload.IndexGenerate
+			}
 			noRender := cmd.Bool("no-render")
 			copyDir := cmd.String("copy-dir")
 			localPath := cmd.Args().Get(0)

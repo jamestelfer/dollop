@@ -47,7 +47,7 @@ func TestUploadFiles_SingleFile(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	res, err := upload.UploadFiles(context.Background(), up, "my-bucket", "dollop/1/abc", path, false, &stderr)
+	res, err := upload.UploadFiles(context.Background(), up, "my-bucket", "dollop/1/abc", path, upload.IndexNone, &stderr)
 	files := res.SourceRelPaths
 	require.NoError(t, err)
 
@@ -69,7 +69,7 @@ func TestUploadFiles_Directory(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "keep/friendly-cat", dir, false, &stderr)
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "keep/friendly-cat", dir, upload.IndexNone, &stderr)
 	files := res.SourceRelPaths
 	require.NoError(t, err)
 
@@ -95,14 +95,14 @@ func TestUploadFiles_UploaderError(t *testing.T) {
 
 	up := &fakeUploader{err: assert.AnError}
 	var stderr bytes.Buffer
-	_, err := upload.UploadFiles(context.Background(), up, "b", "p", filepath.Join(dir, "file.bin"), false, &stderr)
+	_, err := upload.UploadFiles(context.Background(), up, "b", "p", filepath.Join(dir, "file.bin"), upload.IndexNone, &stderr)
 	assert.Error(t, err)
 	assert.Contains(t, stderr.String(), "uploading [file.bin]")
 	assert.Contains(t, stderr.String(), "...failed")
 }
 
 func TestUploadFiles_Index_NoRender_RedirectsToGeneratedMarkdown(t *testing.T) {
-	up, res, stderr := uploadTree(t, map[string]string{"report.pdf": "pdf", "notes.txt": "notes"}, true)
+	up, res, stderr := uploadTree(t, map[string]string{"report.pdf": "pdf", "notes.txt": "notes"}, upload.IndexGenerate)
 
 	// with no renderer the listing is published as raw markdown...
 	md := bodyOf(t, up, "flash/1/abc/index.md")
@@ -119,7 +119,7 @@ func TestUploadFiles_Index_NoRender_RedirectsToGeneratedMarkdown(t *testing.T) {
 }
 
 func TestUploadFiles_Index_SupportingFilesCollapsed(t *testing.T) {
-	up, _, _ := uploadTree(t, map[string]string{"notes.md": "# Hello"}, true, upload.WithRenderer(render.NewMarkdownRenderer()))
+	up, _, _ := uploadTree(t, map[string]string{"notes.md": "# Hello"}, upload.IndexGenerate, upload.WithRenderer(render.NewMarkdownRenderer()))
 
 	s := bodyOf(t, up, "flash/1/abc/index.html")
 	// the markdown is folded into its rendered page as the source link
@@ -137,7 +137,7 @@ func TestUploadFiles_Index_SkipsIfExists(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/xyz", dir, true, &stderr)
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/xyz", dir, upload.IndexGenerate, &stderr)
 	files := res.SourceRelPaths
 	require.NoError(t, err)
 
@@ -155,7 +155,7 @@ func TestUploadFiles_Index_SingleFile_IsIndex(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/xyz", path, true, &stderr)
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/xyz", path, upload.IndexGenerate, &stderr)
 	files := res.SourceRelPaths
 	require.NoError(t, err)
 
@@ -172,7 +172,7 @@ func TestUploadFiles_Render_MermaidEngineNotUploadedPerPrefix(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	_, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	_, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
 	require.NoError(t, err)
 
 	// The mermaid engine is now shared under deps/mermaid/<v>/ and referenced by
@@ -189,7 +189,7 @@ func TestUploadFiles_Render_SharedAssetsUploadedOnce(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
 	files := res.SourceRelPaths
 	require.NoError(t, err)
 
@@ -216,7 +216,7 @@ func TestUploadFiles_WrittenKeys_CoverSourcesAssetsAndIndex(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/7/abc", dir, true, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/7/abc", dir, upload.IndexGenerate, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
 	require.NoError(t, err)
 
 	// Every PutObject key — sources, rendered HTML, shared assets, generated
@@ -239,7 +239,7 @@ func TestUploadFiles_Render_IndexMdSetsHasIndex(t *testing.T) {
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
 	// generateIndex=true so we can observe the hasIndex collision warning
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, true, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexGenerate, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
 	files := res.SourceRelPaths
 	require.NoError(t, err)
 
@@ -258,7 +258,7 @@ func TestUploadFiles_Render_MarkdownProducesHTML(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
 	files := res.SourceRelPaths
 	require.NoError(t, err)
 
@@ -282,7 +282,7 @@ func TestUploadFiles_Render_NoRender_SkipsHTML(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr)
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, &stderr)
 	files := res.SourceRelPaths
 	require.NoError(t, err)
 
@@ -324,7 +324,7 @@ func TestUploadFiles_Directory_SkipsSymlinkOutsideRoot(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr)
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, &stderr)
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{"flash/1/abc/keep.txt"}, uploadedKeys(up))
@@ -341,7 +341,7 @@ func TestUploadFiles_Directory_FollowsSymlinkInsideRoot(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	_, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr)
+	_, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, &stderr)
 	require.NoError(t, err)
 
 	bodies := map[string]string{}
@@ -364,7 +364,7 @@ func TestUploadFiles_Directory_OmitsSymlinkToDirectory(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr)
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, &stderr)
 	require.NoError(t, err)
 
 	assert.ElementsMatch(t, []string{"keep.txt", "sub/data.json"}, res.SourceRelPaths)
@@ -376,7 +376,7 @@ func TestUploadFiles_Render_SkipsMarkdownSymlinkOutsideRoot(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	_, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	_, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
 	require.NoError(t, err)
 
 	keys := uploadedKeys(up)
@@ -393,7 +393,7 @@ func TestUploadFiles_SingleFile_FollowsSymlink(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", link, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", link, upload.IndexNone, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
 	require.NoError(t, err)
 
 	assert.ElementsMatch(t, []string{"some-link.md", "some-link.html"}, res.SourceRelPaths)
@@ -411,7 +411,7 @@ func TestUploadFiles_NilUploader_ReturnsError(t *testing.T) {
 
 	var stderr bytes.Buffer
 	// A nil Uploader must produce an error, not a nil pointer panic.
-	_, err := upload.UploadFiles(context.Background(), nil, "b", "p", path, false, &stderr)
+	_, err := upload.UploadFiles(context.Background(), nil, "b", "p", path, upload.IndexNone, &stderr)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "uploader")
 }
@@ -439,7 +439,7 @@ func TestHumanSize(t *testing.T) {
 // uploadTree writes files (slash-separated relative path → content) to a temp
 // directory, uploads it to flash/1/abc, and returns the uploader, the result
 // and what was written to stderr.
-func uploadTree(t *testing.T, files map[string]string, index bool, opts ...upload.UploadOption) (*fakeUploader, *upload.UploadResult, string) {
+func uploadTree(t *testing.T, files map[string]string, index upload.IndexMode, opts ...upload.UploadOption) (*fakeUploader, *upload.UploadResult, string) {
 	t.Helper()
 	dir := t.TempDir()
 	for rel, content := range files {
@@ -477,7 +477,7 @@ func bodyOf(t *testing.T, up *fakeUploader, key string) string {
 }
 
 func TestUploadFiles_Readme_RedirectsIndexToRenderedReadme(t *testing.T) {
-	up, res, _ := uploadTree(t, map[string]string{"README.md": "# Project", "notes.txt": "notes"}, false, upload.WithRenderer(render.NewMarkdownRenderer()))
+	up, res, _ := uploadTree(t, map[string]string{"README.md": "# Project", "notes.txt": "notes"}, upload.IndexNone, upload.WithRenderer(render.NewMarkdownRenderer()))
 
 	s := bodyOf(t, up, "flash/1/abc/index.html")
 	assert.Contains(t, s, `location.replace("README.html")`)
@@ -491,7 +491,7 @@ func TestUploadFiles_Readme_RedirectsIndexToRenderedReadme(t *testing.T) {
 }
 
 func TestUploadFiles_Readme_NoRender_RedirectsToRawMarkdown(t *testing.T) {
-	up, res, _ := uploadTree(t, map[string]string{"readme.md": "# Project"}, false)
+	up, res, _ := uploadTree(t, map[string]string{"readme.md": "# Project"}, upload.IndexNone)
 
 	assert.Contains(t, bodyOf(t, up, "flash/1/abc/index.html"), `location.replace("readme.md")`)
 	assert.Equal(t, "readme.md", res.Entry)
@@ -504,7 +504,7 @@ func TestUploadFiles_Readme_SingleFileGetsRedirect(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", path, false, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", path, upload.IndexNone, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
 	require.NoError(t, err)
 
 	assert.Contains(t, bodyOf(t, up, "flash/1/abc/index.html"), `location.replace("Readme.html")`)
@@ -512,7 +512,7 @@ func TestUploadFiles_Readme_SingleFileGetsRedirect(t *testing.T) {
 }
 
 func TestUploadFiles_Readme_WinsOverIndexFlag(t *testing.T) {
-	up, res, stderr := uploadTree(t, map[string]string{"README.md": "# Project", "data.csv": "a,b"}, true, upload.WithRenderer(render.NewMarkdownRenderer()))
+	up, res, stderr := uploadTree(t, map[string]string{"README.md": "# Project", "data.csv": "a,b"}, upload.IndexGenerate, upload.WithRenderer(render.NewMarkdownRenderer()))
 
 	s := bodyOf(t, up, "flash/1/abc/index.html")
 	assert.Contains(t, s, `location.replace("README.html")`)
@@ -522,21 +522,21 @@ func TestUploadFiles_Readme_WinsOverIndexFlag(t *testing.T) {
 }
 
 func TestUploadFiles_Readme_ExistingIndexIsKept(t *testing.T) {
-	up, res, _ := uploadTree(t, map[string]string{"README.md": "# Project", "index.html": "<h1>mine</h1>"}, false, upload.WithRenderer(render.NewMarkdownRenderer()))
+	up, res, _ := uploadTree(t, map[string]string{"README.md": "# Project", "index.html": "<h1>mine</h1>"}, upload.IndexNone, upload.WithRenderer(render.NewMarkdownRenderer()))
 
 	assert.Equal(t, "<h1>mine</h1>", bodyOf(t, up, "flash/1/abc/index.html"))
 	assert.Empty(t, res.Entry)
 }
 
 func TestUploadFiles_Readme_NestedReadmeIgnored(t *testing.T) {
-	up, res, _ := uploadTree(t, map[string]string{"docs/README.md": "# Docs"}, false, upload.WithRenderer(render.NewMarkdownRenderer()))
+	up, res, _ := uploadTree(t, map[string]string{"docs/README.md": "# Docs"}, upload.IndexNone, upload.WithRenderer(render.NewMarkdownRenderer()))
 
 	assert.NotContains(t, keysOf(up), "flash/1/abc/index.html", "only a README at the upload root gets a redirect")
 	assert.Equal(t, "docs/README.html", res.Entry)
 }
 
 func TestUploadFiles_Index_RendersGeneratedMarkdownWithTheme(t *testing.T) {
-	up, res, stderr := uploadTree(t, map[string]string{"notes.md": "# Hello", "data.csv": "a,b"}, true, upload.WithRenderer(render.NewMarkdownRenderer()))
+	up, res, stderr := uploadTree(t, map[string]string{"notes.md": "# Hello", "data.csv": "a,b"}, upload.IndexGenerate, upload.WithRenderer(render.NewMarkdownRenderer()))
 
 	md := bodyOf(t, up, "flash/1/abc/index.md")
 	assert.Contains(t, md, `<p class="index-meta">2 files · 1 page · expires <time datetime="`)
@@ -563,7 +563,7 @@ func TestUploadFiles_Index_TitledByUploadDirectory(t *testing.T) {
 
 	up := &fakeUploader{}
 	var stderr bytes.Buffer
-	_, err := upload.UploadFiles(context.Background(), up, "bucket", "keep/emu.abc.def.ghi", dir, true, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
+	_, err := upload.UploadFiles(context.Background(), up, "bucket", "keep/emu.abc.def.ghi", dir, upload.IndexGenerate, &stderr, upload.WithRenderer(render.NewMarkdownRenderer()))
 	require.NoError(t, err)
 
 	html := bodyOf(t, up, "keep/emu.abc.def.ghi/index.html")
@@ -576,7 +576,7 @@ func TestUploadFiles_Index_RendersDirectoryTree(t *testing.T) {
 		"top.txt":           "t",
 		"docs/guide.md":     "# Guide",
 		"docs/img/logo.png": "png",
-	}, true, upload.WithRenderer(render.NewMarkdownRenderer()))
+	}, upload.IndexGenerate, upload.WithRenderer(render.NewMarkdownRenderer()))
 
 	html := bodyOf(t, up, "flash/1/abc/index.html")
 	// each directory is a <details> inside its own list item, holding the
@@ -590,7 +590,7 @@ func TestUploadFiles_Index_RendersDirectoryTree(t *testing.T) {
 }
 
 func TestUploadFiles_Index_NoRender_ExistingIndexMarkdownSkipsGeneration(t *testing.T) {
-	up, _, stderr := uploadTree(t, map[string]string{"index.md": "# Mine", "README.md": "# Project"}, true)
+	up, _, stderr := uploadTree(t, map[string]string{"index.md": "# Mine", "README.md": "# Project"}, upload.IndexGenerate)
 
 	assert.Equal(t, "# Mine", bodyOf(t, up, "flash/1/abc/index.md"), "the user's index.md is not replaced")
 	assert.NotContains(t, keysOf(up), "flash/1/abc/index.html", "neither a listing nor a README redirect is generated")
@@ -598,13 +598,13 @@ func TestUploadFiles_Index_NoRender_ExistingIndexMarkdownSkipsGeneration(t *test
 }
 
 func TestUploadFiles_NoRender_ExistingIndexMarkdownIsTheEntry(t *testing.T) {
-	_, res, _ := uploadTree(t, map[string]string{"index.md": "# Mine", "a.txt": "a"}, false)
+	_, res, _ := uploadTree(t, map[string]string{"index.md": "# Mine", "a.txt": "a"}, upload.IndexNone)
 
 	assert.Equal(t, "index.md", res.Entry, "the user's index page is the entry, not the first file alphabetically")
 }
 
 func TestUploadFiles_Index_UploadsAssetsTheIndexPageNeeds(t *testing.T) {
-	up, res, _ := uploadTree(t, map[string]string{"data.csv": "a,b"}, true, upload.WithRenderer(render.NewMarkdownRenderer()))
+	up, res, _ := uploadTree(t, map[string]string{"data.csv": "a,b"}, upload.IndexGenerate, upload.WithRenderer(render.NewMarkdownRenderer()))
 
 	// the rendered index needs the page stylesheets even though the upload
 	// itself has no markdown
@@ -617,7 +617,7 @@ func TestUploadFiles_Index_UploadsAssetsTheIndexPageNeeds(t *testing.T) {
 }
 
 func TestUploadFiles_Index_SharedAssetsUploadedOnce(t *testing.T) {
-	_, res, _ := uploadTree(t, map[string]string{"notes.md": "# Hi"}, true, upload.WithRenderer(render.NewMarkdownRenderer()))
+	_, res, _ := uploadTree(t, map[string]string{"notes.md": "# Hi"}, upload.IndexGenerate, upload.WithRenderer(render.NewMarkdownRenderer()))
 
 	seen := map[string]int{}
 	for _, k := range res.WrittenKeys {
@@ -629,7 +629,7 @@ func TestUploadFiles_Index_SharedAssetsUploadedOnce(t *testing.T) {
 }
 
 func TestUploadFiles_NoRender_ExistingIndexMarkdownExtensionIsTheEntry(t *testing.T) {
-	up, res, stderr := uploadTree(t, map[string]string{"index.markdown": "# Mine", "a.txt": "a"}, true)
+	up, res, stderr := uploadTree(t, map[string]string{"index.markdown": "# Mine", "a.txt": "a"}, upload.IndexGenerate)
 
 	assert.NotContains(t, keysOf(up), "flash/1/abc/index.html", "no listing is generated over the user's index page")
 	assert.NotContains(t, keysOf(up), "flash/1/abc/index.md")
@@ -638,7 +638,7 @@ func TestUploadFiles_NoRender_ExistingIndexMarkdownExtensionIsTheEntry(t *testin
 }
 
 func TestUploadFiles_Published_IndexBlocksReadmeRedirect(t *testing.T) {
-	up, res, stderr := uploadTree(t, map[string]string{"README.md": "# Project"}, false,
+	up, res, stderr := uploadTree(t, map[string]string{"README.md": "# Project"}, upload.IndexNone,
 		upload.WithRenderer(render.NewMarkdownRenderer()), upload.WithPublished([]string{"index.html", "old.txt"}))
 
 	assert.NotContains(t, keysOf(up), "flash/1/abc/index.html", "the published index.html is not replaced")
@@ -647,19 +647,212 @@ func TestUploadFiles_Published_IndexBlocksReadmeRedirect(t *testing.T) {
 }
 
 func TestUploadFiles_Published_IndexBlocksIndexGeneration(t *testing.T) {
-	up, res, stderr := uploadTree(t, map[string]string{"a.txt": "a"}, true,
+	up, res, stderr := uploadTree(t, map[string]string{"a.txt": "a"}, upload.IndexGenerate,
 		upload.WithRenderer(render.NewMarkdownRenderer()), upload.WithPublished([]string{"index.md"}))
 
 	assert.NotContains(t, keysOf(up), "flash/1/abc/index.md", "the published index.md is not replaced")
 	assert.NotContains(t, keysOf(up), "flash/1/abc/index.html")
-	assert.Contains(t, stderr, "warning: index.md already published, skipping index generation")
+	assert.Contains(t, stderr, "warning: index.md already published, skipping index generation (use --index-overwrite to replace it)")
 	assert.Equal(t, "index.md", res.Entry)
 }
 
 func TestUploadFiles_Published_LocalIndexStillUploaded(t *testing.T) {
-	up, res, stderr := uploadTree(t, map[string]string{"index.html": "<h1>new</h1>"}, false, upload.WithPublished([]string{"index.html"}))
+	up, res, stderr := uploadTree(t, map[string]string{"index.html": "<h1>new</h1>"}, upload.IndexNone, upload.WithPublished([]string{"index.html"}))
 
 	assert.Equal(t, "<h1>new</h1>", bodyOf(t, up, "flash/1/abc/index.html"), "an index page in the upload itself replaces the published one")
 	assert.NotContains(t, stderr, "warning")
 	assert.Empty(t, res.Entry)
+}
+
+func TestUploadFiles_Published_ListingCoversPublishedAndLocalFiles(t *testing.T) {
+	up, _, _ := uploadTree(t, map[string]string{"new.txt": "n"}, upload.IndexGenerate,
+		upload.WithPublished([]string{"old.txt", "docs/guide.md"}))
+
+	md := bodyOf(t, up, "flash/1/abc/index.md")
+	assert.Contains(t, md, "[new.txt](new.txt)")
+	assert.Contains(t, md, "[old.txt](old.txt)", "files published by an earlier run are listed")
+	assert.Contains(t, md, "[guide.md](docs/guide.md)")
+}
+
+func TestUploadFiles_Published_AssetsListedAsSupportingFiles(t *testing.T) {
+	up, _, _ := uploadTree(t, map[string]string{"new.txt": "n"}, upload.IndexGenerate,
+		upload.WithPublished([]string{"old.md", "old.html", "github-markdown.css", "dollop-theme-retired.css", "d2/0123456789ab.svg"}))
+
+	md := bodyOf(t, up, "flash/1/abc/index.md")
+	main, supporting, ok := strings.Cut(md, "Supporting files")
+	require.True(t, ok, "published assets are listed as supporting files")
+	assert.Contains(t, main, "[old.html](old.html)")
+	for _, asset := range []string{"github-markdown.css", "dollop-theme-retired.css", "d2/0123456789ab.svg"} {
+		assert.NotContains(t, main, asset, "%s is not a primary entry", asset)
+		assert.Contains(t, supporting, "("+asset+")")
+	}
+}
+
+func TestUploadFiles_Published_ReadmeGetsRedirect(t *testing.T) {
+	up, res, _ := uploadTree(t, map[string]string{"a.txt": "a"}, upload.IndexNone,
+		upload.WithRenderer(render.NewMarkdownRenderer()), upload.WithPublished([]string{"README.md", "README.html"}))
+
+	assert.Contains(t, bodyOf(t, up, "flash/1/abc/index.html"), `location.replace("README.html")`)
+	assert.Equal(t, "README.html", res.Entry)
+}
+
+func TestUploadFiles_Overwrite_ReplacesPublishedIndex(t *testing.T) {
+	up, res, stderr := uploadTree(t, map[string]string{"new.txt": "n"}, upload.IndexOverwrite,
+		upload.WithRenderer(render.NewMarkdownRenderer()), upload.WithPublished([]string{"index.md", "index.html", "old.txt"}))
+
+	md := bodyOf(t, up, "flash/1/abc/index.md")
+	assert.Contains(t, md, "[new.txt](new.txt)")
+	assert.Contains(t, md, "[old.txt](old.txt)")
+	assert.NotContains(t, md, "(index.", "the index being replaced is not listed")
+	assert.Contains(t, bodyOf(t, up, "flash/1/abc/index.html"), "old.txt", "the rendered listing replaces the published index.html")
+	assert.Empty(t, res.Entry)
+	assert.NotContains(t, stderr, "warning")
+}
+
+func TestUploadFiles_Overwrite_PublishedReadmeWinsOverListing(t *testing.T) {
+	up, res, stderr := uploadTree(t, map[string]string{"new.txt": "n"}, upload.IndexOverwrite,
+		upload.WithRenderer(render.NewMarkdownRenderer()), upload.WithPublished([]string{"index.html", "README.md", "README.html"}))
+
+	assert.Contains(t, bodyOf(t, up, "flash/1/abc/index.html"), `location.replace("README.html")`)
+	assert.NotContains(t, keysOf(up), "flash/1/abc/index.md", "no listing is generated")
+	assert.Contains(t, stderr, "warning: README.md present")
+	assert.Equal(t, "README.html", res.Entry)
+}
+
+func TestUploadFiles_Overwrite_LocalIndexWins(t *testing.T) {
+	up, res, stderr := uploadTree(t, map[string]string{"index.html": "<h1>mine</h1>", "a.txt": "a"}, upload.IndexOverwrite,
+		upload.WithPublished([]string{"index.html"}))
+
+	assert.Equal(t, "<h1>mine</h1>", bodyOf(t, up, "flash/1/abc/index.html"))
+	assert.NotContains(t, keysOf(up), "flash/1/abc/index.md")
+	assert.Contains(t, stderr, "warning: index.html already present, skipping index generation")
+	assert.Empty(t, res.Entry)
+}
+
+func TestUploadFiles_Published_ListingIsSorted(t *testing.T) {
+	up, _, _ := uploadTree(t, map[string]string{"b.txt": "b"}, upload.IndexGenerate,
+		upload.WithPublished([]string{"c.txt", "a.txt"}))
+
+	md := bodyOf(t, up, "flash/1/abc/index.md")
+	assert.Regexp(t, `(?s)\(a\.txt\).*\(b\.txt\).*\(c\.txt\)`, md, "local and published files are listed in one sorted order")
+}
+
+// markerIn returns the dollop provenance marker in the first 512 bytes of
+// html, or "" when there is none.
+func markerIn(html string) string {
+	head := html[:min(len(html), 512)]
+	_, rest, ok := strings.Cut(head, `<meta name="dollop-generated" content="`)
+	if !ok {
+		return ""
+	}
+	kind, _, ok := strings.Cut(rest, `">`)
+	if !ok {
+		return ""
+	}
+	return kind
+}
+
+func TestUploadFiles_GeneratedIndexIsMarked(t *testing.T) {
+	longTitle := strings.Repeat("very-long-directory-name-", 9) // near the 255-byte name limit
+	for name, tc := range map[string]struct {
+		files map[string]string
+		opts  []upload.UploadOption
+		want  string
+	}{
+		"rendered listing":  {map[string]string{"a.txt": "a"}, []upload.UploadOption{upload.WithRenderer(render.NewMarkdownRenderer())}, "listing"},
+		"no-render listing": {map[string]string{"a.txt": "a"}, nil, "listing"},
+		"readme redirect":   {map[string]string{"README.md": "# R"}, []upload.UploadOption{upload.WithRenderer(render.NewMarkdownRenderer())}, "readme-redirect"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), longTitle)
+			require.NoError(t, os.MkdirAll(dir, 0o700))
+			for rel, content := range tc.files {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, rel), []byte(content), 0o600))
+			}
+			up := &fakeUploader{}
+			_, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexGenerate, io.Discard, tc.opts...)
+			require.NoError(t, err)
+
+			html := bodyOf(t, up, "flash/1/abc/index.html")
+			assert.Equal(t, tc.want, markerIn(html), "the marker is within the first 512 bytes")
+			assert.Less(t, strings.Index(html, "dollop-generated"), strings.Index(html, "<title>"), "the marker precedes the title")
+		})
+	}
+}
+
+func TestUploadFiles_UserIndexIsNotMarked(t *testing.T) {
+	up, _, _ := uploadTree(t, map[string]string{"index.md": "---\ntitle: Mine\n---\n# Mine"}, upload.IndexNone,
+		upload.WithRenderer(render.NewMarkdownRenderer()))
+
+	assert.NotContains(t, bodyOf(t, up, "flash/1/abc/index.html"), "dollop-generated")
+}
+
+func TestUploadFiles_GeneratedListing_RefreshedWithoutFlag(t *testing.T) {
+	up, res, stderr := uploadTree(t, map[string]string{"new.txt": "n"}, upload.IndexNone,
+		upload.WithRenderer(render.NewMarkdownRenderer()),
+		upload.WithPublished([]string{"index.html", "index.md", "old.txt"}),
+		upload.WithPublishedIndex(upload.PublishedIndex{Kind: upload.IndexKindListing, Title: "Original Title"}))
+
+	md := bodyOf(t, up, "flash/1/abc/index.md")
+	assert.Contains(t, md, "[new.txt](new.txt)")
+	assert.Contains(t, md, "[old.txt](old.txt)")
+	assert.NotContains(t, md, "(index.", "the listing being replaced is not listed")
+	assert.Contains(t, md, "# Original Title", "the published listing's title is kept")
+	assert.Equal(t, "listing", markerIn(bodyOf(t, up, "flash/1/abc/index.html")))
+	assert.Empty(t, res.Entry)
+	assert.NotContains(t, stderr, "warning")
+}
+
+func TestUploadFiles_GeneratedReadmeRedirect_Rewritten(t *testing.T) {
+	up, res, stderr := uploadTree(t, map[string]string{"new.txt": "n"}, upload.IndexNone,
+		upload.WithRenderer(render.NewMarkdownRenderer()),
+		upload.WithPublished([]string{"index.html", "README.md", "README.html"}),
+		upload.WithPublishedIndex(upload.PublishedIndex{Kind: upload.IndexKindReadmeRedirect}))
+
+	html := bodyOf(t, up, "flash/1/abc/index.html")
+	assert.Contains(t, html, `location.replace("README.html")`)
+	assert.Equal(t, "readme-redirect", markerIn(html))
+	assert.Equal(t, "README.html", res.Entry)
+	assert.NotContains(t, stderr, "warning")
+}
+
+func TestUploadFiles_GeneratedReadmeRedirect_IndexFlagWithoutReadmeLists(t *testing.T) {
+	// the redirect's README is gone from the overlay (e.g. renamed locally and
+	// the old object expired), so --index produces a listing.
+	up, _, _ := uploadTree(t, map[string]string{"new.txt": "n"}, upload.IndexGenerate,
+		upload.WithPublished([]string{"index.html", "old.txt"}),
+		upload.WithPublishedIndex(upload.PublishedIndex{Kind: upload.IndexKindReadmeRedirect}))
+
+	assert.Contains(t, bodyOf(t, up, "flash/1/abc/index.md"), "[old.txt](old.txt)")
+	assert.Equal(t, "listing", markerIn(bodyOf(t, up, "flash/1/abc/index.html")))
+}
+
+func TestUploadFiles_GeneratedListing_LocalReadmeTakesOver(t *testing.T) {
+	up, res, _ := uploadTree(t, map[string]string{"README.md": "# R"}, upload.IndexNone,
+		upload.WithRenderer(render.NewMarkdownRenderer()),
+		upload.WithPublished([]string{"index.html", "index.md", "old.txt"}),
+		upload.WithPublishedIndex(upload.PublishedIndex{Kind: upload.IndexKindListing, Title: "T"}))
+
+	assert.Contains(t, bodyOf(t, up, "flash/1/abc/index.html"), `location.replace("README.html")`)
+	assert.Equal(t, "README.html", res.Entry)
+}
+
+func TestUploadFiles_GeneratedListing_MissingTitleFallsBack(t *testing.T) {
+	up, _, stderr := uploadTree(t, map[string]string{"new.txt": "n"}, upload.IndexNone,
+		upload.WithPublished([]string{"index.html", "index.md"}),
+		upload.WithPublishedIndex(upload.PublishedIndex{Kind: upload.IndexKindListing}))
+
+	assert.Contains(t, bodyOf(t, up, "flash/1/abc/index.md"), "[new.txt](new.txt)")
+	assert.Contains(t, stderr, "warning: published index title not found")
+}
+
+func TestUploadFiles_Published_AssetsOfIndexOnlyNotListed(t *testing.T) {
+	// with no markdown under the prefix, the published shared assets only
+	// served the previous generated index, as in a fresh --index upload.
+	up, _, _ := uploadTree(t, map[string]string{"new.txt": "n"}, upload.IndexGenerate,
+		upload.WithPublished([]string{"old.txt", "github-markdown.css", "dollop-theme-tide.css"}))
+
+	md := bodyOf(t, up, "flash/1/abc/index.md")
+	assert.NotContains(t, md, "Supporting files")
+	assert.NotContains(t, md, "github-markdown.css")
 }

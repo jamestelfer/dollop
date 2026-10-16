@@ -2,6 +2,7 @@ package upload
 
 import (
 	"context"
+	"errors"
 	"io"
 )
 
@@ -58,10 +59,23 @@ type ListingUploader interface {
 }
 
 // SyncUploader is the capability set the update command depends on: publish,
-// list (for deps presence and the partial-refresh touch pass), and self-copy to
-// reset the lifecycle expiry clock. Both S3Uploader and DirUploader satisfy it.
+// list (for deps presence and the partial-refresh touch pass), self-copy to
+// reset the lifecycle expiry clock, and read the start of the published index
+// page to tell whether dollop generated it. Both S3Uploader and DirUploader
+// satisfy it.
 type SyncUploader interface {
 	Uploader
 	ObjectLister
 	ObjectCopier
+	ObjectHeadReader
+}
+
+// ErrObjectNotFound is returned by ObjectHeadReader when the key does not exist.
+var ErrObjectNotFound = errors.New("object not found")
+
+// ObjectHeadReader reads the start of a single object: up to n bytes from
+// offset zero (a ranged GET on R2), or the whole object when it is shorter. A
+// missing key returns an error wrapping ErrObjectNotFound.
+type ObjectHeadReader interface {
+	ReadObjectHead(ctx context.Context, bucket, key string, n int64) ([]byte, error)
 }
