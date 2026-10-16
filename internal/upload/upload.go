@@ -50,8 +50,10 @@ func WithRenderer(r FileRenderer) UploadOption {
 }
 
 // WithPublished reports the relative paths already published under the
-// prefix, so a generated entry page never replaces an index page already
-// there. update supplies it; a fresh prefix has nothing published.
+// prefix. Entry pages are planned over them as well as the local files: a
+// README there gets a redirect, a listing includes them, and an index page
+// there is replaced only with IndexOverwrite. update supplies it; a fresh
+// prefix has nothing published.
 func WithPublished(relPaths []string) UploadOption {
 	return func(o *uploadOptions) {
 		o.published = relPaths
@@ -62,16 +64,16 @@ func WithPublished(relPaths []string) UploadOption {
 // Each completed key is written to stderr. Files are uploaded sequentially.
 // After the sources, an entry page may be generated (see planEntry): none when
 // the upload has its own index page or one is already published (see
-// WithPublished), an index.html redirecting to
-// a root README, or, when generateIndex is true, an index.md listing the
-// sources, planned through the renderer. A skipped --index is warned about on
-// stderr.
+// WithPublished) and mode is not IndexOverwrite, an index.html redirecting to
+// a root README, or, when mode asks for one, an index.md listing the local and
+// published files, planned through the renderer. A skipped --index is warned
+// about on stderr.
 // A directory is read through an os.Root, so symlinks resolving outside it are
 // skipped with a warning; a single file is read wherever its symlink points.
 // Returns an UploadResult reporting the relative paths of the uploaded sources
 // (not including any generated index.html), the entry the public URL should
 // point at, and the complete set of keys written.
-func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath string, generateIndex bool, stderr io.Writer, opts ...UploadOption) (*UploadResult, error) {
+func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath string, mode IndexMode, stderr io.Writer, opts ...UploadOption) (*UploadResult, error) {
 	if up == nil {
 		return nil, fmt.Errorf("uploader is not configured")
 	}
@@ -116,7 +118,7 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 	}
 
 	heading := indexHeading{Title: uploadTitle(localPath), Lifetime: lifetimeOf(prefix, time.Now())}
-	plan, err := planEntry(renderer, fsys, prefix, sources, sharedAssets, o.published, generateIndex, heading, stderr)
+	plan, err := planEntry(renderer, fsys, prefix, sources, sharedAssets, o.published, mode, heading, stderr)
 	if err != nil {
 		return nil, err
 	}

@@ -18,6 +18,20 @@ var redirectTmplSrc string
 
 var redirectTmpl = template.Must(template.New("redirect").Parse(redirectTmplSrc))
 
+// IndexMode selects whether UploadFiles generates an index listing.
+type IndexMode int
+
+const (
+	// IndexNone generates no listing; a README redirect may still apply.
+	IndexNone IndexMode = iota
+	// IndexGenerate generates a listing unless an index page is present
+	// locally or already published.
+	IndexGenerate
+	// IndexOverwrite generates a listing (or README redirect) even over an
+	// index page already published; a local index page still wins.
+	IndexOverwrite
+)
+
 // entryPlan is the outcome of deciding how the upload is entered: the
 // generated pages to publish alongside the sources, any shared assets those
 // pages need, and the relative path the public URL should point at ("" for the
@@ -33,17 +47,19 @@ type entryPlan struct {
 //  1. an index.html or markdown index in the upload is left alone, and is the
 //     entry;
 //  2. an index page already published under the prefix (published holds the
-//     relative paths there) is never replaced: nothing is generated and it is
-//     the entry;
-//  3. a README at the upload root gets an index.html redirecting to it, and the
+//     relative paths there) is not replaced, unless mode is IndexOverwrite:
+//     nothing is generated and it is the entry;
+//  3. a README at the upload root, local or published, gets an index.html redirecting to it, and the
 //     URL points at the README directly;
-//  4. with no generateIndex, the URL points at the first file;
-//  5. otherwise an index.md listing the sources under heading (and the shared
-//     assets as supporting files) is generated and planned through renderer with fsys
+//  4. with IndexNone, the URL points at the first local file;
+//  5. otherwise an index.md listing the local and published files under
+//     heading (with shared assets as supporting files) is generated and planned through renderer with fsys
 //     underneath it. When renderer does not turn it into index.html, an
 //     index.html redirecting to index.md is added.
-func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []render.Source, assets []render.SharedAsset, published []string, generateIndex bool, heading indexHeading, stderr io.Writer) (entryPlan, error) {
+func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []render.Source, assets []render.SharedAsset, published []string, mode IndexMode, heading indexHeading, stderr io.Writer) (entryPlan, error) {
 	relPaths := relPathsOf(sources)
+
+	generateIndex := mode != IndexNone
 
 	if existing, entry, ok := findIndexPage(relPaths); ok {
 		if generateIndex {
@@ -52,14 +68,20 @@ func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []re
 		return entryPlan{entry: entry}, nil
 	}
 
-	readme, target, hasReadme := findReadme(relPaths)
+	if mode == IndexOverwrite {
+		// the published index page is being replaced, so it is neither in the
+		// way nor one of the files to list.
+		published = slices.DeleteFunc(slices.Clone(published), isIndexPage)
+	}
+
+	readme, target, hasReadme := findReadme(overlayPaths(relPaths, published))
 
 	if existing, entry, ok := findIndexPage(published); ok {
 		switch {
 		case hasReadme:
 			fmt.Fprintf(stderr, "warning: %s already published, skipping README redirect\n", existing) //nolint:errcheck
 		case generateIndex:
-			fmt.Fprintf(stderr, "warning: %s already published, skipping index generation\n", existing) //nolint:errcheck
+			fmt.Fprintf(stderr, "warning: %s already published, skipping index generation (use --index-overwrite to replace it)\n", existing) //nolint:errcheck
 		}
 		return entryPlan{entry: entry}, nil
 	}
@@ -79,11 +101,8 @@ func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []re
 		return entryPlan{entry: firstFile(relPaths)}, nil
 	}
 
-	supporting := make([]string, len(assets))
-	for i, a := range assets {
-		supporting[i] = a.Name
-	}
-	listing, err := generateIndexMarkdown(heading, relPaths, supporting)
+	files, supporting := listingPaths(relPaths, published, assets)
+	listing, err := generateIndexMarkdown(heading, files, supporting)
 	if err != nil {
 		return entryPlan{}, err
 	}
@@ -115,6 +134,13 @@ func findIndexPage(relPaths []string) (page, entry string, ok bool) {
 		}
 	}
 	return "", "", false
+}
+
+// isIndexPage reports whether relPath is a root index page: index.html or a
+// markdown index.
+func isIndexPage(relPath string) bool {
+	_, _, ok := findIndexPage([]string{relPath})
+	return ok
 }
 
 // findReadme returns the README at the upload root and the page it is viewed
@@ -155,6 +181,46 @@ func redirectSource(target string) (render.Source, error) {
 			return &memFile{Reader: bytes.NewReader(html), name: "index.html"}, nil
 		},
 	}, nil
+}
+
+// listingPaths splits what the prefix will hold once this upload lands into
+// the files a listing shows and its supporting files: this run's shared assets
+// plus any rendering assets already published (see render.IsAssetName).
+func listingPaths(local, published []string, assets []render.SharedAsset) (files, supporting []string) {
+	supporting = make([]string, len(assets))
+	for i, a := range assets {
+		supporting[i] = a.Name
+	}
+	var publishedFiles []string
+	for _, p := range published {
+		if render.IsAssetName(p) {
+			if !slices.Contains(supporting, p) {
+				supporting = append(supporting, p)
+			}
+			continue
+		}
+		publishedFiles = append(publishedFiles, p)
+	}
+	files = overlayPaths(local, publishedFiles)
+	slices.Sort(files)
+	return files, supporting
+}
+
+// overlayPaths returns local followed by the published paths not already in
+// it: what the prefix will hold once this upload lands.
+func overlayPaths(local, published []string) []string {
+	out := slices.Clone(local)
+	seen := make(map[string]bool, len(local)+len(published))
+	for _, p := range local {
+		seen[p] = true
+	}
+	for _, p := range published {
+		if !seen[p] {
+			seen[p] = true
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func relPathsOf(sources []render.Source) []string {

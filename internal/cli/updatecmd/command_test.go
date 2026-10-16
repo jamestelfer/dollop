@@ -375,3 +375,29 @@ func TestUpdate_Index_KeepsPublishedIndex(t *testing.T) {
 	assert.NotContains(t, up.put, "keep/site/index.html")
 	assert.Contains(t, stderr, "index.md already published, skipping index generation")
 }
+
+func TestUpdate_IndexOverwrite_ReplacesPublishedIndex(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0o600))
+
+	up := &fakeFullUploader{existing: []string{"keep/site/index.md", "keep/site/index.html", "keep/site/old.txt"}}
+	stdout, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", "--index-overwrite", "keep/site", dir)
+	require.Equal(t, 0, code, stderr)
+
+	assert.Contains(t, up.put, "keep/site/index.md")
+	assert.Contains(t, up.put, "keep/site/index.html")
+	assert.NotContains(t, stderr, "warning")
+	assert.Equal(t, "https://drop.example.com/keep/site/", strings.TrimSpace(stdout))
+}
+
+func TestUpdate_IndexAndIndexOverwrite_MutuallyExclusive(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0o600))
+
+	up := &fakeFullUploader{}
+	_, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", "--index", "--index-overwrite", "keep/site", dir)
+
+	assert.NotEqual(t, 0, code)
+	assert.Contains(t, stderr, "option index cannot be set along with option index-overwrite")
+	assert.Empty(t, up.put, "nothing is uploaded")
+}

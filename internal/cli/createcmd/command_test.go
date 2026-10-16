@@ -445,3 +445,13 @@ func TestCreate_Index_PublishesMarkdownAndRenderedIndex(t *testing.T) {
 	assert.Contains(t, up.calls, "flash/1/testid/index.html")
 	assert.True(t, strings.HasSuffix(strings.TrimSpace(stdout), "/flash/1/testid/"), stdout)
 }
+
+func TestCreate_IndexOverwrite_NotAFlag(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0o600))
+
+	up := &fakeUploader{}
+	_, _, code := runCreate(t, up, "create", "--index-overwrite", dir)
+	assert.NotEqual(t, 0, code, "a fresh prefix has no index to overwrite")
+	assert.Empty(t, up.calls)
+}

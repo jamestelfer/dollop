@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	_ "embed"
 	"encoding/hex"
+	"strings"
 )
 
 // github-markdown-css v5.9.0 — https://github.com/sindresorhus/github-markdown-css
@@ -77,4 +78,23 @@ var assetVersions = func() map[string]string {
 // masked by a stale edge or browser copy of the previous version.
 func assetRef(depthPrefix, name string) string {
 	return depthPrefix + name + "?v=" + assetVersions[name]
+}
+
+// IsAssetName reports whether name, relative to a prefix root, is one of the
+// assets rendering publishes there: a fixed shared asset, any theme's
+// stylesheet (including themes from older releases), or a d2 diagram.
+func IsAssetName(name string) bool {
+	for _, a := range sharedAssets {
+		if a.Name == name {
+			return true
+		}
+	}
+	if theme, ok := strings.CutPrefix(name, "dollop-theme-"); ok {
+		return strings.HasSuffix(theme, ".css") && len(theme) > len(".css") && !strings.Contains(theme, "/")
+	}
+	if hash, ok := strings.CutPrefix(name, "d2/"); ok {
+		hash, ok = strings.CutSuffix(hash, ".svg")
+		return ok && len(hash) == d2HashLen && strings.Trim(hash, "0123456789abcdef") == ""
+	}
+	return false
 }
