@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.16.0](https://github.com/jamestelfer/dollop/compare/v1.15.0...v1.16.0) (2026-10-16)
+
+
+### Features
+
+* add an animated "On this page" table of contents ([#102](https://github.com/jamestelfer/dollop/issues/102)) ([e817fc8](https://github.com/jamestelfer/dollop/commit/e817fc8875480b3b1d172fa46edfb0e6d1a85cac))
+* centre mermaid diagrams in rendered pages ([#100](https://github.com/jamestelfer/dollop/issues/100)) ([d4d6a82](https://github.com/jamestelfer/dollop/commit/d4d6a826e1456331d41926a8bc5fd57e46dd021d))
+* keep generated index pages current on update ([#103](https://github.com/jamestelfer/dollop/issues/103)) ([7d9d9f3](https://github.com/jamestelfer/dollop/commit/7d9d9f37194869b4387939bc1cd82334f4c5c3f7))
+
 ## [1.15.0](https://github.com/jamestelfer/dollop/compare/v1.14.0...v1.15.0) (2026-10-12)
 
 
