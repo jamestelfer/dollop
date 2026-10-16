@@ -47,10 +47,12 @@ Rendering of .md files, shared assets and the README redirect work
 exactly as in 'create'; use --no-render to disable rendering, --theme
 to choose the page theme, and --index to generate an index page listing
 every file under the prefix, including those published by earlier runs.
-An index page already published under the prefix is kept by --index;
---index-overwrite replaces it with a generated one (a README.md, local
-or published, still gets a redirect instead). An index page in the
-uploaded path always wins.`,
+
+An index page dollop generated is kept current: a generated listing is
+refreshed on every update, even without --index, and keeps its title.
+Any other published index page is kept by --index; --index-overwrite
+replaces it with a generated one (a README.md, local or published, still
+gets a redirect instead). An index page in the uploaded path always wins.`,
 		MutuallyExclusiveFlags: []cli.MutuallyExclusiveFlags{{
 			Flags: [][]cli.Flag{
 				{&cli.BoolFlag{
@@ -106,6 +108,23 @@ func indexMode(cmd *cli.Command) upload.IndexMode {
 	}
 }
 
+// publishedOptions reports what is already published under prefix to the
+// upload. Entry pages are planned over it as well as the local files: a
+// listing covers both, an index page dollop generated is regenerated (a
+// listing even without --index), and any other published index page is
+// replaced only with --index-overwrite.
+func publishedOptions(ctx context.Context, up upload.SyncUploader, bucket, prefix string) ([]upload.UploadOption, error) {
+	published, err := upload.PublishedPaths(ctx, up, bucket, prefix)
+	if err != nil {
+		return nil, err
+	}
+	index, err := upload.InspectPublishedIndex(ctx, up, bucket, prefix, published)
+	if err != nil {
+		return nil, err
+	}
+	return []upload.UploadOption{upload.WithPublished(published), upload.WithPublishedIndex(index)}, nil
+}
+
 func newAction(uploader upload.SyncUploader, bucket, baseURL string) cli.ActionFunc {
 	return func(ctx context.Context, cmd *cli.Command) error {
 		if cmd.Args().Len() != 2 {
@@ -139,15 +158,11 @@ func newAction(uploader upload.SyncUploader, bucket, baseURL string) cli.ActionF
 				"'dollop config auth r2-key <key>', and 'dollop config auth r2-secret <secret>' (or use --copy-dir)", 1)
 		}
 
-		// Entry pages are planned over what is already published as well as
-		// the local files: a listing covers both, and a published index page is
-		// replaced only with --index-overwrite.
-		published, err := upload.PublishedPaths(ctx, activeUploader, bucket, prefix)
+		uploadOpts, err := publishedOptions(ctx, activeUploader, bucket, prefix)
 		if err != nil {
 			fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err) //nolint:errcheck
 			return cli.Exit("upload failed", 1)
 		}
-		uploadOpts := []upload.UploadOption{upload.WithPublished(published)}
 		if !noRender {
 			uploadOpts = append(uploadOpts, upload.WithRenderer(render.NewMarkdownRendererWithStderr(cmd.Root().ErrWriter, render.WithTheme(theme))))
 		}

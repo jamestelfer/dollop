@@ -21,7 +21,7 @@ type FileRenderer = render.Renderer
 
 type uploadOptions struct {
 	renderer  FileRenderer
-	published []string
+	published publishedPrefix
 }
 
 // UploadOption configures optional behaviour for UploadFiles.
@@ -56,7 +56,17 @@ func WithRenderer(r FileRenderer) UploadOption {
 // prefix has nothing published.
 func WithPublished(relPaths []string) UploadOption {
 	return func(o *uploadOptions) {
-		o.published = relPaths
+		o.published.paths = relPaths
+	}
+}
+
+// WithPublishedIndex reports what generated the index page already published
+// under the prefix (see InspectPublishedIndex). A dollop-generated index page
+// is treated as absent and regenerated over the overlay; a generated listing
+// is refreshed even without an index mode, keeping its title.
+func WithPublishedIndex(index PublishedIndex) UploadOption {
+	return func(o *uploadOptions) {
+		o.published.index = index
 	}
 }
 

@@ -676,12 +676,12 @@ func TestUploadFiles_Published_ListingCoversPublishedAndLocalFiles(t *testing.T)
 
 func TestUploadFiles_Published_AssetsListedAsSupportingFiles(t *testing.T) {
 	up, _, _ := uploadTree(t, map[string]string{"new.txt": "n"}, upload.IndexGenerate,
-		upload.WithPublished([]string{"old.txt", "github-markdown.css", "dollop-theme-retired.css", "d2/0123456789ab.svg"}))
+		upload.WithPublished([]string{"old.md", "old.html", "github-markdown.css", "dollop-theme-retired.css", "d2/0123456789ab.svg"}))
 
 	md := bodyOf(t, up, "flash/1/abc/index.md")
 	main, supporting, ok := strings.Cut(md, "Supporting files")
 	require.True(t, ok, "published assets are listed as supporting files")
-	assert.Contains(t, main, "[old.txt](old.txt)")
+	assert.Contains(t, main, "[old.html](old.html)")
 	for _, asset := range []string{"github-markdown.css", "dollop-theme-retired.css", "d2/0123456789ab.svg"} {
 		assert.NotContains(t, main, asset, "%s is not a primary entry", asset)
 		assert.Contains(t, supporting, "("+asset+")")
@@ -735,4 +735,124 @@ func TestUploadFiles_Published_ListingIsSorted(t *testing.T) {
 
 	md := bodyOf(t, up, "flash/1/abc/index.md")
 	assert.Regexp(t, `(?s)\(a\.txt\).*\(b\.txt\).*\(c\.txt\)`, md, "local and published files are listed in one sorted order")
+}
+
+// markerIn returns the dollop provenance marker in the first 512 bytes of
+// html, or "" when there is none.
+func markerIn(html string) string {
+	head := html[:min(len(html), 512)]
+	_, rest, ok := strings.Cut(head, `<meta name="dollop-generated" content="`)
+	if !ok {
+		return ""
+	}
+	kind, _, ok := strings.Cut(rest, `">`)
+	if !ok {
+		return ""
+	}
+	return kind
+}
+
+func TestUploadFiles_GeneratedIndexIsMarked(t *testing.T) {
+	longTitle := strings.Repeat("very-long-directory-name-", 9) // near the 255-byte name limit
+	for name, tc := range map[string]struct {
+		files map[string]string
+		opts  []upload.UploadOption
+		want  string
+	}{
+		"rendered listing":  {map[string]string{"a.txt": "a"}, []upload.UploadOption{upload.WithRenderer(render.NewMarkdownRenderer())}, "listing"},
+		"no-render listing": {map[string]string{"a.txt": "a"}, nil, "listing"},
+		"readme redirect":   {map[string]string{"README.md": "# R"}, []upload.UploadOption{upload.WithRenderer(render.NewMarkdownRenderer())}, "readme-redirect"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), longTitle)
+			require.NoError(t, os.MkdirAll(dir, 0o700))
+			for rel, content := range tc.files {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, rel), []byte(content), 0o600))
+			}
+			up := &fakeUploader{}
+			_, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexGenerate, io.Discard, tc.opts...)
+			require.NoError(t, err)
+
+			html := bodyOf(t, up, "flash/1/abc/index.html")
+			assert.Equal(t, tc.want, markerIn(html), "the marker is within the first 512 bytes")
+			assert.Less(t, strings.Index(html, "dollop-generated"), strings.Index(html, "<title>"), "the marker precedes the title")
+		})
+	}
+}
+
+func TestUploadFiles_UserIndexIsNotMarked(t *testing.T) {
+	up, _, _ := uploadTree(t, map[string]string{"index.md": "---\ntitle: Mine\n---\n# Mine"}, upload.IndexNone,
+		upload.WithRenderer(render.NewMarkdownRenderer()))
+
+	assert.NotContains(t, bodyOf(t, up, "flash/1/abc/index.html"), "dollop-generated")
+}
+
+func TestUploadFiles_GeneratedListing_RefreshedWithoutFlag(t *testing.T) {
+	up, res, stderr := uploadTree(t, map[string]string{"new.txt": "n"}, upload.IndexNone,
+		upload.WithRenderer(render.NewMarkdownRenderer()),
+		upload.WithPublished([]string{"index.html", "index.md", "old.txt"}),
+		upload.WithPublishedIndex(upload.PublishedIndex{Kind: upload.IndexKindListing, Title: "Original Title"}))
+
+	md := bodyOf(t, up, "flash/1/abc/index.md")
+	assert.Contains(t, md, "[new.txt](new.txt)")
+	assert.Contains(t, md, "[old.txt](old.txt)")
+	assert.NotContains(t, md, "(index.", "the listing being replaced is not listed")
+	assert.Contains(t, md, "# Original Title", "the published listing's title is kept")
+	assert.Equal(t, "listing", markerIn(bodyOf(t, up, "flash/1/abc/index.html")))
+	assert.Empty(t, res.Entry)
+	assert.NotContains(t, stderr, "warning")
+}
+
+func TestUploadFiles_GeneratedReadmeRedirect_Rewritten(t *testing.T) {
+	up, res, stderr := uploadTree(t, map[string]string{"new.txt": "n"}, upload.IndexNone,
+		upload.WithRenderer(render.NewMarkdownRenderer()),
+		upload.WithPublished([]string{"index.html", "README.md", "README.html"}),
+		upload.WithPublishedIndex(upload.PublishedIndex{Kind: upload.IndexKindReadmeRedirect}))
+
+	html := bodyOf(t, up, "flash/1/abc/index.html")
+	assert.Contains(t, html, `location.replace("README.html")`)
+	assert.Equal(t, "readme-redirect", markerIn(html))
+	assert.Equal(t, "README.html", res.Entry)
+	assert.NotContains(t, stderr, "warning")
+}
+
+func TestUploadFiles_GeneratedReadmeRedirect_IndexFlagWithoutReadmeLists(t *testing.T) {
+	// the redirect's README is gone from the overlay (e.g. renamed locally and
+	// the old object expired), so --index produces a listing.
+	up, _, _ := uploadTree(t, map[string]string{"new.txt": "n"}, upload.IndexGenerate,
+		upload.WithPublished([]string{"index.html", "old.txt"}),
+		upload.WithPublishedIndex(upload.PublishedIndex{Kind: upload.IndexKindReadmeRedirect}))
+
+	assert.Contains(t, bodyOf(t, up, "flash/1/abc/index.md"), "[old.txt](old.txt)")
+	assert.Equal(t, "listing", markerIn(bodyOf(t, up, "flash/1/abc/index.html")))
+}
+
+func TestUploadFiles_GeneratedListing_LocalReadmeTakesOver(t *testing.T) {
+	up, res, _ := uploadTree(t, map[string]string{"README.md": "# R"}, upload.IndexNone,
+		upload.WithRenderer(render.NewMarkdownRenderer()),
+		upload.WithPublished([]string{"index.html", "index.md", "old.txt"}),
+		upload.WithPublishedIndex(upload.PublishedIndex{Kind: upload.IndexKindListing, Title: "T"}))
+
+	assert.Contains(t, bodyOf(t, up, "flash/1/abc/index.html"), `location.replace("README.html")`)
+	assert.Equal(t, "README.html", res.Entry)
+}
+
+func TestUploadFiles_GeneratedListing_MissingTitleFallsBack(t *testing.T) {
+	up, _, stderr := uploadTree(t, map[string]string{"new.txt": "n"}, upload.IndexNone,
+		upload.WithPublished([]string{"index.html", "index.md"}),
+		upload.WithPublishedIndex(upload.PublishedIndex{Kind: upload.IndexKindListing}))
+
+	assert.Contains(t, bodyOf(t, up, "flash/1/abc/index.md"), "[new.txt](new.txt)")
+	assert.Contains(t, stderr, "warning: published index title not found")
+}
+
+func TestUploadFiles_Published_AssetsOfIndexOnlyNotListed(t *testing.T) {
+	// with no markdown under the prefix, the published shared assets only
+	// served the previous generated index, as in a fresh --index upload.
+	up, _, _ := uploadTree(t, map[string]string{"new.txt": "n"}, upload.IndexGenerate,
+		upload.WithPublished([]string{"old.txt", "github-markdown.css", "dollop-theme-tide.css"}))
+
+	md := bodyOf(t, up, "flash/1/abc/index.md")
+	assert.NotContains(t, md, "Supporting files")
+	assert.NotContains(t, md, "github-markdown.css")
 }

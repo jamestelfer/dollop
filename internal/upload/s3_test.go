@@ -18,6 +18,8 @@ var (
 	_ upload.ObjectLister = (*upload.DirUploader)(nil)
 	_ upload.ObjectCopier = (*upload.S3Uploader)(nil)
 	_ upload.ObjectCopier = (*upload.DirUploader)(nil)
+	_ upload.SyncUploader = (*upload.S3Uploader)(nil)
+	_ upload.SyncUploader = (*upload.DirUploader)(nil)
 )
 
 // fakeUploaderWithOptions records PutObject calls including any options.

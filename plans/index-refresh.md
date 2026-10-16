@@ -109,8 +109,8 @@ Durable decisions that apply across all phases:
 
 - [x] Standard command: `just verify` (fmt + build + lint + test)
 - [x] P0 baseline run: `just verify` passed on `3fa0cbf` before any changes
-- [ ] Re-run `just verify` before marking each phase complete; it must pass
-- [ ] Conventional Commits: Phase 1 `feat: ...`, Phase 2 `feat: ...`
+- [x] Re-run `just verify` before marking each phase complete; it must pass
+- [x] Conventional Commits: Phase 1 `feat: ...`, Phase 2 `feat: ...`
 
 ---
 
@@ -250,7 +250,9 @@ can't be overwritten by accident.
 ### Open questions / risk burn-down
 
 - Confirm R2 honours `Range` on GetObject for this key shape (expected; it is
-  S3-compatible). If not, replan the read.
+  S3-compatible). If not, replan the read. Verified against an httptest S3
+  endpoint only; the read caps the body at n bytes, so a server ignoring
+  Range costs bandwidth, not correctness. Still needs a live R2 check.
 - User-authored `index.md` rendered to `index.html` must **not** carry the
   marker. Confirm the marker is driven only by the index generator, not by
   arbitrary frontmatter a user could write.
@@ -266,20 +268,20 @@ without `--index-overwrite`.
 
 ### Acceptance criteria
 
-- [ ] `[observable]` Rendered listing, `--no-render` listing redirect, and README
+- [x] `[observable]` Rendered listing, `--no-render` listing redirect, and README
   redirect `index.html` each contain the provenance marker with the right
   kind, and the marker ends before byte 512 even with a very long title. A
   user `index.md` rendered to `index.html` does not carry it.
-- [ ] `[observable]` `create --index` on dir A, then plain `update` (no flags) with
+- [x] `[observable]` `create --index` on dir A, then plain `update` (no flags) with
   dir B: `index.html` is rewritten, lists A ∪ B, and keeps A's title.
-- [ ] `[observable]` `create` on a dir with a README, then `update --index` with a
+- [x] `[observable]` `create` on a dir with a README, then `update --index` with a
   dir without one: the redirect is rewritten, not swapped for a listing
   (README in overlay wins).
-- [ ] `[observable]` Published unmarked `index.html` plus `update --index`:
+- [x] `[observable]` Published unmarked `index.html` plus `update --index`:
   unchanged and warns (R7). Plus `--index-overwrite`: replaced with a marked page.
-- [ ] `[observable]` Behaviour is identical against `--copy-dir` and the S3
+- [x] `[observable]` Behaviour is identical against `--copy-dir` and the S3
   uploader (S3 covered by the existing fake/stub test harness).
-- [ ] `[structural]` Provenance uses one ranged read of at most 512 bytes,
+- [x] `[structural]` Provenance uses one ranged read of at most 512 bytes,
   skipped when no `index.html` is published. The title read happens only for
   kind `listing`.
 

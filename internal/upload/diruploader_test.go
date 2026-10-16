@@ -164,3 +164,21 @@ func TestDirUploader_OverwritesExistingFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "new", string(got))
 }
+
+func TestDirUploader_ReadObjectHead(t *testing.T) {
+	root := t.TempDir()
+	up := &upload.DirUploader{Root: root}
+	ctx := context.Background()
+	require.NoError(t, up.PutObject(ctx, "b", "keep/x/index.html", "text/html", bytes.NewReader([]byte("0123456789"))))
+
+	got, err := up.ReadObjectHead(ctx, "b", "keep/x/index.html", 4)
+	require.NoError(t, err)
+	assert.Equal(t, "0123", string(got), "at most n bytes are read")
+
+	got, err = up.ReadObjectHead(ctx, "b", "keep/x/index.html", 512)
+	require.NoError(t, err)
+	assert.Equal(t, "0123456789", string(got), "a shorter object is read whole")
+
+	_, err = up.ReadObjectHead(ctx, "b", "keep/x/missing.html", 512)
+	assert.ErrorIs(t, err, upload.ErrObjectNotFound)
+}
