@@ -29,6 +29,10 @@ func TestHTMLTitle(t *testing.T) {
 		{"h1 past the cap falls back to title", "<title>Tab</title>" + bigStyle + "<h1>Late</h1>", "Tab"},
 		{"no title", "<p>just text</p>", ""},
 		{"empty h1 falls back to title", "<title>Tab</title><h1> </h1>", "Tab"},
+		{"title cut by the cap", "<title>" + strings.Repeat("a", titleReadLimit) + "</title>", ""},
+		{"svg title ignored", "<svg><title>Close</title></svg><p>x</p>", ""},
+		{"svg title ignored after empty title", "<title></title><svg><title>Close</title></svg>", ""},
+		{"svg title inside h1 ignored", "<h1><svg><title>Link</title></svg>Getting started</h1>", "Getting started"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
