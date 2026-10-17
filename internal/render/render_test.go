@@ -740,8 +740,8 @@ func TestMarkdownRenderer_CSSPathRootLevel(t *testing.T) {
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "notes.html")
-	assert.Contains(t, html, `href="github-markdown.css?v=`)
-	assert.Contains(t, html, `href="dollop-markdown.css?v=`)
+	assert.Contains(t, html, `href=".dollop/github-markdown.css?v=`)
+	assert.Contains(t, html, `href=".dollop/dollop-markdown.css?v=`)
 }
 
 // TestMarkdownRenderer_SharedAssetsVersioned verifies every per-prefix shared
@@ -761,7 +761,7 @@ func TestMarkdownRenderer_SharedAssetsVersioned(t *testing.T) {
 	html := openSource(t, sources, "sub/page.html")
 	for _, a := range assets {
 		sum := sha256.Sum256(a.Content)
-		want := "../" + a.Name + "?v=" + hex.EncodeToString(sum[:])[:10]
+		want := "../.dollop/" + a.Name + "?v=" + hex.EncodeToString(sum[:])[:10]
 		assert.Contains(t, html, `="`+want+`"`, "asset %s must be referenced with its content version", a.Name)
 	}
 }
@@ -778,8 +778,8 @@ func TestMarkdownRenderer_CSSPathOneLevelDeep(t *testing.T) {
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "sub/page.html")
-	assert.Contains(t, html, `href="../github-markdown.css?v=`)
-	assert.Contains(t, html, `href="../dollop-markdown.css?v=`)
+	assert.Contains(t, html, `href="../.dollop/github-markdown.css?v=`)
+	assert.Contains(t, html, `href="../.dollop/dollop-markdown.css?v=`)
 }
 
 // TestMarkdownRenderer_TypographyLayerAfterBase verifies the dollop typography
@@ -794,9 +794,9 @@ func TestMarkdownRenderer_TypographyLayerAfterBase(t *testing.T) {
 	require.NoError(t, err)
 
 	html := openSource(t, sources, "doc.html")
-	base := strings.Index(html, `href="github-markdown.css?v=`)
-	theme := strings.Index(html, `href="dollop-theme-tide.css?v=`)
-	layer := strings.Index(html, `href="dollop-markdown.css?v=`)
+	base := strings.Index(html, `href=".dollop/github-markdown.css?v=`)
+	theme := strings.Index(html, `href=".dollop/dollop-theme-tide.css?v=`)
+	layer := strings.Index(html, `href=".dollop/dollop-markdown.css?v=`)
 	require.NotEqual(t, -1, base)
 	require.NotEqual(t, -1, theme)
 	require.NotEqual(t, -1, layer)
@@ -1008,7 +1008,7 @@ func TestMarkdownRenderer_LichenTheme(t *testing.T) {
 	assert.NotContains(t, names, "dollop-theme-tide.css")
 
 	html := openSource(t, sources, "doc.html")
-	assert.Contains(t, html, `href="dollop-theme-lichen.css?v=`)
+	assert.Contains(t, html, `href=".dollop/dollop-theme-lichen.css?v=`)
 	assert.NotContains(t, html, `dollop-theme-tide.css`)
 	assert.Contains(t, html, `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage`)
 	assert.NotContains(t, html, "PP Mori")

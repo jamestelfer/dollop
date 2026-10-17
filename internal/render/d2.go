@@ -117,7 +117,7 @@ func (dr *d2Rewriter) Transform(doc *ast.Document, reader text.Reader, _ parser.
 			Content:     diagram.SVG,
 		})
 		replacements = append(replacements, replacement{cb, &d2Node{
-			Src:    dr.depthPrefix + name,
+			Src:    dr.depthPrefix + AssetDir + "/" + name,
 			Width:  diagram.Width,
 			Height: diagram.Height,
 		}})
@@ -168,7 +168,7 @@ func allowedSVGLink(element, href string) bool {
 	return false
 }
 
-// d2AssetName derives the prefix-relative SVG name from the diagram source, so
+// d2AssetName derives the SVG name (relative to AssetDir) from the diagram source, so
 // an unchanged diagram keeps its key across updates and a diagram repeated
 // across pages resolves to one object.
 func d2AssetName(src []byte) string {

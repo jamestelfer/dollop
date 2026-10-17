@@ -9,6 +9,12 @@ import (
 
 func TestIsAssetName(t *testing.T) {
 	for name, want := range map[string]bool{
+		".dollop/github-markdown.css":      true,
+		".dollop/d2/0123456789ab.svg":      true,
+		".dollop/anything.txt":             true, // the asset directory belongs to dollop
+		".dollop/":                         false,
+		"docs/.dollop/github-markdown.css": false, // the asset directory is at the prefix root
+		// assets older releases published beside the pages
 		"github-markdown.css":      true,
 		"dollop-markdown.css":      true,
 		"highlight-github.css":     true,

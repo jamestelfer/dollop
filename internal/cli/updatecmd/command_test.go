@@ -344,7 +344,7 @@ func TestUpdate_Theme_SelectsThemeStylesheet(t *testing.T) {
 	up := &fakeUploader{}
 	_, _, code := runUpdate(t, up, "https://drop.example.com", "update", "--copy-dir", dst, "--theme", "lichen", "flash/7/abc", src)
 	require.Equal(t, 0, code)
-	assert.FileExists(t, filepath.Join(dst, "flash", "7", "abc", "dollop-theme-lichen.css"))
+	assert.FileExists(t, filepath.Join(dst, "flash", "7", "abc", ".dollop", "dollop-theme-lichen.css"))
 }
 
 func TestUpdate_Theme_UnknownFails(t *testing.T) {

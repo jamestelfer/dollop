@@ -42,16 +42,27 @@ var dollopDarkSVG []byte
 //go:embed assets/dollop-favicon.svg
 var dollopFaviconSVG []byte
 
-// SharedAsset is a file that should be uploaded at the prefix root with
-// cache headers, separate from the per-file relPaths list.
+// AssetDir is the subdirectory of a prefix that holds the supporting files
+// rendering publishes (stylesheets, scripts, logos, d2 diagrams). dollop owns
+// it: an upload overwrites whatever is there, including files of the same name
+// in the uploaded path.
+const AssetDir = ".dollop"
+
+// SharedAsset is a supporting file uploaded under AssetDir with cache headers,
+// separate from the per-file relPaths list. Name is relative to AssetDir.
 type SharedAsset struct {
 	Name        string
 	ContentType string
 	Content     []byte
 }
 
-// sharedAssets are the fixed-name assets uploaded at every prefix root that
-// holds rendered markdown, alongside the selected theme's stylesheet. They are
+// RelPath returns the asset's path relative to the prefix root.
+func (a SharedAsset) RelPath() string {
+	return AssetDir + "/" + a.Name
+}
+
+// sharedAssets are the fixed-name assets uploaded under AssetDir of every
+// prefix that holds rendered markdown, alongside the selected theme's stylesheet. They are
 // served with a long max-age, so pages reference them through assetRef rather
 // than by bare name.
 var sharedAssets = []SharedAsset{
@@ -79,18 +90,28 @@ var assetVersions = func() map[string]string {
 	return v
 }()
 
-// assetRef returns the page-relative URL of a shared asset with a ?v= query
-// holding its content hash. The object key stays the bare name; the query
-// only changes the cache key, so an update that changes an asset is never
+// assetRef returns the page-relative URL of the shared asset name (relative to
+// AssetDir) with a ?v= query holding its content hash. The object key has no
+// query; the query only changes the cache key, so an update that changes an asset is never
 // masked by a stale edge or browser copy of the previous version.
 func assetRef(depthPrefix, name string) string {
-	return depthPrefix + name + "?v=" + assetVersions[name]
+	return depthPrefix + AssetDir + "/" + name + "?v=" + assetVersions[name]
 }
 
-// IsAssetName reports whether name, relative to a prefix root, is one of the
-// assets rendering publishes there: a fixed shared asset, any theme's
-// stylesheet (including themes from older releases), or a d2 diagram.
+// IsAssetName reports whether name, relative to a prefix root, is a
+// supporting file rendering publishes: anything under AssetDir, which dollop
+// owns, or an asset older releases published at the prefix root (a fixed
+// shared asset, any theme's stylesheet, or a d2 diagram).
 func IsAssetName(name string) bool {
+	if rest, ok := strings.CutPrefix(name, AssetDir+"/"); ok {
+		return rest != ""
+	}
+	return isLegacyAssetName(name)
+}
+
+// isLegacyAssetName reports whether name is an asset older releases published
+// beside the pages, at the prefix root.
+func isLegacyAssetName(name string) bool {
 	for _, a := range sharedAssets {
 		if a.Name == name {
 			return true

@@ -29,9 +29,10 @@ func fakeD2(calls *int) render.D2RenderFunc {
 	}
 }
 
+// d2Name is the path of a diagram's SVG relative to the prefix root.
 func d2Name(src string) string {
 	sum := sha256.Sum256([]byte(src))
-	return "d2/" + hex.EncodeToString(sum[:])[:12] + ".svg"
+	return ".dollop/d2/" + hex.EncodeToString(sum[:])[:12] + ".svg"
 }
 
 func d2Assets(assets []render.SharedAsset) []render.SharedAsset {
@@ -72,7 +73,7 @@ func TestD2_FenceRendersLinkedImage(t *testing.T) {
 
 	got := d2Assets(assets)
 	require.Len(t, got, 1)
-	assert.Equal(t, name, got[0].Name)
+	assert.Equal(t, name, got[0].RelPath())
 	assert.Equal(t, "image/svg+xml; charset=utf-8", got[0].ContentType)
 	assert.Equal(t, "<svg>a -> b\n</svg>", string(got[0].Content))
 	assert.Equal(t, 1, calls)
@@ -166,7 +167,7 @@ func TestD2_NestedPageClimbsToPrefixRoot(t *testing.T) {
 	assert.Contains(t, html, `src="../`+name+`"`)
 	got := d2Assets(assets)
 	require.Len(t, got, 1)
-	assert.Equal(t, name, got[0].Name, "the asset is named relative to the prefix root")
+	assert.Equal(t, name, got[0].RelPath(), "the asset path is relative to the prefix root")
 }
 
 func TestD2_EmptyFence(t *testing.T) {

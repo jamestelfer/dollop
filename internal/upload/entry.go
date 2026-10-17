@@ -215,14 +215,25 @@ func redirectSource(target string, kind IndexKind) (render.Source, error) {
 }
 
 // listingPaths splits what the prefix will hold once this upload lands into
-// the files a listing shows and its supporting files: this run's shared assets
-// plus any rendering assets already published (see render.IsAssetName). As in
+// the files a listing shows and its supporting files: this run's shared assets,
+// any local files under render.AssetDir, and any rendering assets already
+// published (see render.IsAssetName). As in
 // a fresh upload, published assets are supporting files only alongside
 // markdown; otherwise they only served the generated index and are not listed.
 func listingPaths(local, published []string, assets []render.SharedAsset) (files, supporting []string) {
 	supporting = make([]string, len(assets))
 	for i, a := range assets {
-		supporting[i] = a.Name
+		supporting[i] = a.RelPath()
+	}
+	// a local file in the asset directory is uploaded like any other unless a
+	// generated asset overwrites it, but either way it is a supporting file.
+	var localFiles []string
+	for _, p := range local {
+		if !strings.HasPrefix(p, render.AssetDir+"/") {
+			localFiles = append(localFiles, p)
+		} else if !slices.Contains(supporting, p) {
+			supporting = append(supporting, p)
+		}
 	}
 	var publishedFiles, publishedAssets []string
 	for _, p := range published {
@@ -232,7 +243,7 @@ func listingPaths(local, published []string, assets []render.SharedAsset) (files
 			publishedFiles = append(publishedFiles, p)
 		}
 	}
-	files = overlayPaths(local, publishedFiles)
+	files = overlayPaths(localFiles, publishedFiles)
 	slices.Sort(files)
 	if slices.ContainsFunc(files, isMarkdownPath) {
 		for _, a := range publishedAssets {
