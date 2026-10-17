@@ -57,10 +57,8 @@ func (pub publishedPrefix) titles() map[string]string {
 
 // userPaths returns the published paths less the index pages dollop generated.
 func (pub publishedPrefix) userPaths() []string {
-	if pub.index.Kind == "" {
-		return pub.paths
-	}
-	return slices.DeleteFunc(slices.Clone(pub.paths), isIndexPage)
+	generated := pub.index.Kind.pages()
+	return slices.DeleteFunc(slices.Clone(pub.paths), func(p string) bool { return slices.Contains(generated, p) })
 }
 
 type entryPlan struct {

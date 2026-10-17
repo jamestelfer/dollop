@@ -256,3 +256,13 @@ func TestUploadFiles_PublishedManifest_KeepsUserIndexPage(t *testing.T) {
 
 	assert.Equal(t, map[string]upload.ManifestFile{"a.txt": {}, "index.html": {Title: "Home"}}, manifestOf(t, up).Files)
 }
+
+func TestUploadFiles_PublishedManifest_KeepsUserMarkdownIndexUnderReadmeRedirect(t *testing.T) {
+	up, _, _ := uploadTree(t, map[string]string{"a.txt": "a"}, upload.IndexNone,
+		upload.WithPublished([]string{"index.html", "index.md", "README.md"}),
+		upload.WithPublishedIndex(upload.PublishedIndex{Kind: upload.IndexKindReadmeRedirect}),
+		upload.WithPublishedManifest(upload.Manifest{Version: 1, Files: map[string]upload.ManifestFile{"index.md": {Title: "Mine"}}}))
+
+	assert.Equal(t, map[string]upload.ManifestFile{"a.txt": {}, "index.md": {Title: "Mine"}, "README.md": {}}, manifestOf(t, up).Files,
+		"only the redirect is dollop's; the index.md beside it is the user's")
+}

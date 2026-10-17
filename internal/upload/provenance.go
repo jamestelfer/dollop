@@ -25,6 +25,17 @@ const (
 	IndexKindReadmeRedirect IndexKind = "readme-redirect"
 )
 
+// pages returns the relative paths of the pages dollop generates for k.
+func (k IndexKind) pages() []string {
+	switch k {
+	case IndexKindListing:
+		return []string{"index.html", "index.md"}
+	case IndexKindReadmeRedirect:
+		return []string{"index.html"}
+	}
+	return nil
+}
+
 // markerHeadSize is how much of a published index.html is read to find the
 // marker; markGenerated keeps the marker well inside it.
 const markerHeadSize = 512
