@@ -113,17 +113,17 @@ func indexMode(cmd *cli.Command) upload.IndexMode {
 // listing covers both, an index page dollop generated is regenerated (a
 // listing even without --index), and any other published index page is
 // replaced only with --index-overwrite. The published manifest supplies the
-// titles of pages this update does not upload again.
+// listing's title and the titles of pages this update does not upload again.
 func publishedOptions(ctx context.Context, up upload.SyncUploader, bucket, prefix string, stderr io.Writer) ([]upload.UploadOption, error) {
 	published, err := upload.PublishedPaths(ctx, up, bucket, prefix)
 	if err != nil {
 		return nil, err
 	}
-	index, err := upload.InspectPublishedIndex(ctx, up, bucket, prefix, published)
+	manifest := upload.ReadPublishedManifest(ctx, up, bucket, prefix, published, stderr)
+	index, err := upload.InspectPublishedIndex(ctx, up, bucket, prefix, published, manifest)
 	if err != nil {
 		return nil, err
 	}
-	manifest := upload.ReadPublishedManifest(ctx, up, bucket, prefix, published, stderr)
 	return []upload.UploadOption{upload.WithPublished(published), upload.WithPublishedIndex(index), upload.WithPublishedManifest(manifest)}, nil
 }
 

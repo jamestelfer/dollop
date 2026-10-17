@@ -588,3 +588,43 @@ func TestUpdate_PublishedManifest_CorruptIsWarnedAboutOnce(t *testing.T) {
 	assert.Contains(t, stderr, "manifest")
 	assert.Contains(t, publishedManifest(t, up, titlesPrefix).Files, "a.html", "a fresh manifest is written")
 }
+
+func TestUpdate_PublishedManifest_KeepsListingTitle(t *testing.T) {
+	up := publishAlpha(t)
+	beta := writeTree(t, "beta", map[string]string{"b.txt": "b"})
+	_, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", titlesPrefix, beta)
+	require.Equal(t, 0, code, stderr)
+
+	assert.Contains(t, publishedFile(t, up, titlesPrefix+"/index.md"), "\n# alpha\n")
+	assert.Equal(t, "alpha", publishedManifest(t, up, titlesPrefix).Title)
+	assert.NotContains(t, up.reads, titlesPrefix+"/index.md", "the title comes from the manifest")
+}
+
+func TestUpdate_PublishedManifest_WithoutTitleFallsBackToIndexMarkdown(t *testing.T) {
+	up := publishAlpha(t)
+	manifestFile := filepath.Join(up.Root, titlesPrefix, ".dollop", "manifest.json")
+	m := publishedManifest(t, up, titlesPrefix)
+	m.Title = ""
+	data, err := json.Marshal(m)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(manifestFile, data, 0o600))
+
+	beta := writeTree(t, "beta", map[string]string{"b.txt": "b"})
+	_, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", titlesPrefix, beta)
+	require.Equal(t, 0, code, stderr)
+
+	assert.Contains(t, publishedFile(t, up, titlesPrefix+"/index.md"), "\n# alpha\n")
+	assert.Contains(t, up.reads, titlesPrefix+"/index.md")
+}
+
+func TestUpdate_PublishedManifest_DoesNotAuthoriseReplacingUserIndex(t *testing.T) {
+	up := publishAlpha(t)
+	require.NoError(t, os.WriteFile(filepath.Join(up.Root, titlesPrefix, "index.html"), []byte("<h1>hand-written</h1>"), 0o600))
+
+	beta := writeTree(t, "beta", map[string]string{"b.txt": "b"})
+	_, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", "--index", titlesPrefix, beta)
+	require.Equal(t, 0, code, stderr)
+
+	assert.Contains(t, stderr, "index.html already published, skipping index generation")
+	assert.Equal(t, "<h1>hand-written</h1>", publishedFile(t, up, titlesPrefix+"/index.html"))
+}

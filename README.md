@@ -149,7 +149,11 @@ https://cdn.example.com/flash/7/v8p2xkqj3m/
 `dollop update <url-or-prefix> <path>` publishes into an existing upload,
 reusing its link. `--index` (on `create` or `update`) generates an
 `index.html` listing the files; on `update` the listing covers everything under
-the prefix, not just the files in this run.
+the prefix, not just the files in this run. Pages are listed under their title:
+the first `<h1>` of an HTML page, or a markdown page's frontmatter `title` or
+first `#` heading. Every run records the published files and their titles in
+`.dollop/manifest.json`, so `update` keeps the titles of files it doesn't
+upload again.
 
 Index pages dollop generates carry a marker, so `update` keeps them current:
 
