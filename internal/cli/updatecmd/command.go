@@ -120,7 +120,7 @@ func publishedOptions(ctx context.Context, up upload.SyncUploader, bucket, prefi
 		return nil, err
 	}
 	manifest := upload.ReadPublishedManifest(ctx, up, bucket, prefix, published, stderr)
-	index, err := upload.InspectPublishedIndex(ctx, up, bucket, prefix, published, manifest)
+	index, err := upload.InspectPublishedIndex(ctx, up, bucket, prefix, published, manifest.Title)
 	if err != nil {
 		return nil, err
 	}

@@ -32,10 +32,6 @@ const (
 	IndexOverwrite
 )
 
-// entryPlan is the outcome of deciding how the upload is entered: the
-// generated pages to publish alongside the sources, any shared assets those
-// pages need, and the relative path the public URL should point at ("" for the
-// prefix root).
 // publishedPrefix is what is already published under the prefix: the
 // relative paths there, and what generated its index page.
 type publishedPrefix struct {
@@ -61,6 +57,10 @@ func (pub publishedPrefix) userPaths() []string {
 	return slices.DeleteFunc(slices.Clone(pub.paths), func(p string) bool { return slices.Contains(generated, p) })
 }
 
+// entryPlan is the outcome of deciding how the upload is entered: the
+// generated pages to publish alongside the sources, any shared assets those
+// pages need, the relative path the public URL should point at ("" for the
+// prefix root), and the kind of index page generated.
 type entryPlan struct {
 	generated []render.Source
 	assets    []render.SharedAsset
@@ -75,8 +75,7 @@ type entryPlan struct {
 //  2. an index page already published under the prefix (pub holds the
 //     relative paths there) is not replaced, unless mode is IndexOverwrite or
 //     dollop generated it: nothing is generated and it is the entry. A
-//     generated listing is refreshed (mode is at least IndexGenerate) under
-//     its published title;
+//     generated listing is refreshed (mode is at least IndexGenerate);
 //  3. a README at the upload root, local or published, gets an index.html redirecting to it, and the
 //     URL points at the README directly;
 //  4. with IndexNone, the URL points at the first local file;
@@ -94,7 +93,7 @@ func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []re
 		return entryPlan{entry: entry}, nil
 	}
 
-	published, mode, heading := pub.resolve(mode, heading, stderr)
+	published, mode := pub.resolve(mode, heading.Title, stderr)
 	generateIndex := mode != IndexNone
 
 	readme, target, hasReadme := findReadme(overlayPaths(relPaths, published))
@@ -130,23 +129,23 @@ func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []re
 
 // resolve applies what generated the published index page to an upload in
 // mode. It returns the published paths entry pages are planned over (without
-// the index page when it is being replaced), the effective mode (a generated
-// listing is always refreshed), and heading under the listing's own title.
-func (pub publishedPrefix) resolve(mode IndexMode, heading indexHeading, stderr io.Writer) ([]string, IndexMode, indexHeading) {
+// the index page when it is being replaced) and the effective mode (a
+// generated listing is always refreshed). title is the listing's, warned about
+// when it stands in for a published title that was not found.
+func (pub publishedPrefix) resolve(mode IndexMode, title string, stderr io.Writer) ([]string, IndexMode) {
 	published := pub.paths
 	if pub.index.Kind == IndexKindListing {
 		mode = max(mode, IndexGenerate) // IndexOverwrite stays as it is
 		if pub.index.Title == "" {
-			fmt.Fprintf(stderr, "warning: published index title not found, using %q\n", heading.Title) //nolint:errcheck
+			fmt.Fprintf(stderr, "warning: published index title not found, using %q\n", title) //nolint:errcheck
 		}
-		heading.Title = pub.listingTitle(heading.Title)
 	}
 	if mode == IndexOverwrite || pub.index.Kind != "" {
 		// the published index page is being replaced, so it is neither in the
 		// way nor one of the files to list.
 		published = slices.DeleteFunc(slices.Clone(published), isIndexPage)
 	}
-	return published, mode, heading
+	return published, mode
 }
 
 // listingTitle returns the title of the published generated listing, or

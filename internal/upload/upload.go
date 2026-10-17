@@ -140,7 +140,7 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 	// dollop writes the manifest itself, after everything else
 	sources = slices.DeleteFunc(sources, func(src render.Source) bool { return isManifest(src.RelPath) })
 
-	heading := indexHeading{Title: uploadTitle(localPath), Lifetime: lifetimeOf(prefix, time.Now())}
+	heading := indexHeading{Title: o.published.listingTitle(uploadTitle(localPath)), Lifetime: lifetimeOf(prefix, time.Now())}
 	titles := o.published.titles()
 	for _, p := range relPathsOf(sources) {
 		delete(titles, p)
@@ -162,7 +162,7 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 	manifestPaths := slices.DeleteFunc(overlayPaths(relPathsOf(sources), o.published.userPaths()), func(p string) bool {
 		return slices.Contains(generated, p)
 	})
-	manifest := newManifest(o.published.listingTitle(heading.Title), plan.index, manifestPaths, titles)
+	manifest := newManifest(heading.Title, plan.index, manifestPaths, titles)
 	manifestKey, err := uploadManifest(ctx, up, bucket, prefix, manifest, stderr)
 	if err != nil {
 		return nil, err

@@ -105,12 +105,11 @@ type PublishedIndex struct {
 
 // InspectPublishedIndex reports what generated the index.html among published
 // (relative paths under prefix), from the provenance marker in its first
-// markerHeadSize bytes; manifest (the published one) never decides that. For a
-// listing it takes the title from manifest, or else recovers it from the
-// frontmatter of the published index.md; Title is empty when both fail. An
-// unmarked or vanished index.html is not known to be generated; any other
-// read error is returned.
-func InspectPublishedIndex(ctx context.Context, r ObjectHeadReader, bucket, prefix string, published []string, manifest Manifest) (PublishedIndex, error) {
+// markerHeadSize bytes. For a listing the title is manifestTitle (the published
+// manifest's), or else is recovered from the frontmatter of the published
+// index.md; Title is empty when both fail. An unmarked or vanished index.html
+// is not known to be generated; any other read error is returned.
+func InspectPublishedIndex(ctx context.Context, r ObjectHeadReader, bucket, prefix string, published []string, manifestTitle string) (PublishedIndex, error) {
 	if !slices.Contains(published, "index.html") {
 		return PublishedIndex{}, nil
 	}
@@ -125,8 +124,8 @@ func InspectPublishedIndex(ctx context.Context, r ObjectHeadReader, bucket, pref
 	if kind != IndexKindListing {
 		return PublishedIndex{Kind: kind}, nil
 	}
-	if manifest.Title != "" {
-		return PublishedIndex{Kind: kind, Title: manifest.Title}, nil
+	if manifestTitle != "" {
+		return PublishedIndex{Kind: kind, Title: manifestTitle}, nil
 	}
 	md, err := r.ReadObjectHead(ctx, bucket, prefix+"/index.md", titleHeadSize)
 	if err != nil {

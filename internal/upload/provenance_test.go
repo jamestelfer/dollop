@@ -51,7 +51,7 @@ func TestInspectPublishedIndex(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			up, published := publishTo(t, "keep/x", tc.files)
-			got, err := upload.InspectPublishedIndex(context.Background(), up, "b", "keep/x", published, upload.Manifest{})
+			got, err := upload.InspectPublishedIndex(context.Background(), up, "b", "keep/x", published, "")
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
 		})
@@ -65,39 +65,40 @@ func (failingReader) ReadObjectHead(context.Context, string, string, int64) ([]b
 }
 
 func TestInspectPublishedIndex_ReadErrorFails(t *testing.T) {
-	_, err := upload.InspectPublishedIndex(context.Background(), failingReader{}, "b", "keep/x", []string{"index.html"}, upload.Manifest{})
+	_, err := upload.InspectPublishedIndex(context.Background(), failingReader{}, "b", "keep/x", []string{"index.html"}, "")
 	assert.ErrorContains(t, err, "access denied")
 }
 
-func TestInspectPublishedIndex_ListingTitledByManifest(t *testing.T) {
-	up, published := publishTo(t, "keep/x", map[string]string{
-		"index.html": markedListing,
-		"index.md":   "---\ntitle: From index.md\n---\n",
-	})
-	r := &readsRecorder{ObjectHeadReader: up}
+func TestInspectPublishedIndex_ListingTitle(t *testing.T) {
+	tests := []struct {
+		name          string
+		manifestTitle string
+		want          string
+		reads         []string
+	}{
+		{"from the manifest, without reading index.md", "alpha", "alpha", []string{"keep/x/index.html"}},
+		{"from index.md without a manifest title", "", "From index.md", []string{"keep/x/index.html", "keep/x/index.md"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			up, published := publishTo(t, "keep/x", map[string]string{
+				"index.html": markedListing,
+				"index.md":   "---\ntitle: From index.md\n---\n",
+			})
+			r := &readsRecorder{ObjectHeadReader: up}
 
-	got, err := upload.InspectPublishedIndex(context.Background(), r, "b", "keep/x", published, upload.Manifest{Version: 1, Title: "alpha"})
-	require.NoError(t, err)
-	assert.Equal(t, upload.PublishedIndex{Kind: upload.IndexKindListing, Title: "alpha"}, got)
-	assert.Equal(t, []string{"keep/x/index.html"}, r.keys, "index.md is not read when the manifest has the title")
-}
-
-func TestInspectPublishedIndex_ManifestWithoutTitleFallsBackToIndexMarkdown(t *testing.T) {
-	up, published := publishTo(t, "keep/x", map[string]string{
-		"index.html": markedListing,
-		"index.md":   "---\ntitle: From index.md\n---\n",
-	})
-
-	got, err := upload.InspectPublishedIndex(context.Background(), up, "b", "keep/x", published, upload.Manifest{Version: 1, Index: upload.IndexKindListing})
-	require.NoError(t, err)
-	assert.Equal(t, "From index.md", got.Title)
+			got, err := upload.InspectPublishedIndex(context.Background(), r, "b", "keep/x", published, tt.manifestTitle)
+			require.NoError(t, err)
+			assert.Equal(t, upload.PublishedIndex{Kind: upload.IndexKindListing, Title: tt.want}, got)
+			assert.Equal(t, tt.reads, r.keys)
+		})
+	}
 }
 
 func TestInspectPublishedIndex_ManifestDoesNotDecideProvenance(t *testing.T) {
 	up, published := publishTo(t, "keep/x", map[string]string{"index.html": "<h1>hand-written</h1>"})
 
-	got, err := upload.InspectPublishedIndex(context.Background(), up, "b", "keep/x", published,
-		upload.Manifest{Version: 1, Title: "alpha", Index: upload.IndexKindListing})
+	got, err := upload.InspectPublishedIndex(context.Background(), up, "b", "keep/x", published, "alpha")
 	require.NoError(t, err)
 	assert.Equal(t, upload.PublishedIndex{}, got, "only the marker says the page is generated")
 }
