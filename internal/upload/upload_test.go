@@ -126,7 +126,7 @@ func TestUploadFiles_Index_SupportingFilesCollapsed(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(s, `<a href="notes.md">`), "the markdown must only appear as the source link, not as its own item")
 
 	// shared assets are listed in a collapsed section, not the main list
-	assert.Regexp(t, `(?s)<details>\s*<summary>Supporting files</summary>.*href="github-markdown.css".*</details>`, s)
+	assert.Regexp(t, `(?s)<details>\s*<summary>Supporting files</summary>.*href=".dollop/github-markdown.css".*</details>`, s)
 	assert.NotContains(t, s, "<details open")
 }
 
@@ -196,7 +196,7 @@ func TestUploadFiles_Render_SharedAssetsUploadedOnce(t *testing.T) {
 	// count CSS uploads
 	cssCount := 0
 	for _, c := range up.calls {
-		if c.key == "flash/1/abc/github-markdown.css" {
+		if c.key == "flash/1/abc/.dollop/github-markdown.css" {
 			cssCount++
 		}
 	}
@@ -229,7 +229,7 @@ func TestUploadFiles_WrittenKeys_CoverSourcesAssetsAndIndex(t *testing.T) {
 		"WrittenKeys must be exactly the set of object keys written this run")
 	assert.Contains(t, res.WrittenKeys, "flash/7/abc/index.html", "generated index is reported")
 	assert.Contains(t, res.WrittenKeys, "flash/7/abc/notes.html", "rendered source is reported")
-	assert.Contains(t, res.WrittenKeys, "flash/7/abc/github-markdown.css", "shared asset is reported")
+	assert.Contains(t, res.WrittenKeys, "flash/7/abc/.dollop/github-markdown.css", "shared asset is reported")
 }
 
 func TestUploadFiles_Render_IndexMdSetsHasIndex(t *testing.T) {
@@ -603,13 +603,19 @@ func TestUploadFiles_NoRender_ExistingIndexMarkdownIsTheEntry(t *testing.T) {
 	assert.Equal(t, "index.md", res.Entry, "the user's index page is the entry, not the first file alphabetically")
 }
 
+func TestUploadFiles_NoIndex_EntryIsNotInAssetDir(t *testing.T) {
+	_, res, _ := uploadTree(t, map[string]string{".dollop/dollop-dark.svg": "<svg/>", "notes.html": "<p>hi</p>"}, upload.IndexNone)
+
+	assert.Equal(t, "notes.html", res.Entry)
+}
+
 func TestUploadFiles_Index_UploadsAssetsTheIndexPageNeeds(t *testing.T) {
 	up, res, _ := uploadTree(t, map[string]string{"data.csv": "a,b"}, upload.IndexGenerate, upload.WithRenderer(render.NewMarkdownRenderer()))
 
 	// the rendered index needs the page stylesheets even though the upload
 	// itself has no markdown
-	assert.Contains(t, res.WrittenKeys, "flash/1/abc/github-markdown.css")
-	assert.Contains(t, res.WrittenKeys, "flash/1/abc/dollop-theme-tide.css")
+	assert.Contains(t, res.WrittenKeys, "flash/1/abc/.dollop/github-markdown.css")
+	assert.Contains(t, res.WrittenKeys, "flash/1/abc/.dollop/dollop-theme-tide.css")
 	assert.Equal(t, 1, strings.Count(strings.Join(res.WrittenKeys, "\n"), "github-markdown.css"), "each asset is uploaded once")
 
 	// they serve the index page, so they are not listed as the upload's files
@@ -844,6 +850,51 @@ func TestUploadFiles_GeneratedListing_MissingTitleFallsBack(t *testing.T) {
 
 	assert.Contains(t, bodyOf(t, up, "flash/1/abc/index.md"), "[new.txt](new.txt)")
 	assert.Contains(t, stderr, "warning: published index title not found")
+}
+
+func TestUploadFiles_Published_DollopDirListedAsSupportingFiles(t *testing.T) {
+	up, _, _ := uploadTree(t, map[string]string{"new.txt": "n"}, upload.IndexGenerate,
+		upload.WithPublished([]string{"old.md", ".dollop/github-markdown.css", ".dollop/d2/0123456789ab.svg"}))
+
+	md := bodyOf(t, up, "flash/1/abc/index.md")
+	main, supporting, ok := strings.Cut(md, "Supporting files")
+	require.True(t, ok, "published assets are listed as supporting files")
+	assert.NotContains(t, main, ".dollop")
+	assert.Contains(t, supporting, "(.dollop/github-markdown.css)")
+	assert.Contains(t, supporting, "(.dollop/d2/0123456789ab.svg)")
+}
+
+func TestUploadFiles_Render_LocalDollopDirOverwrittenByAssets(t *testing.T) {
+	// a local .dollop directory (e.g. from a downloaded upload) must not keep
+	// stale copies of the generated assets: the upload overwrites them.
+	up, res, _ := uploadTree(t, map[string]string{
+		"notes.md":                    "# Hi",
+		".dollop/github-markdown.css": "stale",
+		".dollop/extra.txt":           "mine",
+	}, upload.IndexGenerate, upload.WithRenderer(render.NewMarkdownRenderer()))
+
+	assert.Equal(t, 1, strings.Count(strings.Join(keysOf(up), "\n"), ".dollop/github-markdown.css"), "the asset is written once")
+	assert.NotEqual(t, "stale", bodyOf(t, up, "flash/1/abc/.dollop/github-markdown.css"), "the generated asset wins")
+	assert.Equal(t, "mine", bodyOf(t, up, "flash/1/abc/.dollop/extra.txt"), "other local files there are still uploaded")
+	assert.ElementsMatch(t, keysOf(up), res.WrittenKeys)
+	assert.NotContains(t, res.SourceRelPaths, ".dollop/github-markdown.css", "the overwritten local file is not an uploaded source")
+	assert.Contains(t, res.SourceRelPaths, ".dollop/extra.txt")
+
+	md := bodyOf(t, up, "flash/1/abc/index.md")
+	main, supporting, ok := strings.Cut(md, "Supporting files")
+	require.True(t, ok)
+	assert.NotContains(t, main, ".dollop", "the asset directory is not a primary entry")
+	assert.Contains(t, supporting, "(.dollop/extra.txt)")
+	assert.Equal(t, 1, strings.Count(supporting, "(.dollop/github-markdown.css)"))
+}
+
+func TestUploadFiles_NoMarkdown_LocalAndPublishedAssetsListedAlike(t *testing.T) {
+	up, _, _ := uploadTree(t, map[string]string{"a.txt": "a", ".dollop/local.svg": "<svg/>"}, upload.IndexGenerate,
+		upload.WithPublished([]string{".dollop/published.svg"}))
+
+	md := bodyOf(t, up, "flash/1/abc/index.md")
+	assert.NotContains(t, md, "local.svg")
+	assert.NotContains(t, md, "published.svg")
 }
 
 func TestUploadFiles_Published_AssetsOfIndexOnlyNotListed(t *testing.T) {

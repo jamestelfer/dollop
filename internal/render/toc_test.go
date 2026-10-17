@@ -104,6 +104,6 @@ func TestTOC_ScriptAsset(t *testing.T) {
 			assert.Equal(t, "text/javascript; charset=utf-8", a.ContentType)
 		}
 	}
-	assert.Contains(t, html, `<script src="dollop-toc.js?v=`)
+	assert.Contains(t, html, `<script src=".dollop/dollop-toc.js?v=`)
 	assert.Contains(t, html, `" defer></script>`)
 }

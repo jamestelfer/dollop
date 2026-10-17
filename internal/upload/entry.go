@@ -66,7 +66,7 @@ type entryPlan struct {
 //     planned through renderer with fsys underneath it. When renderer does not turn it into index.html, an
 //     index.html redirecting to index.md is added.
 func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []render.Source, assets []render.SharedAsset, pub publishedPrefix, mode IndexMode, heading indexHeading, stderr io.Writer) (entryPlan, error) {
-	relPaths := relPathsOf(sources)
+	relPaths, localAssets := splitAssetDir(relPathsOf(sources))
 
 	if existing, entry, ok := findIndexPage(relPaths); ok {
 		if mode != IndexNone {
@@ -105,7 +105,7 @@ func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []re
 		return entryPlan{entry: firstFile(relPaths)}, nil
 	}
 
-	files, supporting := listingPaths(relPaths, published, assets)
+	files, supporting := listingPaths(relPaths, localAssets, published, assets)
 	return planListing(renderer, fsys, prefix, heading, files, supporting)
 }
 
@@ -214,20 +214,18 @@ func redirectSource(target string, kind IndexKind) (render.Source, error) {
 	return memSource("index.html", "text/html; charset=utf-8", markGenerated(buf.Bytes(), kind)), nil
 }
 
-// listingPaths splits what the prefix will hold once this upload lands into
-// the files a listing shows and its supporting files: this run's shared assets
-// plus any rendering assets already published (see render.IsAssetName). As in
-// a fresh upload, published assets are supporting files only alongside
-// markdown; otherwise they only served the generated index and are not listed.
-func listingPaths(local, published []string, assets []render.SharedAsset) (files, supporting []string) {
+// listingPaths splits the prefix's paths after this upload into listed and supporting files.
+// Existing assets are supporting only alongside markdown; otherwise they served just the index.
+func listingPaths(local, localAssets, published []string, assets []render.SharedAsset) (files, supporting []string) {
 	supporting = make([]string, len(assets))
 	for i, a := range assets {
-		supporting[i] = a.Name
+		supporting[i] = a.RelPath()
 	}
-	var publishedFiles, publishedAssets []string
+	existingAssets := slices.Clone(localAssets)
+	var publishedFiles []string
 	for _, p := range published {
 		if render.IsAssetName(p) {
-			publishedAssets = append(publishedAssets, p)
+			existingAssets = append(existingAssets, p)
 		} else {
 			publishedFiles = append(publishedFiles, p)
 		}
@@ -235,13 +233,20 @@ func listingPaths(local, published []string, assets []render.SharedAsset) (files
 	files = overlayPaths(local, publishedFiles)
 	slices.Sort(files)
 	if slices.ContainsFunc(files, isMarkdownPath) {
-		for _, a := range publishedAssets {
-			if !slices.Contains(supporting, a) {
-				supporting = append(supporting, a)
-			}
-		}
+		supporting = overlayPaths(supporting, existingAssets)
 	}
 	return files, supporting
+}
+
+func splitAssetDir(relPaths []string) (files, assets []string) {
+	for _, p := range relPaths {
+		if render.InAssetDir(p) {
+			assets = append(assets, p)
+		} else {
+			files = append(files, p)
+		}
+	}
+	return files, assets
 }
 
 // isMarkdownPath reports whether relPath has a markdown extension, in any case.

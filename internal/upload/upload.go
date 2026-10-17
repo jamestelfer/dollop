@@ -133,7 +133,9 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 		return nil, err
 	}
 
-	writtenKeys, err := uploadPlan(ctx, up, bucket, prefix, append(slices.Clip(sources), plan.generated...), mergeAssets(sharedAssets, plan.assets), stderr)
+	assets := mergeAssets(sharedAssets, plan.assets)
+	sources = withoutAssets(sources, assets)
+	writtenKeys, err := uploadPlan(ctx, up, bucket, prefix, append(slices.Clip(sources), plan.generated...), assets, stderr)
 	if err != nil {
 		return nil, err
 	}
@@ -166,6 +168,20 @@ func mergeAssets(a, b []render.SharedAsset) []render.SharedAsset {
 	return merged
 }
 
+// withoutAssets drops sources at an asset's path: dollop owns AssetDir, so the generated asset wins.
+func withoutAssets(sources []render.Source, assets []render.SharedAsset) []render.Source {
+	if len(assets) == 0 {
+		return sources
+	}
+	assetPaths := make(map[string]bool, len(assets))
+	for _, asset := range assets {
+		assetPaths[asset.RelPath()] = true
+	}
+	return slices.DeleteFunc(slices.Clone(sources), func(src render.Source) bool {
+		return assetPaths[src.RelPath]
+	})
+}
+
 // uploadPlan uploads the shared assets and then the sources, returning the
 // full set of object keys written (in that order).
 func uploadPlan(ctx context.Context, up Uploader, bucket, prefix string, sources []render.Source, sharedAssets []render.SharedAsset, stderr io.Writer) ([]string, error) {
@@ -175,7 +191,7 @@ func uploadPlan(ctx context.Context, up Uploader, bucket, prefix string, sources
 		return nil, err
 	}
 	for _, asset := range sharedAssets {
-		writtenKeys = append(writtenKeys, prefix+"/"+asset.Name)
+		writtenKeys = append(writtenKeys, prefix+"/"+asset.RelPath())
 	}
 
 	for _, src := range sources {
@@ -190,11 +206,11 @@ func uploadPlan(ctx context.Context, up Uploader, bucket, prefix string, sources
 
 func uploadSharedAssets(ctx context.Context, up Uploader, bucket, prefix string, assets []render.SharedAsset, stderr io.Writer) error {
 	for _, asset := range assets {
-		key := prefix + "/" + asset.Name
-		fmt.Fprintf(stderr, "uploading [%s] %s...", asset.Name, HumanSize(int64(len(asset.Content)))) //nolint:errcheck
+		key := prefix + "/" + asset.RelPath()
+		fmt.Fprintf(stderr, "uploading [%s] %s...", asset.RelPath(), HumanSize(int64(len(asset.Content)))) //nolint:errcheck
 		if err := up.PutObject(ctx, bucket, key, asset.ContentType, bytes.NewReader(asset.Content), WithCacheControl("max-age=604800")); err != nil {
 			fmt.Fprintln(stderr, "failed") //nolint:errcheck
-			return fmt.Errorf("upload shared asset %s: %w", asset.Name, err)
+			return fmt.Errorf("upload shared asset %s: %w", asset.RelPath(), err)
 		}
 		fmt.Fprintln(stderr, "done") //nolint:errcheck
 	}

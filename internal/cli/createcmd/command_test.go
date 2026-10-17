@@ -287,7 +287,7 @@ func TestCreate_Render_D2DiagramPublishedAsSVG(t *testing.T) {
 	assert.Contains(t, stderr, "warning: sub/page.md: d2 diagram 2: ")
 
 	root := filepath.Join(dst, "flash", "1", "testid")
-	svgs, err := filepath.Glob(filepath.Join(root, "d2", "*.svg"))
+	svgs, err := filepath.Glob(filepath.Join(root, ".dollop", "d2", "*.svg"))
 	require.NoError(t, err)
 	require.Len(t, svgs, 1)
 	svg, err := os.ReadFile(svgs[0])
@@ -296,7 +296,7 @@ func TestCreate_Render_D2DiagramPublishedAsSVG(t *testing.T) {
 
 	page, err := os.ReadFile(filepath.Join(root, "sub", "page.html"))
 	require.NoError(t, err)
-	assert.Contains(t, string(page), `src="../d2/`+filepath.Base(svgs[0])+`"`)
+	assert.Contains(t, string(page), `src="../.dollop/d2/`+filepath.Base(svgs[0])+`"`)
 }
 
 func TestCreate_NoRender_SkipsRendering(t *testing.T) {
@@ -391,8 +391,8 @@ func TestCreate_Theme_SelectsThemeStylesheet(t *testing.T) {
 	require.Equal(t, 0, code)
 
 	root := filepath.Join(dst, "flash", "1", "testid")
-	assert.FileExists(t, filepath.Join(root, "dollop-theme-lichen.css"))
-	assert.NoFileExists(t, filepath.Join(root, "dollop-theme-tide.css"))
+	assert.FileExists(t, filepath.Join(root, ".dollop", "dollop-theme-lichen.css"))
+	assert.NoFileExists(t, filepath.Join(root, ".dollop", "dollop-theme-tide.css"))
 	html, err := os.ReadFile(filepath.Join(root, "doc.html"))
 	require.NoError(t, err)
 	assert.Contains(t, string(html), "dollop-theme-lichen.css")
@@ -405,7 +405,7 @@ func TestCreate_Theme_DefaultsToTide(t *testing.T) {
 
 	_, _, code := runCreate(t, nil, "create", "--copy-dir", dst, src)
 	require.Equal(t, 0, code)
-	assert.FileExists(t, filepath.Join(dst, "flash", "1", "testid", "dollop-theme-tide.css"))
+	assert.FileExists(t, filepath.Join(dst, "flash", "1", "testid", ".dollop", "dollop-theme-tide.css"))
 }
 
 func TestCreate_Theme_UnknownFails(t *testing.T) {
