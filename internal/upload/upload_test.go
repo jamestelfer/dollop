@@ -26,9 +26,10 @@ type putCall struct {
 	key         string
 	contentType string
 	body        []byte
+	options     upload.PutOptions
 }
 
-func (f *fakeUploader) PutObject(_ context.Context, bucket, key, contentType string, body io.Reader, _ ...upload.PutOption) error {
+func (f *fakeUploader) PutObject(_ context.Context, bucket, key, contentType string, body io.Reader, opts ...upload.PutOption) error {
 	if f.err != nil {
 		return f.err
 	}
@@ -36,7 +37,11 @@ func (f *fakeUploader) PutObject(_ context.Context, bucket, key, contentType str
 	if err != nil {
 		return err
 	}
-	f.calls = append(f.calls, putCall{bucket, key, contentType, data})
+	call := putCall{bucket: bucket, key: key, contentType: contentType, body: data}
+	for _, opt := range opts {
+		opt(&call.options)
+	}
+	f.calls = append(f.calls, call)
 	return nil
 }
 
@@ -51,7 +56,8 @@ func TestUploadFiles_SingleFile(t *testing.T) {
 	files := res.SourceRelPaths
 	require.NoError(t, err)
 
-	require.Len(t, up.calls, 1)
+	require.Len(t, up.calls, 2)
+	assert.Equal(t, "dollop/1/abc/.dollop/manifest.json", up.calls[1].key)
 	assert.Equal(t, "my-bucket", up.calls[0].bucket)
 	assert.Equal(t, "dollop/1/abc/hello.txt", up.calls[0].key)
 	assert.Contains(t, up.calls[0].contentType, "text/plain")
@@ -73,7 +79,7 @@ func TestUploadFiles_Directory(t *testing.T) {
 	files := res.SourceRelPaths
 	require.NoError(t, err)
 
-	require.Len(t, up.calls, 2)
+	require.Len(t, up.calls, 3)
 
 	keys := make([]string, len(up.calls))
 	for i, c := range up.calls {
@@ -82,6 +88,7 @@ func TestUploadFiles_Directory(t *testing.T) {
 	assert.ElementsMatch(t, []string{
 		"keep/friendly-cat/index.html",
 		"keep/friendly-cat/sub/data.json",
+		"keep/friendly-cat/.dollop/manifest.json",
 	}, keys)
 	assert.ElementsMatch(t, []string{"index.html", "sub/data.json"}, files)
 
@@ -141,8 +148,8 @@ func TestUploadFiles_Index_SkipsIfExists(t *testing.T) {
 	files := res.SourceRelPaths
 	require.NoError(t, err)
 
-	// only the two real files, no generated index
-	require.Len(t, up.calls, 2)
+	// only the two real files and the manifest, no generated index
+	require.Len(t, up.calls, 3)
 	assert.Contains(t, stderr.String(), "warning")
 	assert.Contains(t, stderr.String(), "index.html")
 	assert.ElementsMatch(t, []string{"index.html", "data.csv"}, files)
@@ -159,7 +166,7 @@ func TestUploadFiles_Index_SingleFile_IsIndex(t *testing.T) {
 	files := res.SourceRelPaths
 	require.NoError(t, err)
 
-	require.Len(t, up.calls, 1) // only the file itself, no generated index
+	require.Len(t, up.calls, 2) // only the file itself and the manifest, no generated index
 	assert.Contains(t, stderr.String(), "warning")
 	assert.Equal(t, []string{"index.html"}, files)
 }
@@ -327,7 +334,7 @@ func TestUploadFiles_Directory_SkipsSymlinkOutsideRoot(t *testing.T) {
 	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, &stderr)
 	require.NoError(t, err)
 
-	assert.Equal(t, []string{"flash/1/abc/keep.txt"}, uploadedKeys(up))
+	assert.Equal(t, []string{"flash/1/abc/keep.txt", manifestKey}, uploadedKeys(up))
 	assert.Equal(t, []string{"keep.txt"}, res.SourceRelPaths)
 	assert.Contains(t, stderr.String(), "warning: skipping notes.txt")
 	for _, c := range up.calls {
@@ -348,6 +355,7 @@ func TestUploadFiles_Directory_FollowsSymlinkInsideRoot(t *testing.T) {
 	for _, c := range up.calls {
 		bodies[c.key] = string(c.body)
 	}
+	delete(bodies, manifestKey)
 	assert.Equal(t, map[string]string{
 		"flash/1/abc/keep.txt":  "public",
 		"flash/1/abc/alias.txt": "public",

@@ -127,6 +127,9 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 		return nil, fmt.Errorf("plan: %w", err)
 	}
 
+	// dollop writes the manifest itself, after everything else
+	sources = slices.DeleteFunc(sources, func(src render.Source) bool { return isManifest(src.RelPath) })
+
 	heading := indexHeading{Title: uploadTitle(localPath), Lifetime: lifetimeOf(prefix, time.Now())}
 	titles := localTitles(fsys, relPathsOf(sources))
 	plan, err := planEntry(renderer, fsys, prefix, sources, sharedAssets, o.published, mode, heading, titles, stderr)
@@ -140,6 +143,13 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 	if err != nil {
 		return nil, err
 	}
+
+	manifest := newManifest(o.published.listingTitle(heading.Title), plan.index, relPathsOf(sources), titles)
+	manifestKey, err := uploadManifest(ctx, up, bucket, prefix, manifest, stderr)
+	if err != nil {
+		return nil, err
+	}
+	writtenKeys = append(writtenKeys, manifestKey)
 
 	return &UploadResult{SourceRelPaths: relPathsOf(sources), Entry: plan.entry, WrittenKeys: writtenKeys}, nil
 }

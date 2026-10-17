@@ -146,7 +146,7 @@ func TestUpdate_FullURL_And_BarePrefix_ResolveSame(t *testing.T) {
 	require.Equal(t, 0, codeBare)
 
 	// Both inputs upload into the same prefix...
-	require.Equal(t, []string{"flash/7/abc123/report.pdf"}, upURL.calls)
+	require.Equal(t, []string{"flash/7/abc123/report.pdf", "flash/7/abc123/.dollop/manifest.json"}, upURL.calls)
 	assert.Equal(t, upURL.calls, upBare.calls)
 	// ...and print the same public URL.
 	assert.Equal(t, stdoutURL, stdoutBare)
@@ -169,7 +169,7 @@ func TestUpdate_StripsTrailingFilenameAndIndex(t *testing.T) {
 			up := &fakeUploader{}
 			_, _, code := runUpdate(t, up, base, "update", ref, path)
 			require.Equal(t, 0, code)
-			assert.Equal(t, []string{"flash/1/xyz/data.bin"}, up.calls)
+			assert.Equal(t, []string{"flash/1/xyz/data.bin", "flash/1/xyz/.dollop/manifest.json"}, up.calls)
 		})
 	}
 }
@@ -182,7 +182,7 @@ func TestUpdate_OverwritesMatchingKeys(t *testing.T) {
 	_, _, code := runUpdate(t, up, "https://drop.example.com", "update", "keep/happy-cat", dir)
 	require.Equal(t, 0, code)
 	// The key matches an existing object's key, so the upload overwrites it.
-	assert.Equal(t, []string{"keep/happy-cat/page.html"}, up.calls)
+	assert.Equal(t, []string{"keep/happy-cat/page.html", "keep/happy-cat/.dollop/manifest.json"}, up.calls)
 }
 
 func TestUpdate_InvalidReference(t *testing.T) {

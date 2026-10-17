@@ -47,6 +47,7 @@ type entryPlan struct {
 	generated []render.Source
 	assets    []render.SharedAsset
 	entry     string
+	index     IndexKind
 }
 
 // planEntry decides which entry page, if any, to generate for sources:
@@ -98,7 +99,7 @@ func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []re
 		if err != nil {
 			return entryPlan{}, err
 		}
-		return entryPlan{generated: []render.Source{redirect}, entry: target}, nil
+		return entryPlan{generated: []render.Source{redirect}, entry: target, index: IndexKindReadmeRedirect}, nil
 	}
 
 	if !generateIndex {
@@ -117,11 +118,10 @@ func (pub publishedPrefix) resolve(mode IndexMode, heading indexHeading, stderr 
 	published := pub.paths
 	if pub.index.Kind == IndexKindListing {
 		mode = max(mode, IndexGenerate) // IndexOverwrite stays as it is
-		if pub.index.Title != "" {
-			heading.Title = pub.index.Title
-		} else {
+		if pub.index.Title == "" {
 			fmt.Fprintf(stderr, "warning: published index title not found, using %q\n", heading.Title) //nolint:errcheck
 		}
+		heading.Title = pub.listingTitle(heading.Title)
 	}
 	if mode == IndexOverwrite || pub.index.Kind != "" {
 		// the published index page is being replaced, so it is neither in the
@@ -129,6 +129,15 @@ func (pub publishedPrefix) resolve(mode IndexMode, heading indexHeading, stderr 
 		published = slices.DeleteFunc(slices.Clone(published), isIndexPage)
 	}
 	return published, mode, heading
+}
+
+// listingTitle returns the title of the published generated listing, or
+// fallback when there is none.
+func (pub publishedPrefix) listingTitle(fallback string) string {
+	if pub.index.Kind == IndexKindListing && pub.index.Title != "" {
+		return pub.index.Title
+	}
+	return fallback
 }
 
 // planListing generates an index.md listing files (and supporting files, with
@@ -156,7 +165,7 @@ func planListing(renderer render.Renderer, fsys fs.FS, prefix string, heading in
 		}
 		generated = append(generated, redirect)
 	}
-	return entryPlan{generated: generated, assets: genAssets}, nil
+	return entryPlan{generated: generated, assets: genAssets, index: IndexKindListing}, nil
 }
 
 // findIndexPage returns the index page among relPaths and the URL entry for
@@ -224,9 +233,11 @@ func listingPaths(local, localAssets, published []string, assets []render.Shared
 	existingAssets := slices.Clone(localAssets)
 	var publishedFiles []string
 	for _, p := range published {
-		if render.IsAssetName(p) {
+		switch {
+		case isManifest(p):
+		case render.IsAssetName(p):
 			existingAssets = append(existingAssets, p)
-		} else {
+		default:
 			publishedFiles = append(publishedFiles, p)
 		}
 	}
