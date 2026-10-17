@@ -523,6 +523,17 @@ func publishAlpha(t *testing.T) *recordingDir {
 	return up
 }
 
+// updateBeta updates titlesPrefix with flags and a dir "beta" holding one text
+// file, returning stderr.
+func updateBeta(t *testing.T, up *recordingDir, flags ...string) string {
+	t.Helper()
+	beta := writeTree(t, "beta", map[string]string{"b.txt": "b"})
+	args := append(append([]string{"update"}, flags...), titlesPrefix, beta)
+	_, stderr, code := runUpdate(t, up, "https://drop.example.com", args...)
+	require.Equal(t, 0, code, stderr)
+	return stderr
+}
+
 func TestUpdate_PublishedManifest_KeepsTitlesOfEarlierFiles(t *testing.T) {
 	up := publishAlpha(t)
 	require.NoError(t, os.Remove(filepath.Join(up.Root, titlesPrefix, "gone.html")))
@@ -552,9 +563,7 @@ func TestUpdate_PublishedManifest_KeepsTitlesOfEarlierFiles(t *testing.T) {
 
 func TestUpdate_PublishedManifest_ReadsNoPublishedPages(t *testing.T) {
 	up := publishAlpha(t)
-	beta := writeTree(t, "beta", map[string]string{"b.txt": "b"})
-	_, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", titlesPrefix, beta)
-	require.Equal(t, 0, code, stderr)
+	updateBeta(t, up)
 
 	for _, key := range up.reads {
 		assert.Contains(t, []string{
@@ -568,9 +577,7 @@ func TestUpdate_PublishedManifest_AbsentIsNotWarnedAbout(t *testing.T) {
 	up := publishAlpha(t)
 	require.NoError(t, os.Remove(filepath.Join(up.Root, titlesPrefix, ".dollop", "manifest.json")))
 
-	beta := writeTree(t, "beta", map[string]string{"b.txt": "b"})
-	_, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", titlesPrefix, beta)
-	require.Equal(t, 0, code, stderr)
+	stderr := updateBeta(t, up)
 
 	assert.NotContains(t, stderr, "warning")
 	assert.Contains(t, publishedFile(t, up, titlesPrefix+"/index.md"), "- [a.html](a.html)\n")
@@ -580,9 +587,7 @@ func TestUpdate_PublishedManifest_CorruptIsWarnedAboutOnce(t *testing.T) {
 	up := publishAlpha(t)
 	require.NoError(t, os.WriteFile(filepath.Join(up.Root, titlesPrefix, ".dollop", "manifest.json"), []byte("{not json"), 0o600))
 
-	beta := writeTree(t, "beta", map[string]string{"b.txt": "b"})
-	_, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", titlesPrefix, beta)
-	require.Equal(t, 0, code, stderr)
+	stderr := updateBeta(t, up)
 
 	assert.Equal(t, 1, strings.Count(stderr, "warning: "), stderr)
 	assert.Contains(t, stderr, "manifest")
@@ -591,9 +596,7 @@ func TestUpdate_PublishedManifest_CorruptIsWarnedAboutOnce(t *testing.T) {
 
 func TestUpdate_PublishedManifest_KeepsListingTitle(t *testing.T) {
 	up := publishAlpha(t)
-	beta := writeTree(t, "beta", map[string]string{"b.txt": "b"})
-	_, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", titlesPrefix, beta)
-	require.Equal(t, 0, code, stderr)
+	updateBeta(t, up)
 
 	assert.Contains(t, publishedFile(t, up, titlesPrefix+"/index.md"), "\n# alpha\n")
 	assert.Equal(t, "alpha", publishedManifest(t, up, titlesPrefix).Title)
@@ -609,9 +612,7 @@ func TestUpdate_PublishedManifest_WithoutTitleFallsBackToIndexMarkdown(t *testin
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(manifestFile, data, 0o600))
 
-	beta := writeTree(t, "beta", map[string]string{"b.txt": "b"})
-	_, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", titlesPrefix, beta)
-	require.Equal(t, 0, code, stderr)
+	updateBeta(t, up)
 
 	assert.Contains(t, publishedFile(t, up, titlesPrefix+"/index.md"), "\n# alpha\n")
 	assert.Contains(t, up.reads, titlesPrefix+"/index.md")
@@ -621,9 +622,7 @@ func TestUpdate_PublishedManifest_DoesNotAuthoriseReplacingUserIndex(t *testing.
 	up := publishAlpha(t)
 	require.NoError(t, os.WriteFile(filepath.Join(up.Root, titlesPrefix, "index.html"), []byte("<h1>hand-written</h1>"), 0o600))
 
-	beta := writeTree(t, "beta", map[string]string{"b.txt": "b"})
-	_, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", "--index", titlesPrefix, beta)
-	require.Equal(t, 0, code, stderr)
+	stderr := updateBeta(t, up, "--index")
 
 	assert.Contains(t, stderr, "index.html already published, skipping index generation")
 	assert.Equal(t, "<h1>hand-written</h1>", publishedFile(t, up, titlesPrefix+"/index.html"))
