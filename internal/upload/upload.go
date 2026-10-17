@@ -235,15 +235,24 @@ func uploadPlan(ctx context.Context, up Uploader, bucket, prefix string, sources
 
 func uploadSharedAssets(ctx context.Context, up Uploader, bucket, prefix string, assets []render.SharedAsset, stderr io.Writer) error {
 	for _, asset := range assets {
-		key := prefix + "/" + asset.RelPath()
-		fmt.Fprintf(stderr, "uploading [%s] %s...", asset.RelPath(), HumanSize(int64(len(asset.Content)))) //nolint:errcheck
-		if err := up.PutObject(ctx, bucket, key, asset.ContentType, bytes.NewReader(asset.Content), WithCacheControl("max-age=604800")); err != nil {
-			fmt.Fprintln(stderr, "failed") //nolint:errcheck
-			return fmt.Errorf("upload shared asset %s: %w", asset.RelPath(), err)
+		if _, err := putBytes(ctx, up, bucket, prefix, asset.RelPath(), asset.ContentType, asset.Content, "max-age=604800", stderr); err != nil {
+			return fmt.Errorf("upload shared asset: %w", err)
 		}
-		fmt.Fprintln(stderr, "done") //nolint:errcheck
 	}
 	return nil
+}
+
+// putBytes uploads data to relPath under prefix with cacheControl, reporting
+// progress on stderr, and returns the key written.
+func putBytes(ctx context.Context, up Uploader, bucket, prefix, relPath, contentType string, data []byte, cacheControl string, stderr io.Writer) (string, error) {
+	key := prefix + "/" + relPath
+	fmt.Fprintf(stderr, "uploading [%s] %s...", relPath, HumanSize(int64(len(data)))) //nolint:errcheck
+	if err := up.PutObject(ctx, bucket, key, contentType, bytes.NewReader(data), WithCacheControl(cacheControl)); err != nil {
+		fmt.Fprintln(stderr, "failed") //nolint:errcheck
+		return "", fmt.Errorf("%s: %w", relPath, err)
+	}
+	fmt.Fprintln(stderr, "done") //nolint:errcheck
+	return key, nil
 }
 
 func uploadSource(ctx context.Context, up Uploader, bucket, prefix string, src render.Source, stderr io.Writer) error {

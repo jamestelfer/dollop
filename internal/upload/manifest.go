@@ -1,7 +1,6 @@
 package upload
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -55,13 +54,10 @@ func uploadManifest(ctx context.Context, up Uploader, bucket, prefix string, m M
 	if err != nil {
 		return "", fmt.Errorf("encode manifest: %w", err)
 	}
-	key := prefix + "/" + manifestPath
-	fmt.Fprintf(stderr, "uploading [%s] %s...", manifestPath, HumanSize(int64(len(data)))) //nolint:errcheck
-	if err := up.PutObject(ctx, bucket, key, "application/json", bytes.NewReader(data), WithCacheControl("no-cache")); err != nil {
-		fmt.Fprintln(stderr, "failed") //nolint:errcheck
+	key, err := putBytes(ctx, up, bucket, prefix, manifestPath, "application/json", data, "no-cache", stderr)
+	if err != nil {
 		return "", fmt.Errorf("upload manifest: %w", err)
 	}
-	fmt.Fprintln(stderr, "done") //nolint:errcheck
 	return key, nil
 }
 
