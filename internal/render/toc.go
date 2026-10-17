@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/util"
 	"go.abhg.dev/goldmark/anchor"
 )
 
@@ -45,8 +46,9 @@ func tableOfContents(doc ast.Node, src []byte) []tocEntry {
 	return entries
 }
 
-// headingText returns the plain text of a heading's inline content, leaving
-// out the anchor link the anchor extension appends.
+// headingText returns the plain text of a heading's inline content, as a
+// reader sees it (escapes and entities resolved), leaving out the anchor link
+// the anchor extension appends.
 func headingText(h *ast.Heading, src []byte) string {
 	var sb strings.Builder
 	_ = ast.Walk(h, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -57,7 +59,11 @@ func headingText(h *ast.Heading, src []byte) string {
 		case *anchor.Node:
 			return ast.WalkSkipChildren, nil
 		case *ast.Text:
-			sb.Write(n.Segment.Value(src))
+			v := n.Segment.Value(src)
+			if !n.IsRaw() {
+				v = util.ResolveEntityNames(util.ResolveNumericReferences(util.UnescapePunctuations(v)))
+			}
+			sb.Write(v)
 			if n.SoftLineBreak() || n.HardLineBreak() {
 				sb.WriteByte(' ')
 			}

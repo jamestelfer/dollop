@@ -167,21 +167,10 @@ func markdownTitle(metadata map[string]any, src []byte, doc ast.Node) string {
 			}
 		}
 	}
-	// walk AST for the first H1
 	var h1 string
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering {
-			return ast.WalkContinue, nil
-		}
-		if heading, ok := n.(*ast.Heading); ok && heading.Level == 1 {
-			// collect all text segments from the heading's children
-			var sb strings.Builder
-			for child := heading.FirstChild(); child != nil; child = child.NextSibling() {
-				if t, ok := child.(*ast.Text); ok {
-					sb.Write(t.Segment.Value(src))
-				}
-			}
-			h1 = sb.String()
+		if heading, ok := n.(*ast.Heading); ok && entering && heading.Level == 1 {
+			h1 = headingText(heading, src)
 			return ast.WalkStop, nil
 		}
 		return ast.WalkContinue, nil
