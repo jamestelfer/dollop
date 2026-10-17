@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.1](https://github.com/jamestelfer/dollop/compare/v1.18.0...v1.18.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* drop index file names that don't fit on narrow screens ([#109](https://github.com/jamestelfer/dollop/issues/109)) ([465433c](https://github.com/jamestelfer/dollop/commit/465433cc7dde19b71c2892e11924dd3edfb962a2))
+
 ## [1.18.0](https://github.com/jamestelfer/dollop/compare/v1.17.0...v1.18.0) (2026-10-17)
 
 
