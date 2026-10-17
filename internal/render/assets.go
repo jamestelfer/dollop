@@ -58,7 +58,13 @@ type SharedAsset struct {
 
 // RelPath returns the asset's path relative to the prefix root.
 func (a SharedAsset) RelPath() string {
-	return AssetDir + "/" + a.Name
+	return assetPath(a.Name)
+}
+
+// assetPath returns the path, relative to the prefix root, of the asset name
+// (relative to AssetDir).
+func assetPath(name string) string {
+	return AssetDir + "/" + name
 }
 
 // sharedAssets are the fixed-name assets uploaded under AssetDir of every
@@ -95,7 +101,7 @@ var assetVersions = func() map[string]string {
 // query; the query only changes the cache key, so an update that changes an asset is never
 // masked by a stale edge or browser copy of the previous version.
 func assetRef(depthPrefix, name string) string {
-	return depthPrefix + AssetDir + "/" + name + "?v=" + assetVersions[name]
+	return depthPrefix + assetPath(name) + "?v=" + assetVersions[name]
 }
 
 // IsAssetName reports whether name, relative to a prefix root, is a
@@ -109,7 +115,7 @@ func IsAssetName(name string) bool {
 // InAssetDir reports whether relPath, relative to a prefix root, is a file
 // under AssetDir.
 func InAssetDir(relPath string) bool {
-	rest, ok := strings.CutPrefix(relPath, AssetDir+"/")
+	rest, ok := strings.CutPrefix(relPath, assetPath(""))
 	return ok && rest != ""
 }
 

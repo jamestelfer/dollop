@@ -117,7 +117,7 @@ func (dr *d2Rewriter) Transform(doc *ast.Document, reader text.Reader, _ parser.
 			Content:     diagram.SVG,
 		})
 		replacements = append(replacements, replacement{cb, &d2Node{
-			Src:    dr.depthPrefix + AssetDir + "/" + name,
+			Src:    dr.depthPrefix + assetPath(name),
 			Width:  diagram.Width,
 			Height: diagram.Height,
 		}})
