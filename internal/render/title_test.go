@@ -24,6 +24,7 @@ var markdownTitleCases = []struct {
 	{"atx heading", "intro\n\n# Getting started\n\nbody\n", "Getting started"},
 	{"setext heading", "Getting started\n===============\n\nbody\n", "Getting started"},
 	{"empty frontmatter title falls to heading", "---\ntitle: \"\"\n---\n# Heading\n", "Heading"},
+	{"blank frontmatter title falls to heading", "---\ntitle: \" \"\n---\n# Heading\n", "Heading"},
 	{"frontmatter without title", "---\nauthor: me\n---\n# Heading\n", "Heading"},
 	{"entities decoded", "# Fish &amp; Chips &#35;1\n", "Fish & Chips #1"},
 	{"inline markup flattened", "# Hello *world* and `code` [link](x.html)\n", "Hello world and code link"},

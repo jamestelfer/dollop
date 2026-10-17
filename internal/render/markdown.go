@@ -162,7 +162,7 @@ func MarkdownTitle(src []byte) string {
 func markdownTitle(metadata map[string]any, src []byte, doc ast.Node) string {
 	if metadata != nil {
 		if v, ok := metadata["title"]; ok {
-			if s, ok := v.(string); ok && s != "" {
+			if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
 				return s
 			}
 		}
