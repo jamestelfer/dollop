@@ -548,7 +548,7 @@ func TestUploadFiles_Index_RendersGeneratedMarkdownWithTheme(t *testing.T) {
 
 	md := bodyOf(t, up, "flash/1/abc/index.md")
 	assert.Contains(t, md, `<p class="index-meta">2 files · 1 page · expires <time datetime="`)
-	assert.Contains(t, md, "[Hello](notes.html) <small>notes.html</small>")
+	assert.Contains(t, md, "[Hello](notes.html) [::md-icon::](notes.md) <small>notes.html</small>")
 	assert.Contains(t, md, "[::md-icon::](notes.md)")
 	assert.Contains(t, md, "[data.csv](data.csv)")
 
@@ -955,8 +955,8 @@ func TestUploadFiles_Index_ListsRenderedMarkdownByTitle(t *testing.T) {
 	up, _, _ := uploadTree(t, markdownTitleTree, upload.IndexGenerate, upload.WithRenderer(render.NewMarkdownRenderer()))
 
 	index := bodyOf(t, up, "flash/1/abc/index.md")
-	assert.Contains(t, index, "- [Release Notes](notes.html) <small>notes.html</small> [::md-icon::](notes.md)\n")
-	assert.Contains(t, index, "- [Getting started](guide.html) <small>guide.html</small> [::md-icon::](guide.md)\n")
+	assert.Contains(t, index, "- [Release Notes](notes.html) [::md-icon::](notes.md) <small>notes.html</small>\n")
+	assert.Contains(t, index, "- [Getting started](guide.html) [::md-icon::](guide.md) <small>guide.html</small>\n")
 	assert.Contains(t, index, "- [bare.html](bare.html) [::md-icon::](bare.md)\n", "no basename-as-title")
 }
 
@@ -976,5 +976,5 @@ func TestUploadFiles_Index_LocalHTMLBesideMarkdownKeepsItsOwnTitle(t *testing.T)
 		"page.html": "<h1>From HTML</h1>",
 	}, upload.IndexGenerate, upload.WithRenderer(render.NewMarkdownRenderer()))
 
-	assert.Contains(t, bodyOf(t, up, "flash/1/abc/index.md"), "- [From HTML](page.html) <small>page.html</small> [::md-icon::](page.md)\n")
+	assert.Contains(t, bodyOf(t, up, "flash/1/abc/index.md"), "- [From HTML](page.html) [::md-icon::](page.md) <small>page.html</small>\n")
 }

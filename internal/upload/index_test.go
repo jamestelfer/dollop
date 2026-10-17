@@ -37,7 +37,7 @@ func TestGenerateIndexMarkdown_TitledPageShowsTitleThenName(t *testing.T) {
 
 func TestGenerateIndexMarkdown_TitledPageKeepsSourceLink(t *testing.T) {
 	s := genIndexTitled(t, []string{"notes.md", "notes.html"}, nil, map[string]string{"notes.html": "Release Notes"})
-	assert.Contains(t, s, "- [Release Notes](notes.html) <small>notes.html</small> [::md-icon::](notes.md)\n")
+	assert.Contains(t, s, "- [Release Notes](notes.html) [::md-icon::](notes.md) <small>notes.html</small>\n")
 }
 
 func TestGenerateIndexMarkdown_TitleMatchingNameIsNotShown(t *testing.T) {

@@ -547,7 +547,7 @@ func TestUpdate_PublishedManifest_KeepsTitlesOfEarlierFiles(t *testing.T) {
 
 	index := publishedFile(t, up, titlesPrefix+"/index.md")
 	assert.Contains(t, index, "- [Alpha page](a.html) <small>a.html</small>\n")
-	assert.Contains(t, index, "- [Getting started](guide.html) <small>guide.html</small> [::md-icon::](guide.md)\n")
+	assert.Contains(t, index, "- [Getting started](guide.html) [::md-icon::](guide.md) <small>guide.html</small>\n")
 	assert.Contains(t, index, "- [Beta page](b.html) <small>b.html</small>\n")
 	assert.Contains(t, index, "- [added.html](added.html)\n", "a file added outside dollop is listed by name")
 	assert.NotContains(t, index, "gone")
