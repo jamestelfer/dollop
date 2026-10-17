@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.18.0](https://github.com/jamestelfer/dollop/compare/v1.17.0...v1.18.0) (2026-10-17)
+
+
+### Features
+
+* list pages by title in generated indexes, via a published manifest ([#108](https://github.com/jamestelfer/dollop/issues/108)) ([ca1a253](https://github.com/jamestelfer/dollop/commit/ca1a253da41fe739460928a006f0d3681e5c9081))
+* upload supporting files to a .dollop subdirectory ([#106](https://github.com/jamestelfer/dollop/issues/106)) ([a8c593d](https://github.com/jamestelfer/dollop/commit/a8c593daa0b714becff6f61065f5a31e39813a66))
+
+
+### Bug Fixes
+
+* **deps:** update go dependencies ([#99](https://github.com/jamestelfer/dollop/issues/99)) ([5c1fb59](https://github.com/jamestelfer/dollop/commit/5c1fb59769ee1b0c23d3ffad55cc141d7ca47a47))
+
 ## [1.17.0](https://github.com/jamestelfer/dollop/compare/v1.16.0...v1.17.0) (2026-10-16)
 
 
