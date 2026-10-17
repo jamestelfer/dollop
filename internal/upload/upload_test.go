@@ -877,6 +877,8 @@ func TestUploadFiles_Render_LocalDollopDirOverwrittenByAssets(t *testing.T) {
 	assert.NotEqual(t, "stale", bodyOf(t, up, "flash/1/abc/.dollop/github-markdown.css"), "the generated asset wins")
 	assert.Equal(t, "mine", bodyOf(t, up, "flash/1/abc/.dollop/extra.txt"), "other local files there are still uploaded")
 	assert.ElementsMatch(t, keysOf(up), res.WrittenKeys)
+	assert.NotContains(t, res.SourceRelPaths, ".dollop/github-markdown.css", "the overwritten local file is not an uploaded source")
+	assert.Contains(t, res.SourceRelPaths, ".dollop/extra.txt")
 
 	md := bodyOf(t, up, "flash/1/abc/index.md")
 	main, supporting, ok := strings.Cut(md, "Supporting files")

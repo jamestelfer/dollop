@@ -134,7 +134,8 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 	}
 
 	assets := mergeAssets(sharedAssets, plan.assets)
-	writtenKeys, err := uploadPlan(ctx, up, bucket, prefix, withoutAssets(append(slices.Clip(sources), plan.generated...), assets), assets, stderr)
+	sources = withoutAssets(sources, assets)
+	writtenKeys, err := uploadPlan(ctx, up, bucket, prefix, append(slices.Clip(sources), plan.generated...), assets, stderr)
 	if err != nil {
 		return nil, err
 	}
