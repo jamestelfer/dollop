@@ -102,7 +102,7 @@ func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []re
 	}
 
 	if !generateIndex {
-		return entryPlan{entry: firstFile(relPaths)}, nil
+		return entryPlan{entry: firstFile(slices.DeleteFunc(slices.Clone(relPaths), render.InAssetDir))}, nil
 	}
 
 	files, supporting := listingPaths(relPaths, published, assets)

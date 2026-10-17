@@ -31,3 +31,15 @@ func TestIsAssetName(t *testing.T) {
 		assert.Equal(t, want, render.IsAssetName(name), name)
 	}
 }
+
+func TestInAssetDir(t *testing.T) {
+	for name, want := range map[string]bool{
+		".dollop/dollop-dark.svg":     true,
+		".dollop/d2/0123456789ab.svg": true,
+		".dollop/":                    false,
+		"docs/.dollop/x.svg":          false,
+		"github-markdown.css":         false, // a legacy asset name is not in the asset directory
+	} {
+		assert.Equal(t, want, render.InAssetDir(name), name)
+	}
+}

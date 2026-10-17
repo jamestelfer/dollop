@@ -103,10 +103,14 @@ func assetRef(depthPrefix, name string) string {
 // owns, or an asset older releases published at the prefix root (a fixed
 // shared asset, any theme's stylesheet, or a d2 diagram).
 func IsAssetName(name string) bool {
-	if rest, ok := strings.CutPrefix(name, AssetDir+"/"); ok {
-		return rest != ""
-	}
-	return isLegacyAssetName(name)
+	return InAssetDir(name) || isLegacyAssetName(name)
+}
+
+// InAssetDir reports whether relPath, relative to a prefix root, is a file
+// under AssetDir.
+func InAssetDir(relPath string) bool {
+	rest, ok := strings.CutPrefix(relPath, AssetDir+"/")
+	return ok && rest != ""
 }
 
 // isLegacyAssetName reports whether name is an asset older releases published

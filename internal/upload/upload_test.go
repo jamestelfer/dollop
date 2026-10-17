@@ -603,6 +603,12 @@ func TestUploadFiles_NoRender_ExistingIndexMarkdownIsTheEntry(t *testing.T) {
 	assert.Equal(t, "index.md", res.Entry, "the user's index page is the entry, not the first file alphabetically")
 }
 
+func TestUploadFiles_NoIndex_EntryIsNotInAssetDir(t *testing.T) {
+	_, res, _ := uploadTree(t, map[string]string{".dollop/dollop-dark.svg": "<svg/>", "notes.html": "<p>hi</p>"}, upload.IndexNone)
+
+	assert.Equal(t, "notes.html", res.Entry)
+}
+
 func TestUploadFiles_Index_UploadsAssetsTheIndexPageNeeds(t *testing.T) {
 	up, res, _ := uploadTree(t, map[string]string{"data.csv": "a,b"}, upload.IndexGenerate, upload.WithRenderer(render.NewMarkdownRenderer()))
 
