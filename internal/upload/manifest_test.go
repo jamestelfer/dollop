@@ -168,6 +168,17 @@ func TestReadPublishedManifest_Valid(t *testing.T) {
 	assert.Empty(t, stderr)
 }
 
+func TestReadPublishedManifest_NormalizesTitles(t *testing.T) {
+	long := strings.Repeat("x", 200)
+	m, _, _ := readManifest(t, map[string]string{
+		".dollop/manifest.json": `{"version":1,"title":"site\n\n- [x](evil.html) ` + long + `","files":{"a.html":{"title":"A\n\n- [x](evil.html)"},"b.html":{"title":"` + long + `"}}}`,
+	})
+
+	assert.Equal(t, "site - [x](evil.html) "+long, m.Title, "the listing title is collapsed onto one line but not shortened")
+	assert.Equal(t, "A - [x](evil.html)", m.Files["a.html"].Title)
+	assert.Equal(t, strings.Repeat("x", 119)+"…", m.Files["b.html"].Title)
+}
+
 func TestReadPublishedManifest_NotPublished(t *testing.T) {
 	m, keys, stderr := readManifest(t, map[string]string{"a.txt": "a"})
 

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 
 	"github.com/jamestelfer/dollop/internal/render"
 )
@@ -89,6 +90,12 @@ func ReadPublishedManifest(ctx context.Context, r ObjectHeadReader, bucket, pref
 	if err != nil {
 		fmt.Fprintf(stderr, "warning: ignoring published manifest: %v\n", err) //nolint:errcheck
 		return Manifest{}
+	}
+	// the manifest may have been edited by hand; a title must stay one line
+	m.Title = strings.Join(strings.Fields(m.Title), " ")
+	for p, f := range m.Files {
+		f.Title = normalizeTitle(f.Title)
+		m.Files[p] = f
 	}
 	return m
 }
