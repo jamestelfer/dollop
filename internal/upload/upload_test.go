@@ -888,6 +888,15 @@ func TestUploadFiles_Render_LocalDollopDirOverwrittenByAssets(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(supporting, "(.dollop/github-markdown.css)"))
 }
 
+func TestUploadFiles_NoMarkdown_LocalAndPublishedAssetsListedAlike(t *testing.T) {
+	up, _, _ := uploadTree(t, map[string]string{"a.txt": "a", ".dollop/local.svg": "<svg/>"}, upload.IndexGenerate,
+		upload.WithPublished([]string{".dollop/published.svg"}))
+
+	md := bodyOf(t, up, "flash/1/abc/index.md")
+	assert.NotContains(t, md, "local.svg")
+	assert.NotContains(t, md, "published.svg")
+}
+
 func TestUploadFiles_Published_AssetsOfIndexOnlyNotListed(t *testing.T) {
 	// with no markdown under the prefix, the published shared assets only
 	// served the previous generated index, as in a fresh --index upload.
