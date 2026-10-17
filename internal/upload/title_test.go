@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -79,4 +80,15 @@ func TestNormalizeTitle(t *testing.T) {
 	long := strings.Repeat("é", maxTitleRunes+5)
 	got := normalizeTitle(long)
 	assert.Equal(t, strings.Repeat("é", maxTitleRunes-1)+"…", got)
+}
+
+func TestMarkdownFileTitle_IgnoresHeadingCutByTheCap(t *testing.T) {
+	filler := strings.Repeat("x\n", (titleReadLimit-4)/2)
+	fsys := fstest.MapFS{
+		"cut.md":  {Data: []byte(filler + "# Heading cut by the cap\n")},
+		"fits.md": {Data: []byte("# Fits\n" + filler + filler)},
+	}
+
+	assert.Empty(t, markdownFileTitle(fsys, "cut.md"))
+	assert.Equal(t, "Fits", markdownFileTitle(fsys, "fits.md"))
 }

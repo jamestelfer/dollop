@@ -540,7 +540,7 @@ func TestUploadFiles_Index_RendersGeneratedMarkdownWithTheme(t *testing.T) {
 
 	md := bodyOf(t, up, "flash/1/abc/index.md")
 	assert.Contains(t, md, `<p class="index-meta">2 files · 1 page · expires <time datetime="`)
-	assert.Contains(t, md, "[notes.html](notes.html)")
+	assert.Contains(t, md, "[Hello](notes.html) <small>notes.html</small>")
 	assert.Contains(t, md, "[::md-icon::](notes.md)")
 	assert.Contains(t, md, "[data.csv](data.csv)")
 
@@ -934,4 +934,39 @@ func TestUploadFiles_Index_RenderedListingShowsTitlesLiterally(t *testing.T) {
 	index := bodyOf(t, up, "flash/1/abc/index.html")
 	assert.Contains(t, index, `<a href="a.html">*star* [x] &lt;script&gt;alert(1)&lt;/script&gt;</a> <small>a.html</small>`)
 	assert.NotContains(t, index, "<script>alert")
+}
+
+// markdownTitleTree is a directory of markdown pages with and without titles.
+var markdownTitleTree = map[string]string{
+	"notes.md": "---\ntitle: Release Notes\n---\n\n# Something else\n",
+	"guide.md": "# Getting started\n\nbody\n",
+	"bare.md":  "no heading here\n",
+}
+
+func TestUploadFiles_Index_ListsRenderedMarkdownByTitle(t *testing.T) {
+	up, _, _ := uploadTree(t, markdownTitleTree, upload.IndexGenerate, upload.WithRenderer(render.NewMarkdownRenderer()))
+
+	index := bodyOf(t, up, "flash/1/abc/index.md")
+	assert.Contains(t, index, "- [Release Notes](notes.html) <small>notes.html</small> [::md-icon::](notes.md)\n")
+	assert.Contains(t, index, "- [Getting started](guide.html) <small>guide.html</small> [::md-icon::](guide.md)\n")
+	assert.Contains(t, index, "- [bare.html](bare.html) [::md-icon::](bare.md)\n", "no basename-as-title")
+}
+
+func TestUploadFiles_Index_NoRender_ListsMarkdownByTitle(t *testing.T) {
+	up, _, _ := uploadTree(t, markdownTitleTree, upload.IndexGenerate)
+
+	index := bodyOf(t, up, "flash/1/abc/index.md")
+	assert.Contains(t, index, "- [Release Notes](notes.md) <small>notes.md</small>\n")
+	assert.Contains(t, index, "- [Getting started](guide.md) <small>guide.md</small>\n")
+	assert.Contains(t, index, "- [bare.md](bare.md)\n")
+}
+
+func TestUploadFiles_Index_LocalHTMLBesideMarkdownKeepsItsOwnTitle(t *testing.T) {
+	// the renderer skips page.md because page.html is present
+	up, _, _ := uploadTree(t, map[string]string{
+		"page.md":   "# From markdown\n",
+		"page.html": "<h1>From HTML</h1>",
+	}, upload.IndexGenerate, upload.WithRenderer(render.NewMarkdownRenderer()))
+
+	assert.Contains(t, bodyOf(t, up, "flash/1/abc/index.md"), "- [From HTML](page.html) <small>page.html</small> [::md-icon::](page.md)\n")
 }

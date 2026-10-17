@@ -150,7 +150,16 @@ type nopSeekCloser struct{ *bytes.Reader }
 
 func (nopSeekCloser) Close() error { return nil }
 
-func extractTitle(metadata map[string]any, src []byte, doc ast.Node, fallback string) string {
+// MarkdownTitle returns the title of the markdown document src by the rule
+// rendered pages use (frontmatter title, then the first level-1 heading), or
+// "" when it has neither.
+func MarkdownTitle(src []byte) string {
+	pctx := parser.NewContext()
+	doc := mdParser.Parser().Parse(text.NewReader(src), parser.WithContext(pctx))
+	return markdownTitle(meta.Get(pctx), src, doc)
+}
+
+func markdownTitle(metadata map[string]any, src []byte, doc ast.Node) string {
 	if metadata != nil {
 		if v, ok := metadata["title"]; ok {
 			if s, ok := v.(string); ok && s != "" {
@@ -177,10 +186,7 @@ func extractTitle(metadata map[string]any, src []byte, doc ast.Node, fallback st
 		}
 		return ast.WalkContinue, nil
 	})
-	if h1 != "" {
-		return h1
-	}
-	return fallback
+	return h1
 }
 
 // cssDepthPrefix returns the relative path prefix (e.g. "../../") needed to
@@ -344,7 +350,10 @@ func (m *markdownRenderer) renderMarkdownFile(fsys fs.FS, relPath, prefix string
 	stem := strings.TrimSuffix(relPath, filepath.Ext(relPath))
 	basename := filepath.Base(stem)
 
-	title := extractTitle(meta.Get(pctx), src, doc, basename)
+	title := markdownTitle(meta.Get(pctx), src, doc)
+	if title == "" {
+		title = basename
+	}
 
 	var mermaidScript template.HTML
 	if mermaid {
