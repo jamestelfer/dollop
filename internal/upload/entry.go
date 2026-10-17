@@ -237,11 +237,7 @@ func listingPaths(local, localAssets, published []string, assets []render.Shared
 	files = overlayPaths(local, publishedFiles)
 	slices.Sort(files)
 	if slices.ContainsFunc(files, isMarkdownPath) {
-		for _, a := range existingAssets {
-			if !slices.Contains(supporting, a) {
-				supporting = append(supporting, a)
-			}
-		}
+		supporting = overlayPaths(supporting, existingAssets)
 	}
 	return files, supporting
 }
