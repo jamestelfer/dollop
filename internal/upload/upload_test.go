@@ -907,3 +907,31 @@ func TestUploadFiles_Published_AssetsOfIndexOnlyNotListed(t *testing.T) {
 	assert.NotContains(t, md, "Supporting files")
 	assert.NotContains(t, md, "github-markdown.css")
 }
+
+func TestUploadFiles_Index_ListsLocalHTMLPagesByTitle(t *testing.T) {
+	bigStyle := "<style>" + strings.Repeat("p{}", 50_000) + "</style>"
+	up, _, _ := uploadTree(t, map[string]string{
+		"a.html":     "<html><body><h1>Alpha <code>x</code></h1></body></html>",
+		"big.html":   "<html><head><title>Big page</title>" + bigStyle + "</head><body><h1>Late</h1></body></html>",
+		"plain.html": "<html><body><p>no heading</p></body></html>",
+		"notes.html": "<h1>notes</h1>",
+		"data.csv":   "<h1>not html</h1>",
+	}, upload.IndexGenerate)
+
+	index := bodyOf(t, up, "flash/1/abc/index.md")
+	assert.Contains(t, index, "- [Alpha x](a.html) <small>a.html</small>\n")
+	assert.Contains(t, index, "- [Big page](big.html) <small>big.html</small>\n")
+	assert.Contains(t, index, "- [plain.html](plain.html)\n")
+	assert.Contains(t, index, "- [notes.html](notes.html)\n")
+	assert.Contains(t, index, "- [data.csv](data.csv)\n")
+}
+
+func TestUploadFiles_Index_RenderedListingShowsTitlesLiterally(t *testing.T) {
+	up, _, _ := uploadTree(t, map[string]string{
+		"a.html": "<h1>*star* [x] &lt;script&gt;alert(1)&lt;/script&gt;</h1>",
+	}, upload.IndexGenerate, upload.WithRenderer(render.NewMarkdownRenderer()))
+
+	index := bodyOf(t, up, "flash/1/abc/index.html")
+	assert.Contains(t, index, `<a href="a.html">*star* [x] &lt;script&gt;alert(1)&lt;/script&gt;</a> <small>a.html</small>`)
+	assert.NotContains(t, index, "<script>alert")
+}

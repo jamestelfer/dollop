@@ -21,13 +21,15 @@ import (
 type indexEntry struct {
 	Name       string
 	SourcePath string
+	Title      string
 }
 
 // buildIndexEntries pairs each rendered HTML file with the markdown source it
 // was generated from. The markdown is folded into the HTML entry as its source
 // link rather than appearing as its own top-level item. Files with no such
-// relationship remain plain entries. Order is preserved.
-func buildIndexEntries(files []string) []indexEntry {
+// relationship remain plain entries. Order is preserved. Each entry takes its
+// title from titles.
+func buildIndexEntries(files []string, titles map[string]string) []indexEntry {
 	// markdown files keyed by stem plus lowercased extension: the renderer
 	// accepts any case of extension and always writes a lowercase .html.
 	markdownByKey := make(map[string]string)
@@ -61,9 +63,16 @@ func buildIndexEntries(files []string) []indexEntry {
 		if folded[f] {
 			continue
 		}
-		entries = append(entries, indexEntry{Name: f, SourcePath: sourceOf[f]})
+		entries = append(entries, indexEntry{Name: f, SourcePath: sourceOf[f], Title: titles[f]})
 	}
 	return entries
+}
+
+// hasDistinctTitle reports whether e has a title that says more than its file
+// name or stem.
+func (e indexEntry) hasDistinctTitle() bool {
+	name := path.Base(e.Name)
+	return e.Title != "" && !strings.EqualFold(e.Title, name) && !strings.EqualFold(e.Title, strings.TrimSuffix(name, extOf(name)))
 }
 
 // indexHeading describes the upload for the top of the index page.
@@ -79,9 +88,10 @@ type indexHeading struct {
 // title and a summary line, then its files as a directory tree. Each
 // directory is a disclosure, open when it leads to a page. Each rendered
 // page's markdown source is linked beside it, and the supporting files are
-// tucked into a collapsed section.
-func generateIndexMarkdown(heading indexHeading, files []string, supporting []string) ([]byte, error) {
-	entries := buildIndexEntries(files)
+// tucked into a collapsed section. A page with a title in titles is listed
+// under it.
+func generateIndexMarkdown(heading indexHeading, files, supporting []string, titles map[string]string) ([]byte, error) {
+	entries := buildIndexEntries(files, titles)
 	root := buildIndexTree(entries)
 
 	// frontmatter carries the title verbatim; the heading below is escaped
@@ -190,7 +200,12 @@ func (d *indexDir) tally() {
 // markdown again.
 func writeIndexTree(b *bytes.Buffer, d *indexDir, indent string) {
 	for _, e := range d.entries {
-		b.WriteString(indent + "- " + mdLink(path.Base(e.Name), e.Name))
+		name := path.Base(e.Name)
+		if e.hasDistinctTitle() {
+			b.WriteString(indent + "- " + mdLink(e.Title, e.Name) + " <small>" + mdEscaper.Replace(name) + "</small>")
+		} else {
+			b.WriteString(indent + "- " + mdLink(name, e.Name))
+		}
 		if e.SourcePath != "" {
 			// The fixed marker must remain unescaped so the renderer can parse it.
 			b.WriteString(" [::md-icon::](" + mdHref(e.SourcePath) + ")")

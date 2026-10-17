@@ -15,9 +15,47 @@ import (
 // a fixed heading.
 func genIndex(t *testing.T, files, supporting []string) string {
 	t.Helper()
-	b, err := generateIndexMarkdown(indexHeading{Title: "upload"}, files, supporting)
+	return genIndexTitled(t, files, supporting, nil)
+}
+
+// genIndexTitled is genIndex with titles for some of the files.
+func genIndexTitled(t *testing.T, files, supporting []string, titles map[string]string) string {
+	t.Helper()
+	b, err := generateIndexMarkdown(indexHeading{Title: "upload"}, files, supporting, titles)
 	require.NoError(t, err)
 	return string(b)
+}
+
+func TestGenerateIndexMarkdown_TitledPageShowsTitleThenName(t *testing.T) {
+	s := genIndexTitled(t, []string{"a.html", "sub/b.html", "c.txt"}, nil,
+		map[string]string{"a.html": "Alpha x", "sub/b.html": "Beta"})
+
+	assert.Contains(t, s, "- [Alpha x](a.html) <small>a.html</small>\n")
+	assert.Contains(t, s, "  - [Beta](sub/b.html) <small>b.html</small>\n")
+	assert.Contains(t, s, "- [c.txt](c.txt)\n")
+}
+
+func TestGenerateIndexMarkdown_TitledPageKeepsSourceLink(t *testing.T) {
+	s := genIndexTitled(t, []string{"notes.md", "notes.html"}, nil, map[string]string{"notes.html": "Release Notes"})
+	assert.Contains(t, s, "- [Release Notes](notes.html) <small>notes.html</small> [::md-icon::](notes.md)\n")
+}
+
+func TestGenerateIndexMarkdown_TitleMatchingNameIsNotShown(t *testing.T) {
+	s := genIndexTitled(t, []string{"notes.html", "Guide.html", "x.html"}, nil,
+		map[string]string{"notes.html": "notes", "Guide.html": "guide.HTML", "x.html": ""})
+
+	assert.Contains(t, s, "- [notes.html](notes.html)\n")
+	assert.Contains(t, s, "- [Guide.html](Guide.html)\n")
+	assert.Contains(t, s, "- [x.html](x.html)\n")
+	assert.NotContains(t, s, "<small>notes.html")
+}
+
+func TestGenerateIndexMarkdown_EscapesTitles(t *testing.T) {
+	s := genIndexTitled(t, []string{"a.html", "b_*.html"}, nil,
+		map[string]string{"a.html": "*bold* [x](y) <script>alert(1)</script> &amp;", "b_*.html": "B"})
+
+	assert.Contains(t, s, `- [\*bold\* \[x\]\(y\) \<script\>alert\(1\)\</script\> \&amp;](a.html) <small>a.html</small>`)
+	assert.Contains(t, s, `<small>b\_\*.html</small>`)
 }
 
 func TestGenerateIndexMarkdown_PairsMarkdownSource(t *testing.T) {
@@ -159,7 +197,7 @@ func TestGenerateIndexMarkdown_EscapesDirectoryNames(t *testing.T) {
 func TestGenerateIndexMarkdown_Heading(t *testing.T) {
 	b, err := generateIndexMarkdown(
 		indexHeading{Title: "q3_review: [draft]", Lifetime: "permanent"},
-		[]string{"a.md", "a.html", "b.txt", "sub/c.html"}, nil)
+		[]string{"a.md", "a.html", "b.txt", "sub/c.html"}, nil, nil)
 	require.NoError(t, err)
 	s := string(b)
 

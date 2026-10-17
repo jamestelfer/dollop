@@ -61,11 +61,11 @@ type entryPlan struct {
 //  3. a README at the upload root, local or published, gets an index.html redirecting to it, and the
 //     URL points at the README directly;
 //  4. with IndexNone, the URL points at the first local file;
-//  5. otherwise an index.md listing the local and published files under
-//     heading (with shared assets as supporting files) is generated and
+//  5. otherwise an index.md listing the local and published files (pages
+//     under their titles) under heading (with shared assets as supporting files) is generated and
 //     planned through renderer with fsys underneath it. When renderer does not turn it into index.html, an
 //     index.html redirecting to index.md is added.
-func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []render.Source, assets []render.SharedAsset, pub publishedPrefix, mode IndexMode, heading indexHeading, stderr io.Writer) (entryPlan, error) {
+func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []render.Source, assets []render.SharedAsset, pub publishedPrefix, mode IndexMode, heading indexHeading, titles map[string]string, stderr io.Writer) (entryPlan, error) {
 	relPaths, localAssets := splitAssetDir(relPathsOf(sources))
 
 	if existing, entry, ok := findIndexPage(relPaths); ok {
@@ -106,7 +106,7 @@ func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []re
 	}
 
 	files, supporting := listingPaths(relPaths, localAssets, published, assets)
-	return planListing(renderer, fsys, prefix, heading, files, supporting)
+	return planListing(renderer, fsys, prefix, heading, files, supporting, titles)
 }
 
 // resolve applies what generated the published index page to an upload in
@@ -131,12 +131,12 @@ func (pub publishedPrefix) resolve(mode IndexMode, heading indexHeading, stderr 
 	return published, mode, heading
 }
 
-// planListing generates an index.md listing files (and supporting files) under
-// heading and plans it through renderer with fsys underneath it. The
+// planListing generates an index.md listing files (and supporting files, with
+// the titles of pages) under heading and plans it through renderer with fsys underneath it. The
 // index.html is marked as a generated listing: the rendered page, or when the
 // renderer does not produce one, a redirect to index.md.
-func planListing(renderer render.Renderer, fsys fs.FS, prefix string, heading indexHeading, files, supporting []string) (entryPlan, error) {
-	listing, err := generateIndexMarkdown(heading, files, supporting)
+func planListing(renderer render.Renderer, fsys fs.FS, prefix string, heading indexHeading, files, supporting []string, titles map[string]string) (entryPlan, error) {
+	listing, err := generateIndexMarkdown(heading, files, supporting, titles)
 	if err != nil {
 		return entryPlan{}, err
 	}

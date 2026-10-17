@@ -128,7 +128,8 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 	}
 
 	heading := indexHeading{Title: uploadTitle(localPath), Lifetime: lifetimeOf(prefix, time.Now())}
-	plan, err := planEntry(renderer, fsys, prefix, sources, sharedAssets, o.published, mode, heading, stderr)
+	titles := localTitles(fsys, relPathsOf(sources))
+	plan, err := planEntry(renderer, fsys, prefix, sources, sharedAssets, o.published, mode, heading, titles, stderr)
 	if err != nil {
 		return nil, err
 	}
