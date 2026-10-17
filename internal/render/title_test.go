@@ -3,6 +3,7 @@ package render_test
 import (
 	"html"
 	"regexp"
+	"slices"
 	"testing"
 	"testing/fstest"
 
@@ -48,6 +49,10 @@ func TestMarkdownTitle_MatchesRenderedPageTitle(t *testing.T) {
 			fsys := fstest.MapFS{"doc.md": {Data: []byte(tc.src)}}
 			sources, _, err := render.NewMarkdownRenderer().Plan([]string{"doc.md"}, fsys, "flash/1/abc")
 			require.NoError(t, err)
+
+			i := slices.IndexFunc(sources, func(s render.Source) bool { return s.RelPath == "doc.html" })
+			require.GreaterOrEqual(t, i, 0)
+			assert.Equal(t, tc.want, sources[i].Title, "the planned source carries the page's own title")
 
 			m := titleTagRe.FindStringSubmatch(openSource(t, sources, "doc.html"))
 			require.NotNil(t, m)

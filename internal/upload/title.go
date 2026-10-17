@@ -98,22 +98,24 @@ func normalizeTitle(s string) string {
 	return s
 }
 
-// localTitles finds the titles of the pages among relPaths, keyed by relative
-// path; pages without one are left out. An HTML page in fsys is read for its
-// <h1>; one rendered this run takes the title of its markdown source, and
-// markdown left unrendered is titled by the same rule.
-func localTitles(fsys fs.FS, relPaths []string) map[string]string {
+// localTitles finds the titles of the pages among sources, keyed by relative
+// path; pages without one are left out. A page rendered this run carries its
+// title, an HTML page in fsys is read for its <h1>, and markdown left
+// unrendered is titled by the rule rendered pages use.
+func localTitles(fsys fs.FS, sources []render.Source) map[string]string {
 	titles := make(map[string]string)
-	for _, e := range buildIndexEntries(relPaths, nil) {
+	for _, src := range sources {
+		if title := normalizeTitle(src.Title); title != "" {
+			titles[src.RelPath] = title
+		}
+	}
+	for _, e := range buildIndexEntries(relPathsOf(sources), nil) {
 		var title string
 		switch {
-		case render.InAssetDir(e.Name):
+		case titles[e.Name] != "", render.InAssetDir(e.Name):
 			continue
 		case isHTMLExt(e.Name):
-			var ok bool
-			if title, ok = htmlFileTitle(fsys, e.Name); !ok && e.SourcePath != "" {
-				title = markdownFileTitle(fsys, e.SourcePath)
-			}
+			title = htmlFileTitle(fsys, e.Name)
 		case isMarkdownPath(e.Name):
 			title = markdownFileTitle(fsys, e.Name)
 		}
@@ -124,15 +126,15 @@ func localTitles(fsys fs.FS, relPaths []string) map[string]string {
 	return titles
 }
 
-// htmlFileTitle returns the title of the HTML page at relPath in fsys, and
-// false when fsys does not hold it (the page is rendered this run).
-func htmlFileTitle(fsys fs.FS, relPath string) (string, bool) {
+// htmlFileTitle returns the title of the HTML page at relPath in fsys, or ""
+// when fsys does not hold it (the page is rendered this run).
+func htmlFileTitle(fsys fs.FS, relPath string) string {
 	f, err := fsys.Open(relPath)
 	if err != nil {
-		return "", false
+		return ""
 	}
 	defer f.Close() //nolint:errcheck
-	return htmlTitle(f), true
+	return htmlTitle(f)
 }
 
 // markdownFileTitle returns the title of the markdown file at relPath in fsys

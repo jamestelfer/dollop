@@ -97,7 +97,7 @@ func (m *markdownRenderer) Plan(relPaths []string, fsys fs.FS, prefix string) ([
 
 		// Rendered here rather than in Open because Plan must return every asset
 		// the page depends on.
-		html, pageAssets, err := m.renderMarkdownFile(fsys, p, prefix, batch)
+		html, title, pageAssets, err := m.renderMarkdownFile(fsys, p, prefix, batch)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -115,6 +115,7 @@ func (m *markdownRenderer) Plan(relPaths []string, fsys fs.FS, prefix string) ([
 			Open: func() (io.ReadSeekCloser, error) {
 				return nopSeekCloser{bytes.NewReader(html)}, nil
 			},
+			Title: title,
 		})
 	}
 
@@ -308,12 +309,12 @@ func fileUsesMermaid(fsys fs.FS, relPath string) (bool, error) {
 }
 
 // renderMarkdownFile parses and renders the given .md file to HTML bytes, and
-// returns the SVG assets of the d2 diagrams it contains. It does not write any
-// files to disk.
-func (m *markdownRenderer) renderMarkdownFile(fsys fs.FS, relPath, prefix string, batch map[string]bool) ([]byte, []SharedAsset, error) {
+// returns the page's title ("" when it has none) and the SVG assets of the d2
+// diagrams it contains. It does not write any files to disk.
+func (m *markdownRenderer) renderMarkdownFile(fsys fs.FS, relPath, prefix string, batch map[string]bool) ([]byte, string, []SharedAsset, error) {
 	src, err := fs.ReadFile(fsys, relPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("read %s: %w", relPath, err)
+		return nil, "", nil, fmt.Errorf("read %s: %w", relPath, err)
 	}
 
 	reader := text.NewReader(src)
@@ -333,15 +334,16 @@ func (m *markdownRenderer) renderMarkdownFile(fsys fs.FS, relPath, prefix string
 
 	var bodyBuf bytes.Buffer
 	if err := mdParser.Renderer().Render(&bodyBuf, src, doc); err != nil {
-		return nil, nil, fmt.Errorf("render %s: %w", relPath, err)
+		return nil, "", nil, fmt.Errorf("render %s: %w", relPath, err)
 	}
 
 	stem := strings.TrimSuffix(relPath, filepath.Ext(relPath))
 	basename := filepath.Base(stem)
 
 	title := markdownTitle(meta.Get(pctx), src, doc)
-	if title == "" {
-		title = basename
+	pageTitle := title
+	if pageTitle == "" {
+		pageTitle = basename
 	}
 
 	var mermaidScript template.HTML
@@ -350,7 +352,7 @@ func (m *markdownRenderer) renderMarkdownFile(fsys fs.FS, relPath, prefix string
 	}
 
 	data := pageData{
-		Title:            title,
+		Title:            pageTitle,
 		CSSPath:          assetRef(depthPrefix, "github-markdown.css"),
 		ThemeCSSPath:     assetRef(depthPrefix, m.theme.css.Name),
 		LayoutCSSPath:    assetRef(depthPrefix, "dollop-markdown.css"),
@@ -374,7 +376,7 @@ func (m *markdownRenderer) renderMarkdownFile(fsys fs.FS, relPath, prefix string
 
 	out, err := renderTemplate(data)
 	if err != nil {
-		return nil, nil, fmt.Errorf("template %s: %w", relPath, err)
+		return nil, "", nil, fmt.Errorf("template %s: %w", relPath, err)
 	}
-	return out, dr.assets, nil
+	return out, title, dr.assets, nil
 }

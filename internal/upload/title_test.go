@@ -8,6 +8,8 @@ import (
 	"testing/fstest"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/jamestelfer/dollop/internal/render"
 )
 
 func TestHTMLTitle(t *testing.T) {
@@ -95,4 +97,15 @@ func TestMarkdownFileTitle_IgnoresHeadingCutByTheCap(t *testing.T) {
 
 	assert.Empty(t, markdownFileTitle(fsys, "cut.md"))
 	assert.Equal(t, "Fits", markdownFileTitle(fsys, "fits.md"))
+}
+
+func TestLocalTitles_NormalizesRenderedTitles(t *testing.T) {
+	long := strings.Repeat("é", maxTitleRunes+5)
+	titles := localTitles(fstest.MapFS{}, []render.Source{
+		{RelPath: "a.html", Title: "Two\n  lines"},
+		{RelPath: "b.html", Title: long},
+		{RelPath: "c.html"},
+	})
+
+	assert.Equal(t, map[string]string{"a.html": "Two lines", "b.html": normalizeTitle(long)}, titles)
 }

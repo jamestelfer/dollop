@@ -145,7 +145,7 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 	for _, p := range relPathsOf(sources) {
 		delete(titles, p)
 	}
-	maps.Copy(titles, localTitles(fsys, relPathsOf(sources)))
+	maps.Copy(titles, localTitles(fsys, sources))
 	plan, err := planEntry(renderer, fsys, prefix, sources, sharedAssets, o.published, mode, heading, titles, stderr)
 	if err != nil {
 		return nil, err
