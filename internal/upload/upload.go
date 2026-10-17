@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -70,6 +71,15 @@ func WithPublishedIndex(index PublishedIndex) UploadOption {
 	}
 }
 
+// WithPublishedManifest supplies the manifest already published under the
+// prefix (see ReadPublishedManifest). Its titles are used for the published
+// files that are not uploaded again, and carried into the new manifest.
+func WithPublishedManifest(m Manifest) UploadOption {
+	return func(o *uploadOptions) {
+		o.published.manifest = m
+	}
+}
+
 // UploadFiles uploads localPath (file or directory) to bucket under prefix.
 // Each completed key is written to stderr. Files are uploaded sequentially.
 // After the sources, an entry page may be generated (see planEntry): none when
@@ -131,7 +141,11 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 	sources = slices.DeleteFunc(sources, func(src render.Source) bool { return isManifest(src.RelPath) })
 
 	heading := indexHeading{Title: uploadTitle(localPath), Lifetime: lifetimeOf(prefix, time.Now())}
-	titles := localTitles(fsys, relPathsOf(sources))
+	titles := o.published.titles()
+	for _, p := range relPathsOf(sources) {
+		delete(titles, p)
+	}
+	maps.Copy(titles, localTitles(fsys, relPathsOf(sources)))
 	plan, err := planEntry(renderer, fsys, prefix, sources, sharedAssets, o.published, mode, heading, titles, stderr)
 	if err != nil {
 		return nil, err
@@ -144,7 +158,11 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 		return nil, err
 	}
 
-	manifest := newManifest(o.published.listingTitle(heading.Title), plan.index, relPathsOf(sources), titles)
+	generated := relPathsOf(plan.generated)
+	manifestPaths := slices.DeleteFunc(overlayPaths(relPathsOf(sources), o.published.userPaths()), func(p string) bool {
+		return slices.Contains(generated, p)
+	})
+	manifest := newManifest(o.published.listingTitle(heading.Title), plan.index, manifestPaths, titles)
 	manifestKey, err := uploadManifest(ctx, up, bucket, prefix, manifest, stderr)
 	if err != nil {
 		return nil, err

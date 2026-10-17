@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"slices"
 
 	"github.com/jamestelfer/dollop/internal/render"
 )
@@ -14,6 +16,10 @@ import (
 const manifestPath = render.AssetDir + "/manifest.json"
 
 const manifestVersion = 1
+
+// manifestReadLimit bounds the read of a published manifest; a larger one is
+// ignored rather than misread.
+const manifestReadLimit = 4 << 20
 
 // Manifest describes what an upload published under its prefix: the listing's
 // title, the generated index page and the title of each page. Files is keyed
@@ -56,6 +62,35 @@ func uploadManifest(ctx context.Context, up Uploader, bucket, prefix string, m M
 	}
 	fmt.Fprintln(stderr, "done") //nolint:errcheck
 	return key, nil
+}
+
+// ReadPublishedManifest returns the manifest published under prefix when
+// published (the relative paths there) lists one. A missing manifest is the
+// zero Manifest; so is one that cannot be read, is not valid JSON, is too large
+// or has an unknown version, with a warning on stderr.
+func ReadPublishedManifest(ctx context.Context, r ObjectHeadReader, bucket, prefix string, published []string, stderr io.Writer) Manifest {
+	if !slices.Contains(published, manifestPath) {
+		return Manifest{}
+	}
+	data, err := r.ReadObjectHead(ctx, bucket, prefix+"/"+manifestPath, manifestReadLimit)
+	if errors.Is(err, ErrObjectNotFound) {
+		return Manifest{}
+	}
+	if err == nil && len(data) >= manifestReadLimit {
+		err = fmt.Errorf("larger than %s", HumanSize(manifestReadLimit))
+	}
+	var m Manifest
+	if err == nil {
+		err = json.Unmarshal(data, &m)
+	}
+	if err == nil && m.Version != manifestVersion {
+		err = fmt.Errorf("unknown version %d", m.Version)
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "warning: ignoring published manifest: %v\n", err) //nolint:errcheck
+		return Manifest{}
+	}
+	return m
 }
 
 func isManifest(relPath string) bool {

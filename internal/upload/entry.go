@@ -39,8 +39,28 @@ const (
 // publishedPrefix is what is already published under the prefix: the
 // relative paths there, and what generated its index page.
 type publishedPrefix struct {
-	paths []string
-	index PublishedIndex
+	paths    []string
+	index    PublishedIndex
+	manifest Manifest
+}
+
+// titles returns the manifest's titles for the paths still published.
+func (pub publishedPrefix) titles() map[string]string {
+	titles := make(map[string]string)
+	for _, p := range pub.paths {
+		if title := pub.manifest.Files[p].Title; title != "" {
+			titles[p] = title
+		}
+	}
+	return titles
+}
+
+// userPaths returns the published paths less the index pages dollop generated.
+func (pub publishedPrefix) userPaths() []string {
+	if pub.index.Kind == "" {
+		return pub.paths
+	}
+	return slices.DeleteFunc(slices.Clone(pub.paths), isIndexPage)
 }
 
 type entryPlan struct {

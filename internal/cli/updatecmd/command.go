@@ -112,8 +112,9 @@ func indexMode(cmd *cli.Command) upload.IndexMode {
 // upload. Entry pages are planned over it as well as the local files: a
 // listing covers both, an index page dollop generated is regenerated (a
 // listing even without --index), and any other published index page is
-// replaced only with --index-overwrite.
-func publishedOptions(ctx context.Context, up upload.SyncUploader, bucket, prefix string) ([]upload.UploadOption, error) {
+// replaced only with --index-overwrite. The published manifest supplies the
+// titles of pages this update does not upload again.
+func publishedOptions(ctx context.Context, up upload.SyncUploader, bucket, prefix string, stderr io.Writer) ([]upload.UploadOption, error) {
 	published, err := upload.PublishedPaths(ctx, up, bucket, prefix)
 	if err != nil {
 		return nil, err
@@ -122,7 +123,8 @@ func publishedOptions(ctx context.Context, up upload.SyncUploader, bucket, prefi
 	if err != nil {
 		return nil, err
 	}
-	return []upload.UploadOption{upload.WithPublished(published), upload.WithPublishedIndex(index)}, nil
+	manifest := upload.ReadPublishedManifest(ctx, up, bucket, prefix, published, stderr)
+	return []upload.UploadOption{upload.WithPublished(published), upload.WithPublishedIndex(index), upload.WithPublishedManifest(manifest)}, nil
 }
 
 func newAction(uploader upload.SyncUploader, bucket, baseURL string) cli.ActionFunc {
@@ -158,7 +160,7 @@ func newAction(uploader upload.SyncUploader, bucket, baseURL string) cli.ActionF
 				"'dollop config auth r2-key <key>', and 'dollop config auth r2-secret <secret>' (or use --copy-dir)", 1)
 		}
 
-		uploadOpts, err := publishedOptions(ctx, activeUploader, bucket, prefix)
+		uploadOpts, err := publishedOptions(ctx, activeUploader, bucket, prefix, cmd.Root().ErrWriter)
 		if err != nil {
 			fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err) //nolint:errcheck
 			return cli.Exit("upload failed", 1)
