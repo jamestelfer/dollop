@@ -201,14 +201,18 @@ func (d *indexDir) tally() {
 func writeIndexTree(b *bytes.Buffer, d *indexDir, indent string) {
 	for _, e := range d.entries {
 		name := path.Base(e.Name)
+		label := name
 		if e.hasDistinctTitle() {
-			b.WriteString(indent + "- " + mdLink(e.Title, e.Name) + " <small>" + mdEscaper.Replace(name) + "</small>")
-		} else {
-			b.WriteString(indent + "- " + mdLink(name, e.Name))
+			label = e.Title
 		}
+		b.WriteString(indent + "- " + mdLink(label, e.Name))
 		if e.SourcePath != "" {
 			// The fixed marker must remain unescaped so the renderer can parse it.
 			b.WriteString(" [::md-icon::](" + mdHref(e.SourcePath) + ")")
+		}
+		if e.hasDistinctTitle() {
+			// Last on the line, so a row too narrow for it can drop it.
+			b.WriteString(" <small>" + mdEscaper.Replace(name) + "</small>")
 		}
 		b.WriteString("\n")
 	}

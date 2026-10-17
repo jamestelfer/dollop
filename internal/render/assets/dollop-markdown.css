@@ -345,8 +345,9 @@ body {
  * the files they use.
  *
  * The <details> blocks need blank lines around them, which makes the lists
- * loose: goldmark wraps each item in a <p>. Each item is a flex row, which
- * drops the whitespace around that <p> and keeps the glyph on the name's line.
+ * loose: goldmark wraps each item in a <p>. Each item is a flex row and the
+ * <p> is unboxed, so loose and tight items lay out alike: glyph, name, source
+ * link, file name, with the whitespace between them dropped.
  */
 .markdown-body .index-meta {
   margin-top: -0.75rem;
@@ -370,7 +371,7 @@ body {
   gap: 0.35em;
 }
 .markdown-body .file-index li + li { margin-top: 0.15rem; }
-.markdown-body .file-index li > p { margin: 0; }
+.markdown-body .file-index li > p { display: contents; }
 .markdown-body .file-index li > details {
   flex: 1;
   margin: 0;
@@ -392,6 +393,30 @@ body {
   font-weight: normal;
 }
 .markdown-body .file-index summary small { margin-left: 0.35em; }
+
+/*
+ * A page listed by its title shows its file name last, in whatever room the
+ * title and source link leave. The name is a one-line clip whose text follows
+ * a zero-width marker: when it doesn't fit it wraps below the marker and is
+ * clipped away whole, rather than truncated. Each row decides on its own.
+ */
+.markdown-body .file-index :is(li, li > p) > a { min-width: 0; }
+.markdown-body .file-index :is(li, li > p) > a:has(.md-icon) { flex: none; }
+.markdown-body .file-index :is(li, li > p) > small {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  line-height: 1.5;
+  height: 1.5em;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.markdown-body .file-index :is(li, li > p) > small::before {
+  content: "\200b";
+  display: block;
+  width: 0;
+}
 
 /* Glyphs are masks filled with a theme colour; --glyph picks the shape. */
 .markdown-body .file-index :is(summary, li:not(:has(> details)))::before {
