@@ -168,9 +168,7 @@ func mergeAssets(a, b []render.SharedAsset) []render.SharedAsset {
 	return merged
 }
 
-// withoutAssets returns sources without those at the path of one of assets.
-// The asset directory belongs to dollop, so a local file there (say, one
-// fetched by get) is overwritten by the generated asset rather than kept.
+// withoutAssets drops sources at an asset's path: dollop owns AssetDir, so the generated asset wins.
 func withoutAssets(sources []render.Source, assets []render.SharedAsset) []render.Source {
 	if len(assets) == 0 {
 		return sources

@@ -214,12 +214,8 @@ func redirectSource(target string, kind IndexKind) (render.Source, error) {
 	return memSource("index.html", "text/html; charset=utf-8", markGenerated(buf.Bytes(), kind)), nil
 }
 
-// listingPaths splits what the prefix will hold once this upload lands into
-// the files a listing shows and its supporting files: this run's shared assets,
-// plus any existing rendering assets (localAssets, or published ones, see
-// render.IsAssetName). As in a fresh upload, existing
-// assets are supporting files only alongside markdown; otherwise they only
-// served the generated index and are not listed.
+// listingPaths splits the prefix's paths after this upload into listed and supporting files.
+// Existing assets are supporting only alongside markdown; otherwise they served just the index.
 func listingPaths(local, localAssets, published []string, assets []render.SharedAsset) (files, supporting []string) {
 	supporting = make([]string, len(assets))
 	for i, a := range assets {
@@ -242,8 +238,6 @@ func listingPaths(local, localAssets, published []string, assets []render.Shared
 	return files, supporting
 }
 
-// splitAssetDir separates the paths under render.AssetDir from the rest. Entry
-// pages are planned over the rest only, since dollop owns that directory.
 func splitAssetDir(relPaths []string) (files, assets []string) {
 	for _, p := range relPaths {
 		if render.InAssetDir(p) {

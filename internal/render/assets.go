@@ -42,10 +42,7 @@ var dollopDarkSVG []byte
 //go:embed assets/dollop-favicon.svg
 var dollopFaviconSVG []byte
 
-// AssetDir is the subdirectory of a prefix that holds the supporting files
-// rendering publishes (stylesheets, scripts, logos, d2 diagrams). dollop owns
-// it: an upload overwrites whatever is there, including files of the same name
-// in the uploaded path.
+// AssetDir is the prefix subdirectory holding rendering's supporting files.
 const AssetDir = ".dollop"
 
 // SharedAsset is a supporting file uploaded under AssetDir with cache headers,
@@ -61,8 +58,6 @@ func (a SharedAsset) RelPath() string {
 	return assetPath(a.Name)
 }
 
-// assetPath returns the path, relative to the prefix root, of the asset name
-// (relative to AssetDir).
 func assetPath(name string) string {
 	return AssetDir + "/" + name
 }
@@ -104,16 +99,13 @@ func assetRef(depthPrefix, name string) string {
 	return depthPrefix + assetPath(name) + "?v=" + assetVersions[name]
 }
 
-// IsAssetName reports whether name, relative to a prefix root, is a
-// supporting file rendering publishes: anything under AssetDir, which dollop
-// owns, or an asset older releases published at the prefix root (a fixed
-// shared asset, any theme's stylesheet, or a d2 diagram).
+// IsAssetName reports whether name is a rendering asset: under AssetDir, or at
+// the prefix root where older releases published them.
 func IsAssetName(name string) bool {
 	return InAssetDir(name) || isLegacyAssetName(name)
 }
 
-// InAssetDir reports whether relPath, relative to a prefix root, is a file
-// under AssetDir.
+// InAssetDir reports whether relPath, relative to a prefix root, is under AssetDir.
 func InAssetDir(relPath string) bool {
 	rest, ok := strings.CutPrefix(relPath, assetPath(""))
 	return ok && rest != ""
