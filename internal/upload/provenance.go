@@ -25,6 +25,17 @@ const (
 	IndexKindReadmeRedirect IndexKind = "readme-redirect"
 )
 
+// pages returns the relative paths of the pages dollop generates for k.
+func (k IndexKind) pages() []string {
+	switch k {
+	case IndexKindListing:
+		return []string{"index.html", "index.md"}
+	case IndexKindReadmeRedirect:
+		return []string{"index.html"}
+	}
+	return nil
+}
+
 // markerHeadSize is how much of a published index.html is read to find the
 // marker; markGenerated keeps the marker well inside it.
 const markerHeadSize = 512
@@ -94,11 +105,11 @@ type PublishedIndex struct {
 
 // InspectPublishedIndex reports what generated the index.html among published
 // (relative paths under prefix), from the provenance marker in its first
-// markerHeadSize bytes. For a listing it recovers the title from the
-// frontmatter of the published index.md; Title is empty when that fails. An
-// unmarked or vanished index.html is not known to be generated; any other
-// read error is returned.
-func InspectPublishedIndex(ctx context.Context, r ObjectHeadReader, bucket, prefix string, published []string) (PublishedIndex, error) {
+// markerHeadSize bytes. For a listing the title is manifestTitle (the published
+// manifest's), or else is recovered from the frontmatter of the published
+// index.md; Title is empty when both fail. An unmarked or vanished index.html
+// is not known to be generated; any other read error is returned.
+func InspectPublishedIndex(ctx context.Context, r ObjectHeadReader, bucket, prefix string, published []string, manifestTitle string) (PublishedIndex, error) {
 	if !slices.Contains(published, "index.html") {
 		return PublishedIndex{}, nil
 	}
@@ -112,6 +123,9 @@ func InspectPublishedIndex(ctx context.Context, r ObjectHeadReader, bucket, pref
 	kind := markerKind(head)
 	if kind != IndexKindListing {
 		return PublishedIndex{Kind: kind}, nil
+	}
+	if manifestTitle != "" {
+		return PublishedIndex{Kind: kind, Title: manifestTitle}, nil
 	}
 	md, err := r.ReadObjectHead(ctx, bucket, prefix+"/index.md", titleHeadSize)
 	if err != nil {

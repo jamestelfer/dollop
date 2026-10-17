@@ -26,9 +26,10 @@ type putCall struct {
 	key         string
 	contentType string
 	body        []byte
+	options     upload.PutOptions
 }
 
-func (f *fakeUploader) PutObject(_ context.Context, bucket, key, contentType string, body io.Reader, _ ...upload.PutOption) error {
+func (f *fakeUploader) PutObject(_ context.Context, bucket, key, contentType string, body io.Reader, opts ...upload.PutOption) error {
 	if f.err != nil {
 		return f.err
 	}
@@ -36,7 +37,11 @@ func (f *fakeUploader) PutObject(_ context.Context, bucket, key, contentType str
 	if err != nil {
 		return err
 	}
-	f.calls = append(f.calls, putCall{bucket, key, contentType, data})
+	call := putCall{bucket: bucket, key: key, contentType: contentType, body: data}
+	for _, opt := range opts {
+		opt(&call.options)
+	}
+	f.calls = append(f.calls, call)
 	return nil
 }
 
@@ -51,7 +56,8 @@ func TestUploadFiles_SingleFile(t *testing.T) {
 	files := res.SourceRelPaths
 	require.NoError(t, err)
 
-	require.Len(t, up.calls, 1)
+	require.Len(t, up.calls, 2)
+	assert.Equal(t, "dollop/1/abc/.dollop/manifest.json", up.calls[1].key)
 	assert.Equal(t, "my-bucket", up.calls[0].bucket)
 	assert.Equal(t, "dollop/1/abc/hello.txt", up.calls[0].key)
 	assert.Contains(t, up.calls[0].contentType, "text/plain")
@@ -73,7 +79,7 @@ func TestUploadFiles_Directory(t *testing.T) {
 	files := res.SourceRelPaths
 	require.NoError(t, err)
 
-	require.Len(t, up.calls, 2)
+	require.Len(t, up.calls, 3)
 
 	keys := make([]string, len(up.calls))
 	for i, c := range up.calls {
@@ -82,6 +88,7 @@ func TestUploadFiles_Directory(t *testing.T) {
 	assert.ElementsMatch(t, []string{
 		"keep/friendly-cat/index.html",
 		"keep/friendly-cat/sub/data.json",
+		"keep/friendly-cat/.dollop/manifest.json",
 	}, keys)
 	assert.ElementsMatch(t, []string{"index.html", "sub/data.json"}, files)
 
@@ -141,8 +148,8 @@ func TestUploadFiles_Index_SkipsIfExists(t *testing.T) {
 	files := res.SourceRelPaths
 	require.NoError(t, err)
 
-	// only the two real files, no generated index
-	require.Len(t, up.calls, 2)
+	// only the two real files and the manifest, no generated index
+	require.Len(t, up.calls, 3)
 	assert.Contains(t, stderr.String(), "warning")
 	assert.Contains(t, stderr.String(), "index.html")
 	assert.ElementsMatch(t, []string{"index.html", "data.csv"}, files)
@@ -159,7 +166,7 @@ func TestUploadFiles_Index_SingleFile_IsIndex(t *testing.T) {
 	files := res.SourceRelPaths
 	require.NoError(t, err)
 
-	require.Len(t, up.calls, 1) // only the file itself, no generated index
+	require.Len(t, up.calls, 2) // only the file itself and the manifest, no generated index
 	assert.Contains(t, stderr.String(), "warning")
 	assert.Equal(t, []string{"index.html"}, files)
 }
@@ -327,7 +334,7 @@ func TestUploadFiles_Directory_SkipsSymlinkOutsideRoot(t *testing.T) {
 	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, &stderr)
 	require.NoError(t, err)
 
-	assert.Equal(t, []string{"flash/1/abc/keep.txt"}, uploadedKeys(up))
+	assert.Equal(t, []string{"flash/1/abc/keep.txt", manifestKey}, uploadedKeys(up))
 	assert.Equal(t, []string{"keep.txt"}, res.SourceRelPaths)
 	assert.Contains(t, stderr.String(), "warning: skipping notes.txt")
 	for _, c := range up.calls {
@@ -348,6 +355,7 @@ func TestUploadFiles_Directory_FollowsSymlinkInsideRoot(t *testing.T) {
 	for _, c := range up.calls {
 		bodies[c.key] = string(c.body)
 	}
+	delete(bodies, manifestKey)
 	assert.Equal(t, map[string]string{
 		"flash/1/abc/keep.txt":  "public",
 		"flash/1/abc/alias.txt": "public",
@@ -540,7 +548,7 @@ func TestUploadFiles_Index_RendersGeneratedMarkdownWithTheme(t *testing.T) {
 
 	md := bodyOf(t, up, "flash/1/abc/index.md")
 	assert.Contains(t, md, `<p class="index-meta">2 files · 1 page · expires <time datetime="`)
-	assert.Contains(t, md, "[notes.html](notes.html)")
+	assert.Contains(t, md, "[Hello](notes.html) <small>notes.html</small>")
 	assert.Contains(t, md, "[::md-icon::](notes.md)")
 	assert.Contains(t, md, "[data.csv](data.csv)")
 
@@ -906,4 +914,67 @@ func TestUploadFiles_Published_AssetsOfIndexOnlyNotListed(t *testing.T) {
 	md := bodyOf(t, up, "flash/1/abc/index.md")
 	assert.NotContains(t, md, "Supporting files")
 	assert.NotContains(t, md, "github-markdown.css")
+}
+
+func TestUploadFiles_Index_ListsLocalHTMLPagesByTitle(t *testing.T) {
+	bigStyle := "<style>" + strings.Repeat("p{}", 50_000) + "</style>"
+	up, _, _ := uploadTree(t, map[string]string{
+		"a.html":     "<html><body><h1>Alpha <code>x</code></h1></body></html>",
+		"big.html":   "<html><head><title>Big page</title>" + bigStyle + "</head><body><h1>Late</h1></body></html>",
+		"plain.html": "<html><body><p>no heading</p></body></html>",
+		"notes.html": "<h1>notes</h1>",
+		"data.csv":   "<h1>not html</h1>",
+	}, upload.IndexGenerate)
+
+	index := bodyOf(t, up, "flash/1/abc/index.md")
+	assert.Contains(t, index, "- [Alpha x](a.html) <small>a.html</small>\n")
+	assert.Contains(t, index, "- [Big page](big.html) <small>big.html</small>\n")
+	assert.Contains(t, index, "- [plain.html](plain.html)\n")
+	assert.Contains(t, index, "- [notes.html](notes.html)\n")
+	assert.Contains(t, index, "- [data.csv](data.csv)\n")
+}
+
+func TestUploadFiles_Index_RenderedListingShowsTitlesLiterally(t *testing.T) {
+	up, _, _ := uploadTree(t, map[string]string{
+		"a.html": "<h1>*star* [x] &lt;script&gt;alert(1)&lt;/script&gt;</h1>",
+	}, upload.IndexGenerate, upload.WithRenderer(render.NewMarkdownRenderer()))
+
+	index := bodyOf(t, up, "flash/1/abc/index.html")
+	assert.Contains(t, index, `<a href="a.html">*star* [x] &lt;script&gt;alert(1)&lt;/script&gt;</a> <small>a.html</small>`)
+	assert.NotContains(t, index, "<script>alert")
+}
+
+// markdownTitleTree is a directory of markdown pages with and without titles.
+var markdownTitleTree = map[string]string{
+	"notes.md": "---\ntitle: Release Notes\n---\n\n# Something else\n",
+	"guide.md": "# Getting started\n\nbody\n",
+	"bare.md":  "no heading here\n",
+}
+
+func TestUploadFiles_Index_ListsRenderedMarkdownByTitle(t *testing.T) {
+	up, _, _ := uploadTree(t, markdownTitleTree, upload.IndexGenerate, upload.WithRenderer(render.NewMarkdownRenderer()))
+
+	index := bodyOf(t, up, "flash/1/abc/index.md")
+	assert.Contains(t, index, "- [Release Notes](notes.html) <small>notes.html</small> [::md-icon::](notes.md)\n")
+	assert.Contains(t, index, "- [Getting started](guide.html) <small>guide.html</small> [::md-icon::](guide.md)\n")
+	assert.Contains(t, index, "- [bare.html](bare.html) [::md-icon::](bare.md)\n", "no basename-as-title")
+}
+
+func TestUploadFiles_Index_NoRender_ListsMarkdownByTitle(t *testing.T) {
+	up, _, _ := uploadTree(t, markdownTitleTree, upload.IndexGenerate)
+
+	index := bodyOf(t, up, "flash/1/abc/index.md")
+	assert.Contains(t, index, "- [Release Notes](notes.md) <small>notes.md</small>\n")
+	assert.Contains(t, index, "- [Getting started](guide.md) <small>guide.md</small>\n")
+	assert.Contains(t, index, "- [bare.md](bare.md)\n")
+}
+
+func TestUploadFiles_Index_LocalHTMLBesideMarkdownKeepsItsOwnTitle(t *testing.T) {
+	// the renderer skips page.md because page.html is present
+	up, _, _ := uploadTree(t, map[string]string{
+		"page.md":   "# From markdown\n",
+		"page.html": "<h1>From HTML</h1>",
+	}, upload.IndexGenerate, upload.WithRenderer(render.NewMarkdownRenderer()))
+
+	assert.Contains(t, bodyOf(t, up, "flash/1/abc/index.md"), "- [From HTML](page.html) <small>page.html</small> [::md-icon::](page.md)\n")
 }

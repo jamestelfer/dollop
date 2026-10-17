@@ -224,9 +224,8 @@ func TestCreate_Index_SkipsWithWarningIfIndexExists(t *testing.T) {
 	stdout, stderr, code := runCreate(t, up, "create", "--index", dir)
 	require.Equal(t, 0, code)
 
-	// no generated index — only the real index.html
-	assert.Len(t, up.calls, 1)
-	assert.Equal(t, "flash/1/testid/index.html", up.calls[0])
+	// no generated index — only the real index.html and the manifest
+	assert.Equal(t, []string{"flash/1/testid/index.html", "flash/1/testid/.dollop/manifest.json"}, up.calls)
 	assert.Contains(t, stderr, "warning")
 	// --index flag → no filename suffix
 	assert.Contains(t, stdout, "flash/1/testid/")

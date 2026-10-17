@@ -17,6 +17,9 @@ type Source struct {
 	ContentType string
 	Size        int64
 	Open        func() (io.ReadSeekCloser, error)
+	// Title is the title of a page rendered from markdown ("" when it has
+	// none); other sources leave it empty.
+	Title string
 }
 
 // Renderer plans the set of Sources to upload from a list of relative paths

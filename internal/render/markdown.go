@@ -97,7 +97,7 @@ func (m *markdownRenderer) Plan(relPaths []string, fsys fs.FS, prefix string) ([
 
 		// Rendered here rather than in Open because Plan must return every asset
 		// the page depends on.
-		html, pageAssets, err := m.renderMarkdownFile(fsys, p, prefix, batch)
+		html, title, pageAssets, err := m.renderMarkdownFile(fsys, p, prefix, batch)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -115,6 +115,7 @@ func (m *markdownRenderer) Plan(relPaths []string, fsys fs.FS, prefix string) ([
 			Open: func() (io.ReadSeekCloser, error) {
 				return nopSeekCloser{bytes.NewReader(html)}, nil
 			},
+			Title: title,
 		})
 	}
 
@@ -150,37 +151,32 @@ type nopSeekCloser struct{ *bytes.Reader }
 
 func (nopSeekCloser) Close() error { return nil }
 
-func extractTitle(metadata map[string]any, src []byte, doc ast.Node, fallback string) string {
+// MarkdownTitle returns the title of the markdown document src by the rule
+// rendered pages use (frontmatter title, then the first level-1 heading), or
+// "" when it has neither.
+func MarkdownTitle(src []byte) string {
+	pctx := parser.NewContext()
+	doc := mdParser.Parser().Parse(text.NewReader(src), parser.WithContext(pctx))
+	return markdownTitle(meta.Get(pctx), src, doc)
+}
+
+func markdownTitle(metadata map[string]any, src []byte, doc ast.Node) string {
 	if metadata != nil {
 		if v, ok := metadata["title"]; ok {
-			if s, ok := v.(string); ok && s != "" {
+			if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
 				return s
 			}
 		}
 	}
-	// walk AST for the first H1
 	var h1 string
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering {
-			return ast.WalkContinue, nil
-		}
-		if heading, ok := n.(*ast.Heading); ok && heading.Level == 1 {
-			// collect all text segments from the heading's children
-			var sb strings.Builder
-			for child := heading.FirstChild(); child != nil; child = child.NextSibling() {
-				if t, ok := child.(*ast.Text); ok {
-					sb.Write(t.Segment.Value(src))
-				}
-			}
-			h1 = sb.String()
+		if heading, ok := n.(*ast.Heading); ok && entering && heading.Level == 1 {
+			h1 = headingText(heading, src)
 			return ast.WalkStop, nil
 		}
 		return ast.WalkContinue, nil
 	})
-	if h1 != "" {
-		return h1
-	}
-	return fallback
+	return h1
 }
 
 // cssDepthPrefix returns the relative path prefix (e.g. "../../") needed to
@@ -313,12 +309,12 @@ func fileUsesMermaid(fsys fs.FS, relPath string) (bool, error) {
 }
 
 // renderMarkdownFile parses and renders the given .md file to HTML bytes, and
-// returns the SVG assets of the d2 diagrams it contains. It does not write any
-// files to disk.
-func (m *markdownRenderer) renderMarkdownFile(fsys fs.FS, relPath, prefix string, batch map[string]bool) ([]byte, []SharedAsset, error) {
+// returns the page's title ("" when it has none) and the SVG assets of the d2
+// diagrams it contains. It does not write any files to disk.
+func (m *markdownRenderer) renderMarkdownFile(fsys fs.FS, relPath, prefix string, batch map[string]bool) ([]byte, string, []SharedAsset, error) {
 	src, err := fs.ReadFile(fsys, relPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("read %s: %w", relPath, err)
+		return nil, "", nil, fmt.Errorf("read %s: %w", relPath, err)
 	}
 
 	reader := text.NewReader(src)
@@ -338,13 +334,17 @@ func (m *markdownRenderer) renderMarkdownFile(fsys fs.FS, relPath, prefix string
 
 	var bodyBuf bytes.Buffer
 	if err := mdParser.Renderer().Render(&bodyBuf, src, doc); err != nil {
-		return nil, nil, fmt.Errorf("render %s: %w", relPath, err)
+		return nil, "", nil, fmt.Errorf("render %s: %w", relPath, err)
 	}
 
 	stem := strings.TrimSuffix(relPath, filepath.Ext(relPath))
 	basename := filepath.Base(stem)
 
-	title := extractTitle(meta.Get(pctx), src, doc, basename)
+	title := markdownTitle(meta.Get(pctx), src, doc)
+	pageTitle := title
+	if pageTitle == "" {
+		pageTitle = basename
+	}
 
 	var mermaidScript template.HTML
 	if mermaid {
@@ -352,7 +352,7 @@ func (m *markdownRenderer) renderMarkdownFile(fsys fs.FS, relPath, prefix string
 	}
 
 	data := pageData{
-		Title:            title,
+		Title:            pageTitle,
 		CSSPath:          assetRef(depthPrefix, "github-markdown.css"),
 		ThemeCSSPath:     assetRef(depthPrefix, m.theme.css.Name),
 		LayoutCSSPath:    assetRef(depthPrefix, "dollop-markdown.css"),
@@ -376,7 +376,7 @@ func (m *markdownRenderer) renderMarkdownFile(fsys fs.FS, relPath, prefix string
 
 	out, err := renderTemplate(data)
 	if err != nil {
-		return nil, nil, fmt.Errorf("template %s: %w", relPath, err)
+		return nil, "", nil, fmt.Errorf("template %s: %w", relPath, err)
 	}
-	return out, dr.assets, nil
+	return out, title, dr.assets, nil
 }

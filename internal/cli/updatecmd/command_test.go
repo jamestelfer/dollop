@@ -3,6 +3,7 @@ package updatecmd_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -146,7 +147,7 @@ func TestUpdate_FullURL_And_BarePrefix_ResolveSame(t *testing.T) {
 	require.Equal(t, 0, codeBare)
 
 	// Both inputs upload into the same prefix...
-	require.Equal(t, []string{"flash/7/abc123/report.pdf"}, upURL.calls)
+	require.Equal(t, []string{"flash/7/abc123/report.pdf", "flash/7/abc123/.dollop/manifest.json"}, upURL.calls)
 	assert.Equal(t, upURL.calls, upBare.calls)
 	// ...and print the same public URL.
 	assert.Equal(t, stdoutURL, stdoutBare)
@@ -169,7 +170,7 @@ func TestUpdate_StripsTrailingFilenameAndIndex(t *testing.T) {
 			up := &fakeUploader{}
 			_, _, code := runUpdate(t, up, base, "update", ref, path)
 			require.Equal(t, 0, code)
-			assert.Equal(t, []string{"flash/1/xyz/data.bin"}, up.calls)
+			assert.Equal(t, []string{"flash/1/xyz/data.bin", "flash/1/xyz/.dollop/manifest.json"}, up.calls)
 		})
 	}
 }
@@ -182,7 +183,7 @@ func TestUpdate_OverwritesMatchingKeys(t *testing.T) {
 	_, _, code := runUpdate(t, up, "https://drop.example.com", "update", "keep/happy-cat", dir)
 	require.Equal(t, 0, code)
 	// The key matches an existing object's key, so the upload overwrites it.
-	assert.Equal(t, []string{"keep/happy-cat/page.html"}, up.calls)
+	assert.Equal(t, []string{"keep/happy-cat/page.html", "keep/happy-cat/.dollop/manifest.json"}, up.calls)
 }
 
 func TestUpdate_InvalidReference(t *testing.T) {
@@ -465,4 +466,164 @@ func TestUpdate_IndexInspectionFailure_NonZeroExit(t *testing.T) {
 	assert.NotEqual(t, 0, code)
 	assert.Contains(t, stderr, "access denied")
 	assert.Empty(t, up.put, "nothing is uploaded when provenance cannot be read")
+}
+
+// recordingDir is a DirUploader that records the keys read from it.
+type recordingDir struct {
+	*upload.DirUploader
+	reads []string
+}
+
+func (r *recordingDir) ReadObjectHead(ctx context.Context, bucket, key string, n int64) ([]byte, error) {
+	r.reads = append(r.reads, key)
+	return r.DirUploader.ReadObjectHead(ctx, bucket, key, n)
+}
+
+// writeTree writes files under a new directory named name and returns its path.
+func writeTree(t *testing.T, name string, files map[string]string) string {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), name)
+	for rel, body := range files {
+		p := filepath.Join(dir, filepath.FromSlash(rel))
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o700))
+		require.NoError(t, os.WriteFile(p, []byte(body), 0o600))
+	}
+	return dir
+}
+
+// publishedFile reads key from the recording uploader's root.
+func publishedFile(t *testing.T, up *recordingDir, key string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(up.Root, filepath.FromSlash(key)))
+	require.NoError(t, err)
+	return string(b)
+}
+
+func publishedManifest(t *testing.T, up *recordingDir, prefix string) upload.Manifest {
+	t.Helper()
+	var m upload.Manifest
+	require.NoError(t, json.Unmarshal([]byte(publishedFile(t, up, prefix+"/.dollop/manifest.json")), &m))
+	return m
+}
+
+const titlesPrefix = "flash/7/abc"
+
+// publishAlpha publishes a titled listing of dir "alpha" to titlesPrefix.
+func publishAlpha(t *testing.T) *recordingDir {
+	t.Helper()
+	up := &recordingDir{DirUploader: &upload.DirUploader{Root: t.TempDir()}}
+	alpha := writeTree(t, "alpha", map[string]string{
+		"a.html":   "<h1>Alpha page</h1>",
+		"gone.md":  "# Soon gone\n",
+		"guide.md": "# Getting started\n",
+	})
+	_, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", "--index", titlesPrefix, alpha)
+	require.Equal(t, 0, code, stderr)
+	up.reads = nil
+	return up
+}
+
+// updateBeta updates titlesPrefix with flags and a dir "beta" holding one text
+// file, returning stderr.
+func updateBeta(t *testing.T, up *recordingDir, flags ...string) string {
+	t.Helper()
+	beta := writeTree(t, "beta", map[string]string{"b.txt": "b"})
+	args := append(append([]string{"update"}, flags...), titlesPrefix, beta)
+	_, stderr, code := runUpdate(t, up, "https://drop.example.com", args...)
+	require.Equal(t, 0, code, stderr)
+	return stderr
+}
+
+func TestUpdate_PublishedManifest_KeepsTitlesOfEarlierFiles(t *testing.T) {
+	up := publishAlpha(t)
+	require.NoError(t, os.Remove(filepath.Join(up.Root, titlesPrefix, "gone.html")))
+	require.NoError(t, os.Remove(filepath.Join(up.Root, titlesPrefix, "gone.md")))
+	require.NoError(t, os.WriteFile(filepath.Join(up.Root, titlesPrefix, "added.html"), []byte("<h1>Added by hand</h1>"), 0o600))
+
+	beta := writeTree(t, "beta", map[string]string{"b.html": "<h1>Beta page</h1>"})
+	_, stderr, code := runUpdate(t, up, "https://drop.example.com", "update", titlesPrefix, beta)
+	require.Equal(t, 0, code, stderr)
+	assert.NotContains(t, stderr, "warning")
+
+	index := publishedFile(t, up, titlesPrefix+"/index.md")
+	assert.Contains(t, index, "- [Alpha page](a.html) <small>a.html</small>\n")
+	assert.Contains(t, index, "- [Getting started](guide.html) <small>guide.html</small> [::md-icon::](guide.md)\n")
+	assert.Contains(t, index, "- [Beta page](b.html) <small>b.html</small>\n")
+	assert.Contains(t, index, "- [added.html](added.html)\n", "a file added outside dollop is listed by name")
+	assert.NotContains(t, index, "gone")
+
+	assert.Equal(t, map[string]upload.ManifestFile{
+		"a.html":     {Title: "Alpha page"},
+		"guide.html": {Title: "Getting started"},
+		"guide.md":   {},
+		"b.html":     {Title: "Beta page"},
+		"added.html": {},
+	}, publishedManifest(t, up, titlesPrefix).Files)
+}
+
+func TestUpdate_PublishedManifest_ReadsNoPublishedPages(t *testing.T) {
+	up := publishAlpha(t)
+	updateBeta(t, up)
+
+	for _, key := range up.reads {
+		assert.Contains(t, []string{
+			titlesPrefix + "/index.html", titlesPrefix + "/index.md", titlesPrefix + "/.dollop/manifest.json",
+		}, key)
+	}
+	assert.Contains(t, up.reads, titlesPrefix+"/.dollop/manifest.json")
+}
+
+func TestUpdate_PublishedManifest_AbsentIsNotWarnedAbout(t *testing.T) {
+	up := publishAlpha(t)
+	require.NoError(t, os.Remove(filepath.Join(up.Root, titlesPrefix, ".dollop", "manifest.json")))
+
+	stderr := updateBeta(t, up)
+
+	assert.NotContains(t, stderr, "warning")
+	assert.Contains(t, publishedFile(t, up, titlesPrefix+"/index.md"), "- [a.html](a.html)\n")
+}
+
+func TestUpdate_PublishedManifest_CorruptIsWarnedAboutOnce(t *testing.T) {
+	up := publishAlpha(t)
+	require.NoError(t, os.WriteFile(filepath.Join(up.Root, titlesPrefix, ".dollop", "manifest.json"), []byte("{not json"), 0o600))
+
+	stderr := updateBeta(t, up)
+
+	assert.Equal(t, 1, strings.Count(stderr, "warning: "), stderr)
+	assert.Contains(t, stderr, "manifest")
+	assert.Contains(t, publishedManifest(t, up, titlesPrefix).Files, "a.html", "a fresh manifest is written")
+}
+
+func TestUpdate_PublishedManifest_KeepsListingTitle(t *testing.T) {
+	up := publishAlpha(t)
+	updateBeta(t, up)
+
+	assert.Contains(t, publishedFile(t, up, titlesPrefix+"/index.md"), "\n# alpha\n")
+	assert.Equal(t, "alpha", publishedManifest(t, up, titlesPrefix).Title)
+	assert.NotContains(t, up.reads, titlesPrefix+"/index.md", "the title comes from the manifest")
+}
+
+func TestUpdate_PublishedManifest_WithoutTitleFallsBackToIndexMarkdown(t *testing.T) {
+	up := publishAlpha(t)
+	manifestFile := filepath.Join(up.Root, titlesPrefix, ".dollop", "manifest.json")
+	m := publishedManifest(t, up, titlesPrefix)
+	m.Title = ""
+	data, err := json.Marshal(m)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(manifestFile, data, 0o600))
+
+	updateBeta(t, up)
+
+	assert.Contains(t, publishedFile(t, up, titlesPrefix+"/index.md"), "\n# alpha\n")
+	assert.Contains(t, up.reads, titlesPrefix+"/index.md")
+}
+
+func TestUpdate_PublishedManifest_DoesNotAuthoriseReplacingUserIndex(t *testing.T) {
+	up := publishAlpha(t)
+	require.NoError(t, os.WriteFile(filepath.Join(up.Root, titlesPrefix, "index.html"), []byte("<h1>hand-written</h1>"), 0o600))
+
+	stderr := updateBeta(t, up, "--index")
+
+	assert.Contains(t, stderr, "index.html already published, skipping index generation")
+	assert.Equal(t, "<h1>hand-written</h1>", publishedFile(t, up, titlesPrefix+"/index.html"))
 }

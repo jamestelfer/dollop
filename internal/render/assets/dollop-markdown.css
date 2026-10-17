@@ -385,12 +385,13 @@ body {
 }
 .markdown-body .file-index summary::-webkit-details-marker { display: none; }
 .markdown-body .file-index summary:hover { color: var(--accent); }
-.markdown-body .file-index summary small {
-  margin-left: 0.35em;
+/* Directory counts, and the file name beside a page listed by its title. */
+.markdown-body .file-index small {
   color: var(--text-muted);
   font-size: 0.8em;
   font-weight: normal;
 }
+.markdown-body .file-index summary small { margin-left: 0.35em; }
 
 /* Glyphs are masks filled with a theme colour; --glyph picks the shape. */
 .markdown-body .file-index :is(summary, li:not(:has(> details)))::before {

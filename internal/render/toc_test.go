@@ -92,6 +92,14 @@ func TestTOC_HeadingText(t *testing.T) {
 	assert.Contains(t, toc, `data-depth="2">A very &amp; bold one</a>`)
 }
 
+func TestTOC_HeadingTextResolvesEntitiesAndEscapes(t *testing.T) {
+	html, _ := renderDoc(t, "## Fish &amp; Chips &#35;1\n\n## \\*not emphasis\\*\n")
+
+	toc := tocSection(t, html)
+	assert.Contains(t, toc, `data-depth="2">Fish &amp; Chips #1</a>`)
+	assert.Contains(t, toc, `data-depth="2">*not emphasis*</a>`)
+}
+
 // TestTOC_ScriptAsset verifies the TOC script ships as a shared asset and is
 // loaded deferred, by its versioned reference, only on pages with a TOC.
 func TestTOC_ScriptAsset(t *testing.T) {

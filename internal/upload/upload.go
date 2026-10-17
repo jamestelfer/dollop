@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -70,6 +71,15 @@ func WithPublishedIndex(index PublishedIndex) UploadOption {
 	}
 }
 
+// WithPublishedManifest supplies the manifest already published under the
+// prefix (see ReadPublishedManifest). Its titles are used for the published
+// files that are not uploaded again, and carried into the new manifest.
+func WithPublishedManifest(m Manifest) UploadOption {
+	return func(o *uploadOptions) {
+		o.published.manifest = m
+	}
+}
+
 // UploadFiles uploads localPath (file or directory) to bucket under prefix.
 // Each completed key is written to stderr. Files are uploaded sequentially.
 // After the sources, an entry page may be generated (see planEntry): none when
@@ -127,8 +137,16 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 		return nil, fmt.Errorf("plan: %w", err)
 	}
 
-	heading := indexHeading{Title: uploadTitle(localPath), Lifetime: lifetimeOf(prefix, time.Now())}
-	plan, err := planEntry(renderer, fsys, prefix, sources, sharedAssets, o.published, mode, heading, stderr)
+	// dollop writes the manifest itself, after everything else
+	sources = slices.DeleteFunc(sources, func(src render.Source) bool { return isManifest(src.RelPath) })
+
+	heading := indexHeading{Title: o.published.listingTitle(uploadTitle(localPath)), Lifetime: lifetimeOf(prefix, time.Now())}
+	titles := o.published.titles()
+	for _, p := range relPathsOf(sources) {
+		delete(titles, p)
+	}
+	maps.Copy(titles, localTitles(fsys, sources))
+	plan, err := planEntry(renderer, fsys, prefix, sources, sharedAssets, o.published, mode, heading, titles, stderr)
 	if err != nil {
 		return nil, err
 	}
@@ -139,6 +157,17 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 	if err != nil {
 		return nil, err
 	}
+
+	generated := relPathsOf(plan.generated)
+	manifestPaths := slices.DeleteFunc(overlayPaths(relPathsOf(sources), o.published.userPaths()), func(p string) bool {
+		return slices.Contains(generated, p)
+	})
+	manifest := newManifest(heading.Title, plan.index, manifestPaths, titles)
+	manifestKey, err := uploadManifest(ctx, up, bucket, prefix, manifest, stderr)
+	if err != nil {
+		return nil, err
+	}
+	writtenKeys = append(writtenKeys, manifestKey)
 
 	return &UploadResult{SourceRelPaths: relPathsOf(sources), Entry: plan.entry, WrittenKeys: writtenKeys}, nil
 }
@@ -206,15 +235,24 @@ func uploadPlan(ctx context.Context, up Uploader, bucket, prefix string, sources
 
 func uploadSharedAssets(ctx context.Context, up Uploader, bucket, prefix string, assets []render.SharedAsset, stderr io.Writer) error {
 	for _, asset := range assets {
-		key := prefix + "/" + asset.RelPath()
-		fmt.Fprintf(stderr, "uploading [%s] %s...", asset.RelPath(), HumanSize(int64(len(asset.Content)))) //nolint:errcheck
-		if err := up.PutObject(ctx, bucket, key, asset.ContentType, bytes.NewReader(asset.Content), WithCacheControl("max-age=604800")); err != nil {
-			fmt.Fprintln(stderr, "failed") //nolint:errcheck
-			return fmt.Errorf("upload shared asset %s: %w", asset.RelPath(), err)
+		if _, err := putBytes(ctx, up, bucket, prefix, asset.RelPath(), asset.ContentType, asset.Content, "max-age=604800", stderr); err != nil {
+			return fmt.Errorf("upload shared asset: %w", err)
 		}
-		fmt.Fprintln(stderr, "done") //nolint:errcheck
 	}
 	return nil
+}
+
+// putBytes uploads data to relPath under prefix with cacheControl, reporting
+// progress on stderr, and returns the key written.
+func putBytes(ctx context.Context, up Uploader, bucket, prefix, relPath, contentType string, data []byte, cacheControl string, stderr io.Writer) (string, error) {
+	key := prefix + "/" + relPath
+	fmt.Fprintf(stderr, "uploading [%s] %s...", relPath, HumanSize(int64(len(data)))) //nolint:errcheck
+	if err := up.PutObject(ctx, bucket, key, contentType, bytes.NewReader(data), WithCacheControl(cacheControl)); err != nil {
+		fmt.Fprintln(stderr, "failed") //nolint:errcheck
+		return "", fmt.Errorf("%s: %w", relPath, err)
+	}
+	fmt.Fprintln(stderr, "done") //nolint:errcheck
+	return key, nil
 }
 
 func uploadSource(ctx context.Context, up Uploader, bucket, prefix string, src render.Source, stderr io.Writer) error {
