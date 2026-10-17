@@ -66,7 +66,7 @@ type entryPlan struct {
 //     planned through renderer with fsys underneath it. When renderer does not turn it into index.html, an
 //     index.html redirecting to index.md is added.
 func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []render.Source, assets []render.SharedAsset, pub publishedPrefix, mode IndexMode, heading indexHeading, stderr io.Writer) (entryPlan, error) {
-	relPaths := relPathsOf(sources)
+	relPaths, localAssets := splitAssetDir(relPathsOf(sources))
 
 	if existing, entry, ok := findIndexPage(relPaths); ok {
 		if mode != IndexNone {
@@ -102,10 +102,10 @@ func planEntry(renderer render.Renderer, fsys fs.FS, prefix string, sources []re
 	}
 
 	if !generateIndex {
-		return entryPlan{entry: firstFile(slices.DeleteFunc(slices.Clone(relPaths), render.InAssetDir))}, nil
+		return entryPlan{entry: firstFile(relPaths)}, nil
 	}
 
-	files, supporting := listingPaths(relPaths, published, assets)
+	files, supporting := listingPaths(relPaths, localAssets, published, assets)
 	return planListing(renderer, fsys, prefix, heading, files, supporting)
 }
 
@@ -216,23 +216,17 @@ func redirectSource(target string, kind IndexKind) (render.Source, error) {
 
 // listingPaths splits what the prefix will hold once this upload lands into
 // the files a listing shows and its supporting files: this run's shared assets,
-// plus any existing rendering assets (local files under render.AssetDir, or
-// published ones, see render.IsAssetName). As in a fresh upload, existing
+// plus any existing rendering assets (localAssets, or published ones, see
+// render.IsAssetName). As in a fresh upload, existing
 // assets are supporting files only alongside markdown; otherwise they only
 // served the generated index and are not listed.
-func listingPaths(local, published []string, assets []render.SharedAsset) (files, supporting []string) {
+func listingPaths(local, localAssets, published []string, assets []render.SharedAsset) (files, supporting []string) {
 	supporting = make([]string, len(assets))
 	for i, a := range assets {
 		supporting[i] = a.RelPath()
 	}
-	var localFiles, publishedFiles, existingAssets []string
-	for _, p := range local {
-		if render.InAssetDir(p) {
-			existingAssets = append(existingAssets, p)
-		} else {
-			localFiles = append(localFiles, p)
-		}
-	}
+	existingAssets := slices.Clone(localAssets)
+	var publishedFiles []string
 	for _, p := range published {
 		if render.IsAssetName(p) {
 			existingAssets = append(existingAssets, p)
@@ -240,7 +234,7 @@ func listingPaths(local, published []string, assets []render.SharedAsset) (files
 			publishedFiles = append(publishedFiles, p)
 		}
 	}
-	files = overlayPaths(localFiles, publishedFiles)
+	files = overlayPaths(local, publishedFiles)
 	slices.Sort(files)
 	if slices.ContainsFunc(files, isMarkdownPath) {
 		for _, a := range existingAssets {
@@ -250,6 +244,19 @@ func listingPaths(local, published []string, assets []render.SharedAsset) (files
 		}
 	}
 	return files, supporting
+}
+
+// splitAssetDir separates the paths under render.AssetDir from the rest. Entry
+// pages are planned over the rest only, since dollop owns that directory.
+func splitAssetDir(relPaths []string) (files, assets []string) {
+	for _, p := range relPaths {
+		if render.InAssetDir(p) {
+			assets = append(assets, p)
+		} else {
+			files = append(files, p)
+		}
+	}
+	return files, assets
 }
 
 // isMarkdownPath reports whether relPath has a markdown extension, in any case.
