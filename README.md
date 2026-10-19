@@ -48,7 +48,7 @@ mise use -g github:jamestelfer/dollop
 <summary><strong>Nix</strong></summary>
 
 ```sh
-nix profile install github:jamestelfer/dollop
+nix profile install github:jamestelfer/nixpkgs#dollop
 ```
 
 </details>

@@ -72,3 +72,15 @@ homebrew_casks:
           run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ "{{staged_path}}" }}/dollop"]
         end
       end
+
+nix:
+  - name: dollop
+    repository:
+      owner: jamestelfer
+      name: nixpkgs
+      token: "{{ .Env.NIX_GITHUB_TOKEN }}"
+    # skip publishing the recipe on a prerelease, as for the cask.
+    skip_upload: auto
+    homepage: "https://github.com/jamestelfer/dollop"
+    description: "Uploads files and directories to unique, expiring paths in a Cloudflare R2 bucket."
+    license: "asl20"
