@@ -5,9 +5,6 @@
   "force-tag-creation": true,
   "include-component-in-tag": false,
   "pull-request-header": "Automated release prepared by Release Please. Changes since the previous release are listed below.\n",
-  "extra-files": [
-    "flake.nix"
-  ],
   "packages": {
     ".": {}
   },
