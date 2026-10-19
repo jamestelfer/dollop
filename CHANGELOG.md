@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.19.0](https://github.com/jamestelfer/dollop/compare/v1.18.1...v1.19.0) (2026-10-19)
+
+
+### Features
+
+* **release:** publish a Nix recipe ([#113](https://github.com/jamestelfer/dollop/issues/113)) ([3b0fcee](https://github.com/jamestelfer/dollop/commit/3b0fcee1c2b2cd4b6bb9a5c79d25337575cdb382))
+
+
+### Bug Fixes
+
+* **deps:** update jdx/mise-action action to v5.1.2 ([#111](https://github.com/jamestelfer/dollop/issues/111)) ([d0c20ce](https://github.com/jamestelfer/dollop/commit/d0c20ce0f7d5d9f31b92a6dde548c92a11cc36a0))
+* **deps:** update module github.com/godbus/dbus/v5 to v5.2.4 ([#112](https://github.com/jamestelfer/dollop/issues/112)) ([6c2713d](https://github.com/jamestelfer/dollop/commit/6c2713ded22736beb62c77a9806d8c6040057fe0))
+
 ## [1.18.1](https://github.com/jamestelfer/dollop/compare/v1.18.0...v1.18.1) (2026-10-17)
 
 
