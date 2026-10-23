@@ -70,6 +70,7 @@ func TestD2_FenceRendersLinkedImage(t *testing.T) {
 	assert.Contains(t, html, `alt="d2 diagram"`)
 	assert.Contains(t, html, `loading="lazy"`)
 	assert.NotContains(t, html, "a -&gt; b", "the fence is no longer shown as code")
+	assert.Regexp(t, `<script src="\.dollop/dollop-zoom\.js\?v=[0-9a-f]+" async></script>`, html, "zoom must not block rendering")
 
 	got := d2Assets(assets)
 	require.Len(t, got, 1)

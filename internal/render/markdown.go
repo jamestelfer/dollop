@@ -369,6 +369,9 @@ func (m *markdownRenderer) renderMarkdownFile(fsys fs.FS, relPath, prefix string
 	if data.TOC != nil {
 		data.TOCScriptPath = assetRef(depthPrefix, "dollop-toc.js")
 	}
+	if mermaid || len(dr.assets) > 0 {
+		data.ZoomScriptPath = assetRef(depthPrefix, "dollop-zoom.js")
+	}
 	if m.theme.sharedFont {
 		data.FontFaceCSS = fontFaceCSS(bucketRootPath(prefix, relPath))
 		data.FontFamily = fontFamily

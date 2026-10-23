@@ -42,6 +42,8 @@ type pageData struct {
 	// for an "On this page" widget; TOCScriptPath animates it.
 	TOC           []tocEntry
 	TOCScriptPath string
+	// ZoomScriptPath adds click to zoom; set only on pages with a diagram.
+	ZoomScriptPath string
 }
 
 func renderTemplate(data pageData) ([]byte, error) {

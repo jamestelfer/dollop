@@ -33,6 +33,11 @@ var highlightGithubCSS []byte
 //go:embed assets/dollop-toc.js
 var dollopTOCJS []byte
 
+// Click to zoom on d2 and mermaid diagrams.
+//
+//go:embed assets/dollop-zoom.js
+var dollopZoomJS []byte
+
 //go:embed assets/dollop-light.svg
 var dollopLightSVG []byte
 
@@ -71,6 +76,7 @@ var sharedAssets = []SharedAsset{
 	{Name: "dollop-markdown.css", ContentType: "text/css; charset=utf-8", Content: dollopMarkdownCSS},
 	{Name: "highlight-github.css", ContentType: "text/css; charset=utf-8", Content: highlightGithubCSS},
 	{Name: "dollop-toc.js", ContentType: "text/javascript; charset=utf-8", Content: dollopTOCJS},
+	{Name: "dollop-zoom.js", ContentType: "text/javascript; charset=utf-8", Content: dollopZoomJS},
 	{Name: "dollop-light.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopLightSVG},
 	{Name: "dollop-dark.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopDarkSVG},
 	{Name: "dollop-favicon.svg", ContentType: "image/svg+xml; charset=utf-8", Content: dollopFaviconSVG},

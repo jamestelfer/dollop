@@ -327,6 +327,28 @@ html.page-wide .page-content { max-width: 60rem; }
   align-items: center;
 }
 
+/* Click to zoom (dollop-zoom.js): wide screens only, matching its media query. */
+@media (min-width: 50rem) {
+  .markdown-body a.d2,
+  .markdown-body pre.mermaid svg { cursor: zoom-in; }
+}
+.diagram-zoom {
+  max-width: none;
+  max-height: none;
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--page-bg);
+  cursor: zoom-out;
+}
+.diagram-zoom::backdrop { background: rgb(0 0 0 / 0.6); }
+/* dollop-zoom.js sizes the clone; the dialog wraps it. */
+.diagram-zoom > img,
+.diagram-zoom > svg {
+  display: block;
+  max-width: none !important;
+}
+
 /* Alerts: tinted box in place of the left bar. */
 .markdown-body .markdown-alert {
   --alert-tint: var(--border);
