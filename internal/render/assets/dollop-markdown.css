@@ -70,12 +70,21 @@ body {
 .page-header a:hover,
 .page-header .page-width-toggle:hover { border-color: var(--accent); color: var(--accent); }
 .page-header .page-width-toggle {
-  font-family: inherit;
+  /* Buttons default to border-box, which would make it shorter than the links. */
+  box-sizing: content-box;
   background-color: transparent;
   cursor: pointer;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
+/* The icon shows what a click does: widen from the narrow column, narrow
+   from the wide one. */
+.page-width-icon {
+  display: block;
+  height: 100%;
+  width: auto;
+}
+.page-width-icon-narrow,
+html.page-wide .page-width-icon-widen { display: none; }
+html.page-wide .page-width-icon-narrow { display: block; }
 /* Pressed state marks the wide column; the accent border echoes hover. */
 .page-header .page-width-toggle[aria-pressed="true"] {
   border-color: var(--accent);
@@ -100,6 +109,11 @@ body {
    persists per browser (dollop-wide in localStorage). The class is set on the
    root element before the body renders. */
 html.page-wide .page-content { max-width: 60rem; }
+/* The narrow column fills the screen (46rem plus 3rem padding) up to 49rem,
+   so widening it changes nothing there; the margin covers a scrollbar. */
+@media (max-width: 50rem) {
+  .page-header .page-width-toggle { display: none; }
+}
 
 /* Theme tokens mapped onto github-markdown.css's colour system. */
 .markdown-body {
@@ -531,6 +545,12 @@ html {
     font-size: 0.8125rem;
   }
   html.page-wide .page-toc-column { left: calc(50% + 31.5rem); }
+}
+/* Beside the wide column the gutter only fits the contents from 94rem
+   (2 × (31.5rem + 14rem + 1.5rem)); below that they stay inline. */
+@media (min-width: 80rem) and (max-width: 94rem) {
+  html.page-wide .page-toc-inline { display: block; }
+  html.page-wide .page-toc-column { display: none; }
 }
 .page-toc-title {
   margin: 0 0 0.5rem;

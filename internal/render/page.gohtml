@@ -73,7 +73,8 @@ through event delegation so it works on every page. */}}
   </symbol>
 </svg>
 <header class="page-header">
-  <button type="button" class="page-width-toggle" aria-pressed="false" title="Toggle page width">wide</button>
+  {{- /* Tabler Icons (MIT) viewport-wide and viewport-narrow: each shows what a click does. */}}
+  <button type="button" class="page-width-toggle" aria-pressed="false" aria-label="Toggle page width" title="Toggle page width"><svg class="page-width-icon page-width-icon-widen" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 12h-7l3 -3" /><path d="M6 15l-3 -3" /><path d="M14 12h7l-3 -3" /><path d="M18 15l3 -3" /><path d="M3 6v-1a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v1" /><path d="M3 18v1a2 2 0 0 0 2 2h14a2 2 0 0 0 2 -2v-1" /></svg><svg class="page-width-icon page-width-icon-narrow" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h7l-3 -3" /><path d="M7 15l3 -3" /><path d="M21 12h-7l3 -3" /><path d="M17 15l-3 -3" /><path d="M9 6v-1a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v1" /><path d="M9 18v1a2 2 0 0 0 2 2h2a2 2 0 0 0 2 -2v-1" /></svg></button>
   <a href="{{.SourcePath}}" aria-label="Markdown source" title="Markdown source"><svg class="md-icon page-header-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="16" viewBox="2 4 20 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#dollop-md-icon" width="24" height="24" /></svg></a>
   <a href="https://github.com/jamestelfer/dollop"><picture>
     <source media="(prefers-color-scheme: dark)" srcset="{{.LogoDarkPath}}">
