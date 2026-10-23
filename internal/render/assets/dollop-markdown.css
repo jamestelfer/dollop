@@ -52,7 +52,8 @@ body {
 @supports (height: stretch) {
   .page-header img { height: stretch; }
 }
-.page-header a {
+.page-header a,
+.page-header .page-width-toggle {
   display: inline-block;
   padding: 0.2rem 0.5rem;
   border: 1px solid var(--border);
@@ -66,7 +67,20 @@ body {
   vertical-align: baseline;
   font-weight: 900;
 }
-.page-header a:hover { border-color: var(--accent); color: var(--accent); }
+.page-header a:hover,
+.page-header .page-width-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.page-header .page-width-toggle {
+  font-family: inherit;
+  background-color: transparent;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+/* Pressed state marks the wide column; the accent border echoes hover. */
+.page-header .page-width-toggle[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 /* Drawn like the logo beside it: the full button height, in the text colour
    with an accent arrow, and unchanged on hover. The svg's viewBox is cropped
    to the glyph so it fills the height. */
@@ -82,6 +96,10 @@ body {
   margin: 0 auto;
   padding: 2rem 1.5rem 6rem;
 }
+/* The header's width toggle switches to a wider reading column; the setting
+   persists per browser (dollop-wide in localStorage). The class is set on the
+   root element before the body renders. */
+html.page-wide .page-content { max-width: 60rem; }
 
 /* Theme tokens mapped onto github-markdown.css's colour system. */
 .markdown-body {
@@ -499,7 +517,8 @@ html {
 
 @media (min-width: 80rem) {
   .page-toc-inline { display: none; }
-  /* Sits in the right gutter, clear of the 46rem content column. */
+  /* Sits in the right gutter, clear of the 46rem content column (31.5rem
+     beside the 60rem wide one). */
   .page-toc-column {
     display: block;
     position: fixed;
@@ -511,6 +530,7 @@ html {
     font-family: var(--body-face);
     font-size: 0.8125rem;
   }
+  html.page-wide .page-toc-column { left: calc(50% + 31.5rem); }
 }
 .page-toc-title {
   margin: 0 0 0.5rem;

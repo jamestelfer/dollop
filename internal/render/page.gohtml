@@ -39,6 +39,30 @@ and the stylesheet never blocks rendering. */}}
 </script>
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&amp;display=swap"></noscript>
 {{- end}}
+{{- /* The width toggle runs before the body renders so a saved wide setting
+applies without a flash of the narrow column; the button behaviour is wired
+through event delegation so it works on every page. */}}
+<script>
+(function () {
+  try {
+    if (localStorage.getItem("dollop-wide") === "1") {
+      document.documentElement.classList.add("page-wide");
+    }
+  } catch (e) {}
+  document.addEventListener("click", function (ev) {
+    var btn = ev.target.closest ? ev.target.closest(".page-width-toggle") : null;
+    if (!btn) return;
+    var wide = document.documentElement.classList.toggle("page-wide");
+    btn.setAttribute("aria-pressed", wide ? "true" : "false");
+    try { localStorage.setItem("dollop-wide", wide ? "1" : "0"); } catch (e) {}
+  });
+  document.addEventListener("DOMContentLoaded", function () {
+    var btn = document.querySelector(".page-width-toggle");
+    if (btn) btn.setAttribute("aria-pressed",
+      document.documentElement.classList.contains("page-wide") ? "true" : "false");
+  });
+})();
+</script>
 </head>
 <body>
 <svg xmlns="http://www.w3.org/2000/svg" class="md-icon-symbols" width="0" height="0" aria-hidden="true">
@@ -49,6 +73,7 @@ and the stylesheet never blocks rendering. */}}
   </symbol>
 </svg>
 <header class="page-header">
+  <button type="button" class="page-width-toggle" aria-pressed="false" title="Toggle page width">wide</button>
   <a href="{{.SourcePath}}" aria-label="Markdown source" title="Markdown source"><svg class="md-icon page-header-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="16" viewBox="2 4 20 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#dollop-md-icon" width="24" height="24" /></svg></a>
   <a href="https://github.com/jamestelfer/dollop"><picture>
     <source media="(prefers-color-scheme: dark)" srcset="{{.LogoDarkPath}}">
