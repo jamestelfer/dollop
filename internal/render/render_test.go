@@ -470,6 +470,7 @@ func TestMarkdownRenderer_MermaidReferencesSharedDeps(t *testing.T) {
 	html := openSource(t, sources, "doc.html")
 	assert.Contains(t, html, `<script type="module">`)
 	assert.Contains(t, html, "../../../"+mermaidEntry)
+	assert.Contains(t, html, `<script src=".dollop/dollop-zoom.js?v=`)
 	// the old per-prefix UMD engine must not be referenced or shipped
 	assert.NotContains(t, html, "mermaid.min.js")
 
@@ -568,6 +569,7 @@ func TestMarkdownRenderer_NoMermaidFenceNoScript(t *testing.T) {
 
 	html := openSource(t, sources, "doc.html")
 	assert.NotContains(t, html, "mermaid")
+	assert.NotContains(t, html, "dollop-zoom.js", "zoom loads only on pages with a diagram")
 }
 
 // TestMarkdownRenderer_AlertInsideFencedCodeNotConverted verifies that alert
@@ -748,11 +750,12 @@ func TestMarkdownRenderer_CSSPathRootLevel(t *testing.T) {
 // asset is referenced with a ?v= query derived from its content. The assets
 // are served with a long max-age under fixed names, so without the version an
 // update that changes them is masked by edge and browser caches. The page has
-// enough headings for a TOC, so it references the TOC script too.
+// enough headings for a TOC and a diagram, so it references the TOC and zoom
+// scripts too.
 func TestMarkdownRenderer_SharedAssetsVersioned(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "sub"), 0o700))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "sub", "page.md"), []byte("## One\n\n## Two\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "sub", "page.md"), []byte("## One\n\n## Two\n\n```mermaid\ngraph TD\n```\n"), 0o600))
 
 	r := render.NewMarkdownRenderer()
 	sources, assets, err := r.Plan([]string{"sub/page.md"}, rootFS(t, dir), "flash/1/testid")

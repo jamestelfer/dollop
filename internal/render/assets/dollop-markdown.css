@@ -319,12 +319,37 @@ html.page-wide .page-content { max-width: 60rem; }
   margin: 4px 0 0;
 }
 
-.markdown-body a.d2 img { max-width: 100%; height: auto; }
+/* Centred like mermaid diagrams. The link shrinks to the image, so only the
+   diagram itself is clickable, not the space beside it. */
+.markdown-body a.d2 { display: block; width: fit-content; margin-inline: auto; }
+.markdown-body a.d2 img { display: block; max-width: 100%; height: auto; }
 
 .markdown-body pre.mermaid {
   display: flex;
   justify-content: center;
   align-items: center;
+}
+
+/* Click to zoom (dollop-zoom.js): wide screens only, matching its media query. */
+@media (min-width: 50rem) {
+  .markdown-body a.d2,
+  .markdown-body pre.mermaid svg { cursor: zoom-in; }
+}
+.diagram-zoom {
+  max-width: none;
+  max-height: none;
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--page-bg);
+  cursor: zoom-out;
+}
+.diagram-zoom::backdrop { background: rgb(0 0 0 / 0.6); }
+/* dollop-zoom.js sizes the clone; the dialog wraps it. */
+.diagram-zoom > img,
+.diagram-zoom > svg {
+  display: block;
+  max-width: none !important;
 }
 
 /* Alerts: tinted box in place of the left bar. */

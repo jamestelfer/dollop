@@ -103,6 +103,9 @@ through event delegation so it works on every page. */}}
 </aside>
 <script src="{{$.TOCScriptPath}}" defer></script>
 {{- end}}
+{{- with .ZoomScriptPath}}
+<script src="{{.}}" async></script>
+{{- end}}
 {{- if .MermaidScript}}
 {{.MermaidScript}}
 {{- end}}
