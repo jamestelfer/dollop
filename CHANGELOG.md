@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.20.0](https://github.com/jamestelfer/dollop/compare/v1.19.0...v1.20.0) (2026-10-24)
+
+
+### Features
+
+* add page-width toggle to the rendered page header ([#118](https://github.com/jamestelfer/dollop/issues/118)) ([64bc1b0](https://github.com/jamestelfer/dollop/commit/64bc1b022c585a40ed116f220d6caeea785b8b14))
+* click to zoom on diagrams ([#120](https://github.com/jamestelfer/dollop/issues/120)) ([08bd313](https://github.com/jamestelfer/dollop/commit/08bd313496fa7ff96f36a0ae5f1a32c534d3d6cd))
+
+
+### Bug Fixes
+
+* **deps:** update github actions ([#117](https://github.com/jamestelfer/dollop/issues/117)) ([79fa5d2](https://github.com/jamestelfer/dollop/commit/79fa5d2abf33749cee663eed528e2502d6fc3b32))
+* **deps:** update go dependencies ([#115](https://github.com/jamestelfer/dollop/issues/115)) ([e8c1a05](https://github.com/jamestelfer/dollop/commit/e8c1a05a01571a32b61a0bf0ccd511597d10ad47))
+* **deps:** update mise packages ([#116](https://github.com/jamestelfer/dollop/issues/116)) ([a772d70](https://github.com/jamestelfer/dollop/commit/a772d70e62c147c6d5ce68cfef2bd264cd705fd1))
+
 ## [1.19.0](https://github.com/jamestelfer/dollop/compare/v1.18.1...v1.19.0) (2026-10-19)
 
 
