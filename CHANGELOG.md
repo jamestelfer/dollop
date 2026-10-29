@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.21.0](https://github.com/jamestelfer/dollop/compare/v1.20.0...v1.21.0) (2026-10-29)
+
+
+### Features
+
+* update mermaid to 12.0.0 and automate future bumps ([#125](https://github.com/jamestelfer/dollop/issues/125)) ([dd3e535](https://github.com/jamestelfer/dollop/commit/dd3e535fee9ffa7dba43a71901011fbe1cfcf361))
+
+
+### Bug Fixes
+
+* **deps:** update dependency go to v1.27.3 ([#122](https://github.com/jamestelfer/dollop/issues/122)) ([128735a](https://github.com/jamestelfer/dollop/commit/128735ab7c577c669a9b4e70154e9627ed77a9a9))
+* **deps:** update dependency goreleaser to v2.19.0 ([#124](https://github.com/jamestelfer/dollop/issues/124)) ([4eba27a](https://github.com/jamestelfer/dollop/commit/4eba27a779d412cdd8faf369a85b27a33c938a25))
+* **deps:** update dependency mermaid to v12.2.0 ([#128](https://github.com/jamestelfer/dollop/issues/128)) ([58f369c](https://github.com/jamestelfer/dollop/commit/58f369c4b4d0e3ce1044e63273107cfd24060e40))
+* **deps:** update go dependencies ([#123](https://github.com/jamestelfer/dollop/issues/123)) ([0d124c9](https://github.com/jamestelfer/dollop/commit/0d124c9ec285e69312d6beb7a0bb397b4197fb1a))
+* **deps:** update jdx/mise-action action to v5.2.3 ([#121](https://github.com/jamestelfer/dollop/issues/121)) ([3329ac7](https://github.com/jamestelfer/dollop/commit/3329ac79669af1ccd34e379bf7aa0d4659e978c5))
+* **deps:** update jdx/mise-action action to v5.2.3 ([#127](https://github.com/jamestelfer/dollop/issues/127)) ([e1d2e25](https://github.com/jamestelfer/dollop/commit/e1d2e25bf5ecda3d57fc12b012c799e711ceb5fd))
+* **deps:** update module github.com/dlclark/regexp2/v2 to v2.10.0 ([#129](https://github.com/jamestelfer/dollop/issues/129)) ([0c7dc18](https://github.com/jamestelfer/dollop/commit/0c7dc18af4d35a63bff2f9ac6a1682e932c46d2e))
+* sign the mermaid integrity commit through the GitHub API ([#130](https://github.com/jamestelfer/dollop/issues/130)) ([0459abe](https://github.com/jamestelfer/dollop/commit/0459abecae1f3812bd8f3c9b63b28564cb7f1d1f))
+
 ## [1.20.0](https://github.com/jamestelfer/dollop/compare/v1.19.0...v1.20.0) (2026-10-24)
 
 
