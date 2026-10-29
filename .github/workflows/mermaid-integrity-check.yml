@@ -25,10 +25,11 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      # cosign comes from mise.toml: npm attests only a sha512 subject, which needs cosign v3.1.1+.
+      - uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
         with:
-          # npm attests only a sha512 subject; cosign before v3.1.1 hashes the blob as sha256 and fails.
-          cosign-release: v3.1.4
+          install_args: cosign
+          cache: false
 
       - name: Check the mermaid pin
         env:
