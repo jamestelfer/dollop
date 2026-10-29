@@ -7,6 +7,6 @@ binstaller = "github:binary-install/binstaller"
 [tools]
 go            = "1.27.2"
 golangci-lint = "2.15.0"
-goreleaser    = "2.18.3"
+goreleaser    = "2.19.0"
 just          = "1.59.0"
 binstaller    = { version = "0.12.0", rename_exe = "binst" }
