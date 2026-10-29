@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
 #
-# Write a verified mermaid integrity to mermaid.sha512, commit it, and push it
-# to a branch using the token in $GH_TOKEN.
+# Commit a verified mermaid integrity to mermaid.sha512 on a branch through
+# the GitHub API, using the token in $GH_TOKEN. GitHub signs API-created
+# commits as the token's app, which the branch ruleset requires.
 #
 # Usage: commit.sh <version> <integrity> <branch>
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly SCRIPT_DIR
-readonly INTEGRITY_FILE="${SCRIPT_DIR}/../../../internal/render/mermaid.sha512"
-# Listed in renovate.json5 gitIgnoredAuthors so Renovate keeps managing the PR.
-readonly AUTHOR_NAME="github-actions[bot]"
-readonly AUTHOR_EMAIL="41898282+github-actions[bot]@users.noreply.github.com"
+readonly INTEGRITY_PATH="internal/render/mermaid.sha512"
+# shellcheck disable=SC2016 # $input is a GraphQL variable, not a shell one
+readonly MUTATION='
+mutation($input: CreateCommitOnBranchInput!) {
+  createCommitOnBranch(input: $input) { commit { url } }
+}'
 
 # Print a GitHub Actions error annotation to STDERR.
 err() {
@@ -25,22 +26,31 @@ main() {
     exit 2
   fi
   local version="$1" integrity="$2" branch="$3"
-  local auth
+  local head contents
 
   : "${GH_TOKEN:?GH_TOKEN must hold a contents:write token}"
   : "${GITHUB_REPOSITORY:?must run under GitHub Actions}"
 
-  printf '%s\n' "${integrity}" > "${INTEGRITY_FILE}"
+  # The commit is rejected if the branch has moved past the verified checkout.
+  head="$(git rev-parse HEAD)"
+  contents="$(printf '%s\n' "${integrity}" | base64 -w0)"
 
-  git -c user.name="${AUTHOR_NAME}" -c user.email="${AUTHOR_EMAIL}" \
-    commit -m "fix(deps): pin mermaid ${version} integrity" \
-    -- "${INTEGRITY_FILE}"
-
-  auth="$(printf 'x-access-token:%s' "${GH_TOKEN}" | base64 -w0)"
-  printf '::add-mask::%s\n' "${auth}"
-  git -c http.https://github.com/.extraheader="AUTHORIZATION: basic ${auth}" \
-    push "https://github.com/${GITHUB_REPOSITORY}.git" \
-    "HEAD:refs/heads/${branch}"
+  jq -n \
+    --arg query "${MUTATION}" \
+    --arg repo "${GITHUB_REPOSITORY}" \
+    --arg branch "${branch}" \
+    --arg head "${head}" \
+    --arg headline "fix(deps): pin mermaid ${version} integrity" \
+    --arg path "${INTEGRITY_PATH}" \
+    --arg contents "${contents}" \
+    '{query: $query, variables: {input: {
+      branch: {repositoryNameWithOwner: $repo, branchName: $branch},
+      expectedHeadOid: $head,
+      message: {headline: $headline},
+      fileChanges: {additions: [{path: $path, contents: $contents}]}
+    }}}' \
+    | gh api graphql --input - \
+      --jq '.data.createCommitOnBranch.commit.url'
 }
 
 main "$@"
