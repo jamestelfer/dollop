@@ -1,0 +1,96 @@
+# Renovate bumps render.MermaidVersion but cannot compute MermaidSHA512 (the
+# npm datasource has no digests, and hosted Renovate blocks postUpgradeTasks).
+# This fills it in on the Renovate branch, only after the tarball's SLSA
+# provenance verifies against mermaid's own release workflow.
+name: mermaid-integrity
+
+on:
+  push:
+    branches: ["renovate/**"]
+    paths: [internal/render/mermaid.version]
+
+permissions: {}
+
+concurrency:
+  group: mermaid-integrity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pin:
+    name: Pin mermaid integrity
+    runs-on: ubuntu-latest
+    environment: dependencies
+    permissions:
+      contents: read
+      id-token: write # octo-sts OIDC exchange
+    defaults:
+      run:
+        shell: bash --noprofile --norc -euo pipefail {0}
+    env:
+      VERSION_FILE: internal/render/mermaid.version
+      INTEGRITY_FILE: internal/render/mermaid.sha512
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Verify the pinned tarball and compute its integrity
+        id: integrity
+        run: |
+          version=$(tr -d '[:space:]' < "$VERSION_FILE")
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::$VERSION_FILE does not hold an exact release: '$version'"; exit 1; }
+          current=$(tr -d '[:space:]' < "$INTEGRITY_FILE")
+
+          work=$(mktemp -d)
+          curl -fsSL -o "$work/mermaid.tgz" "https://registry.npmjs.org/mermaid/-/mermaid-${version}.tgz"
+          curl -fsSL -o "$work/attestations.json" "https://registry.npmjs.org/-/npm/v1/attestations/mermaid@${version}"
+          jq '.attestations[] | select(.predicateType == "https://slsa.dev/provenance/v1") | .bundle' \
+            "$work/attestations.json" > "$work/slsa.json"
+          [[ -s "$work/slsa.json" ]] || { echo "::error::mermaid@${version} has no SLSA provenance on npm"; exit 1; }
+
+          cosign verify-blob-attestation \
+            --bundle "$work/slsa.json" \
+            --type slsaprovenance1 \
+            --certificate-identity "https://github.com/mermaid-js/mermaid/.github/workflows/release.yml@refs/heads/master" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "$work/mermaid.tgz"
+
+          computed="sha512-$(openssl dgst -sha512 -binary "$work/mermaid.tgz" | base64 -w0)"
+          registry=$(curl -fsSL "https://registry.npmjs.org/mermaid/${version}" | jq -r .dist.integrity)
+          [[ "$computed" == "$registry" ]] || { echo "::error::tarball digest $computed does not match npm integrity $registry"; exit 1; }
+
+          {
+            echo "version=$version"
+            echo "integrity=$computed"
+            echo "changed=$([[ "$computed" == "$current" ]] && echo false || echo true)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Mint a contents:write token
+        if: steps.integrity.outputs.changed == 'true'
+        id: octo-sts
+        uses: octo-sts/action@f603d3be9d8dd9871a265776e625a27b00effe05 # v1.1.1
+        with:
+          scope: ${{ github.repository_owner }}
+          identity: dependencies-${{ github.event.repository.name }}
+
+      - name: Commit the integrity to the Renovate branch
+        if: steps.integrity.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
+          VERSION: ${{ steps.integrity.outputs.version }}
+          INTEGRITY: ${{ steps.integrity.outputs.integrity }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          printf '%s\n' "$INTEGRITY" > "$INTEGRITY_FILE"
+
+          # This author is listed in renovate.json5 gitIgnoredAuthors so Renovate keeps managing the branch.
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "fix(deps): pin mermaid ${VERSION} integrity" -- "$INTEGRITY_FILE"
+
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" \
+            push "https://github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH}"
