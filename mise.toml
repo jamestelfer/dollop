@@ -10,3 +10,4 @@ golangci-lint = "2.15.0"
 goreleaser    = "2.19.0"
 just          = "1.59.0"
 binstaller    = { version = "0.12.0", rename_exe = "binst" }
+cosign        = "3.1.4"

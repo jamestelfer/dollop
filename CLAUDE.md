@@ -37,9 +37,11 @@ The shared mermaid engine lives outside the expiring `flash/` prefixes at
 `deps/mermaid/<x.y.z>/` (full patch version, immutable, long-lived cache). It is
 published once per version via `dollop deps publish`; rendered pages reference it
 by a relative path that climbs out of their prefix. The pinned version and its
-npm sha512 integrity are the only mermaid artifacts in git (`render.MermaidVersion`,
-`render.MermaidSHA512`) — the engine bytes are fetched from npm at publish time,
-never embedded.
+npm sha512 integrity are the only mermaid artifacts in git (`render.MermaidVersion`
+and `render.MermaidSHA512`, embedded from `internal/render/mermaid.{version,sha512}`) — the
+engine bytes are fetched from npm at publish time, never embedded. Renovate bumps
+the version file; `.github/workflows/mermaid-integrity.yml` then verifies npm
+provenance and commits the matching integrity to the Renovate branch.
 
 The optional body font (PP Mori) also lives under `deps/`, at the unversioned
 path `deps/fonts/pp-mori/` (cached for a week, not immutable). It is proprietary: its files are never fetched, embedded, or committed. They

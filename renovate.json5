@@ -8,5 +8,18 @@
   // Repo-specific rules only. Order broad -> narrow: grouping rules first,
   // narrowing overrides (pinDigests, enabled, allowedVersions, single-dependency
   // exceptions) last. The ordering is intentional -- last match wins per-option.
+  // mermaid.sha512 is filled in by .github/workflows/mermaid-integrity.yml once
+  // provenance verifies; that workflow's commits must not mark the PR as edited.
+  customManagers: [
+    {
+      customType: "regex",
+      description: "Track the pinned mermaid engine published by `dollop deps publish`.",
+      managerFilePatterns: ["/^internal/render/mermaid\\.version$/"],
+      matchStrings: ["^(?<currentValue>\\S+)\\s*$"],
+      datasourceTemplate: "npm",
+      depNameTemplate: "mermaid",
+    },
+  ],
+  gitIgnoredAuthors: ["41898282+github-actions[bot]@users.noreply.github.com"],
   packageRules: [],
 }

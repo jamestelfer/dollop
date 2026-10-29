@@ -1,0 +1,37 @@
+# Required status check: a PR that changes the mermaid pin cannot merge until
+# mermaid.sha512 matches the provenance-verified tarball for mermaid.version.
+# Kept apart from mermaid-integrity.yml so its push runs never record a skipped
+# (and therefore passing) mermaid-integrity check on a Renovate commit.
+name: mermaid-integrity-check
+
+on:
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: mermaid-integrity-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  mermaid-integrity:
+    name: mermaid-integrity
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # cosign comes from mise.toml: npm attests only a sha512 subject, which needs cosign v3.1.1+.
+      - uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        with:
+          install_args: cosign
+          cache: false
+
+      - name: Check the mermaid pin
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: .github/scripts/mermaid-integrity/check.sh "$BASE_SHA"

@@ -406,7 +406,7 @@ func TestMarkdownRenderer_Footnote(t *testing.T) {
 }
 
 // mermaidEntry is the shared ESM entrypoint filename rendered pages reference.
-const mermaidEntry = "deps/mermaid/" + render.MermaidVersion + "/mermaid.esm.min.mjs"
+var mermaidEntry = "deps/mermaid/" + render.MermaidVersion + "/mermaid.esm.min.mjs"
 
 // TestUsesMermaid_Directory verifies mermaid detection across a directory: true
 // when any markdown file has a mermaid fence, false otherwise. Non-markdown
@@ -1094,4 +1094,12 @@ func TestMarkdownRenderer_TableScrollWrapper(t *testing.T) {
 	assert.Contains(t, html, `<th align="left">a</th>`)
 	assert.Contains(t, html, `<th align="center">b</th>`)
 	assert.Contains(t, html, `<td align="right">3</td>`)
+}
+
+func TestMermaidVersion_IsExactRelease(t *testing.T) {
+	assert.Regexp(t, `^\d+\.\d+\.\d+$`, render.MermaidVersion)
+}
+
+func TestMermaidSHA512_IsNpmIntegrity(t *testing.T) {
+	assert.Regexp(t, `^sha512-[A-Za-z0-9+/]{86}==$`, render.MermaidSHA512)
 }
