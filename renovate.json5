@@ -20,6 +20,6 @@
       depNameTemplate: "mermaid",
     },
   ],
-  gitIgnoredAuthors: ["41898282+github-actions[bot]@users.noreply.github.com"],
+  gitIgnoredAuthors: ["157150467+octo-sts[bot]@users.noreply.github.com"],
   packageRules: [],
 }
