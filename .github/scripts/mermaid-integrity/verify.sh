@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
 # Verify the npm tarball for the pinned mermaid version against its SLSA
-# provenance and npm integrity, then report the integrity to GitHub Actions.
+# provenance and npm integrity.
 #
-# Writes version, integrity and changed (whether mermaid.sha512 is stale) to
-# $GITHUB_OUTPUT.
+# Prints version, integrity and changed (whether mermaid.sha512 is stale) as
+# key=value lines on STDOUT, in $GITHUB_OUTPUT format. Diagnostics go to STDERR.
 
 set -euo pipefail
 
@@ -55,7 +55,7 @@ verify_provenance() {
     --type slsaprovenance1 \
     --certificate-identity "${SIGNER_IDENTITY}" \
     --certificate-oidc-issuer "${SIGNER_ISSUER}" \
-    "${dir}/mermaid.tgz"
+    "${dir}/mermaid.tgz" >&2
 }
 
 # Print the tarball's integrity after checking it matches npm's record.
@@ -78,8 +78,6 @@ tarball_integrity() {
 main() {
   local version current work integrity changed
 
-  : "${GITHUB_OUTPUT:?must run under GitHub Actions}"
-
   version="$(read_trimmed "${VERSION_FILE}")"
   if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     err "mermaid.version does not hold an exact release: '${version}'"
@@ -100,11 +98,9 @@ main() {
     changed=false
   fi
 
-  {
-    printf 'version=%s\n' "${version}"
-    printf 'integrity=%s\n' "${integrity}"
-    printf 'changed=%s\n' "${changed}"
-  } >> "${GITHUB_OUTPUT}"
+  printf 'version=%s\n' "${version}"
+  printf 'integrity=%s\n' "${integrity}"
+  printf 'changed=%s\n' "${changed}"
 }
 
 main "$@"

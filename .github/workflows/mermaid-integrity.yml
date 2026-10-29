@@ -7,7 +7,9 @@ name: mermaid-integrity
 on:
   push:
     branches: ["renovate/**"]
-    paths: [internal/render/mermaid.version]
+    paths:
+      - internal/render/mermaid.version
+      - internal/render/mermaid.sha512
 
 permissions: {}
 
@@ -32,7 +34,7 @@ jobs:
 
       - name: Verify the pinned tarball and compute its integrity
         id: integrity
-        run: .github/scripts/mermaid-integrity/verify.sh
+        run: .github/scripts/mermaid-integrity/verify.sh >> "$GITHUB_OUTPUT"
 
       - name: Mint a contents:write token
         if: steps.integrity.outputs.changed == 'true'
