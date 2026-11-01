@@ -138,6 +138,13 @@ dollop create --keep    <path>   # permanent (mutually exclusive with --days)
 recursively; the key structure mirrors the source tree under the generated
 prefix.
 
+A directory upload leaves out what git would ignore: files matched by the
+`.gitignore` files inside it, or by those of its enclosing repository, and any
+`.git` directory. Inherited rules are dropped when they ignore the directory
+itself, so a gitignored build output such as `dist/` still uploads (its own
+`.gitignore` files still apply). A single file is always uploaded. Pass
+`--no-ignore` to `create` or `update` to upload everything.
+
 On success, dollop prints the public URL of the upload:
 
 ```

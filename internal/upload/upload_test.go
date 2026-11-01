@@ -96,6 +96,60 @@ func TestUploadFiles_Directory(t *testing.T) {
 	assert.Contains(t, stderr.String(), "uploading [sub/data.json]")
 }
 
+// gitignoreFixture returns a directory with a .gitignore, an ignored file, an
+// ignored subdirectory and a .git directory beside a file that is kept.
+func gitignoreFixture(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	for name, content := range map[string]string{
+		".gitignore":     "*.log\nbuild/\n",
+		"keep.txt":       "kept",
+		"debug.log":      "ignored",
+		"build/out.js":   "ignored",
+		".git/HEAD":      "ref: refs/heads/main",
+		"sub/.gitignore": "secret.txt\n",
+		"sub/secret.txt": "ignored",
+		"sub/public.txt": "kept",
+	} {
+		require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o700))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600))
+	}
+	return dir
+}
+
+func TestUploadFiles_Directory_SkipsGitignored(t *testing.T) {
+	dir := gitignoreFixture(t)
+
+	up := &fakeUploader{}
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, io.Discard)
+	require.NoError(t, err)
+
+	assert.ElementsMatch(t, []string{".gitignore", "keep.txt", "sub/.gitignore", "sub/public.txt"}, res.SourceRelPaths)
+}
+
+func TestUploadFiles_Directory_WithIgnoredFilesUploadsEverything(t *testing.T) {
+	dir := gitignoreFixture(t)
+
+	up := &fakeUploader{}
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, io.Discard, upload.WithIgnoredFiles())
+	require.NoError(t, err)
+
+	assert.ElementsMatch(t, []string{
+		".gitignore", "keep.txt", "debug.log", "build/out.js", ".git/HEAD",
+		"sub/.gitignore", "sub/secret.txt", "sub/public.txt",
+	}, res.SourceRelPaths)
+}
+
+func TestUploadFiles_SingleFile_UploadedEvenWhenIgnored(t *testing.T) {
+	dir := gitignoreFixture(t)
+
+	up := &fakeUploader{}
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", filepath.Join(dir, "debug.log"), upload.IndexNone, io.Discard)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"debug.log"}, res.SourceRelPaths)
+}
+
 func TestUploadFiles_UploaderError(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "file.bin"), []byte("x"), 0600))

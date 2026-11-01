@@ -44,7 +44,8 @@ written to stderr.
   dollop update keep/happy-cat notes.md
 
 Rendering of .md files, shared assets and the README redirect work
-exactly as in 'create'; use --no-render to disable rendering, --theme
+exactly as in 'create', as does leaving out files git would ignore; use
+--no-ignore to upload them, --no-render to disable rendering, --theme
 to choose the page theme, and --index to generate an index page listing
 every file under the prefix, including those published by earlier runs.
 
@@ -70,6 +71,10 @@ gets a redirect instead). An index page in the uploaded path always wins.`,
 				Name:  "no-render",
 				Usage: "disable automatic rendering of .md files to .html",
 			},
+			&cli.BoolFlag{
+				Name:  "no-ignore",
+				Usage: "upload a directory's files that .gitignore excludes, and its .git directories",
+			},
 			&cli.StringFlag{
 				Name:  "theme",
 				Usage: "page theme for rendered .md files: " + strings.Join(render.ThemeNames(), ", "),
@@ -87,8 +92,8 @@ gets a redirect instead). An index page in the uploaded path always wins.`,
 
 // warnMissingMermaidDeps writes a non-fatal warning when localPath renders any
 // mermaid diagram but the shared engine is not present in the bucket.
-func warnMissingMermaidDeps(ctx context.Context, lister upload.ObjectLister, bucket, localPath string, stderr io.Writer) {
-	uses, err := render.UsesMermaid(localPath)
+func warnMissingMermaidDeps(ctx context.Context, lister upload.ObjectLister, bucket, localPath string, includeIgnored bool, stderr io.Writer) {
+	uses, err := render.UsesMermaid(localPath, includeIgnored)
 	if err != nil {
 		return
 	}
@@ -135,6 +140,7 @@ func newAction(uploader upload.SyncUploader, bucket, baseURL string) cli.ActionF
 
 		genIndex := indexMode(cmd)
 		noRender := cmd.Bool("no-render")
+		noIgnore := cmd.Bool("no-ignore")
 		copyDir := cmd.String("copy-dir")
 		ref := cmd.Args().Get(0)
 		localPath := cmd.Args().Get(1)
@@ -165,9 +171,7 @@ func newAction(uploader upload.SyncUploader, bucket, baseURL string) cli.ActionF
 			fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err) //nolint:errcheck
 			return cli.Exit("upload failed", 1)
 		}
-		if !noRender {
-			uploadOpts = append(uploadOpts, upload.WithRenderer(render.NewMarkdownRendererWithStderr(cmd.Root().ErrWriter, render.WithTheme(theme))))
-		}
+		uploadOpts = append(uploadOpts, fileOptions(cmd, theme)...)
 
 		result, err := upload.UploadFiles(ctx, activeUploader, bucket, prefix, localPath, genIndex, cmd.Root().ErrWriter, uploadOpts...)
 		if err != nil {
@@ -190,7 +194,7 @@ func newAction(uploader upload.SyncUploader, bucket, baseURL string) cli.ActionF
 		// Warn (non-fatal) when the publish renders mermaid but the shared
 		// engine is not published; the upload above already succeeded.
 		if !noRender {
-			warnMissingMermaidDeps(ctx, activeUploader, bucket, localPath, cmd.Root().ErrWriter)
+			warnMissingMermaidDeps(ctx, activeUploader, bucket, localPath, noIgnore, cmd.Root().ErrWriter)
 		}
 
 		url := upload.PublicURL(baseURL, prefix, result.Entry)
@@ -199,4 +203,16 @@ func newAction(uploader upload.SyncUploader, bucket, baseURL string) cli.ActionF
 		}
 		return nil
 	}
+}
+
+// fileOptions maps the --no-ignore and --no-render flags onto upload options.
+func fileOptions(cmd *cli.Command, theme render.Theme) []upload.UploadOption {
+	var opts []upload.UploadOption
+	if cmd.Bool("no-ignore") {
+		opts = append(opts, upload.WithIgnoredFiles())
+	}
+	if !cmd.Bool("no-render") {
+		opts = append(opts, upload.WithRenderer(render.NewMarkdownRendererWithStderr(cmd.Root().ErrWriter, render.WithTheme(theme))))
+	}
+	return opts
 }

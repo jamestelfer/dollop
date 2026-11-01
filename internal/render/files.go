@@ -4,18 +4,30 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+
+	"github.com/jamestelfer/dollop/internal/ignore"
 )
 
 // ListFiles returns the slash-separated paths of every file under fsys. A
 // symlink is listed only when it resolves to a file that fsys can reach;
 // symlinks to directories are omitted, and symlinks that fsys refuses to follow
 // (an os.Root FS rejects targets outside the root) are skipped with a warning
-// on stderr.
-func ListFiles(fsys fs.FS, stderr io.Writer) ([]string, error) {
+// on stderr. Paths that rules ignore are left out, and the .gitignore files
+// of the directories walked are loaded into rules; nil rules ignore nothing.
+func ListFiles(fsys fs.FS, stderr io.Writer, rules *ignore.Rules) ([]string, error) {
 	var paths []string
 	err := fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+		if err != nil {
 			return err
+		}
+		if p != "." && rules.Ignored(p, d.IsDir()) {
+			if d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if d.IsDir() {
+			return rules.Load(fsys, p)
 		}
 		if d.Type()&fs.ModeSymlink != 0 {
 			info, serr := fs.Stat(fsys, p)
