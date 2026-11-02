@@ -44,7 +44,7 @@ written to stderr.
   dollop update keep/happy-cat notes.md
 
 Rendering of .md files, shared assets and the README redirect work
-exactly as in 'create', as does leaving out files git would ignore; use
+exactly as in 'create', as does leaving out ignored and sensitive files; use
 --no-ignore to upload them, --no-render to disable rendering, --theme
 to choose the page theme, and --index to generate an index page listing
 every file under the prefix, including those published by earlier runs.
@@ -73,7 +73,7 @@ gets a redirect instead). An index page in the uploaded path always wins.`,
 			},
 			&cli.BoolFlag{
 				Name:  "no-ignore",
-				Usage: "upload a directory's files that .gitignore excludes, and its .git directories",
+				Usage: "upload a directory's files that .gitignore or the sensitive-file list excludes, and its .git directories",
 			},
 			&cli.StringFlag{
 				Name:  "theme",

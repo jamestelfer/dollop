@@ -1,6 +1,6 @@
-// Package ignore decides which files of an uploaded directory git would
-// ignore, using the .gitignore files of the directory and of its enclosing
-// repository.
+// Package ignore decides which files of an uploaded directory to leave out:
+// those git would ignore, using the .gitignore files of the directory and of
+// its enclosing repository, and those named like credentials or keys.
 package ignore
 
 import (
@@ -21,6 +21,40 @@ const (
 	gitDir     = ".git"
 )
 
+// sensitive matches files that commonly hold credentials or private keys. It
+// applies whatever the .gitignore files say, as their lowest-priority
+// patterns, so a negation in one can re-include a match.
+var sensitive = []string{
+	".env",
+	".env.*",
+	"!.env.example",
+	"!.env.sample",
+	"!.env.template",
+	"*.pem",
+	"*.key",
+	"*.p12",
+	"*.pfx",
+	"*.jks",
+	"*.keystore",
+	"*.kdbx",
+	"id_rsa*",
+	"id_dsa*",
+	"id_ecdsa*",
+	"id_ed25519*",
+	".ssh/",
+	".gnupg/",
+	".aws/",
+	"credentials",
+	"credentials.json",
+	".netrc",
+	".npmrc",
+	".pypirc",
+	".git-credentials",
+	".htpasswd",
+	"*.tfstate",
+	"*.tfstate.backup",
+}
+
 // Rules holds the gitignore patterns that apply to paths under an uploaded
 // directory. It starts with the patterns inherited from the enclosing
 // repository (see ForDir) and grows as Load reads the .gitignore files inside
@@ -35,22 +69,34 @@ type Rules struct {
 // ForDir returns the rules dir inherits from the .gitignore files between the
 // root of its enclosing git repository and dir's parent. When those rules
 // ignore dir itself they are dropped: naming an ignored directory, such as a
-// build output, is a request to upload it.
+// build output, is a request to upload it. The sensitive patterns precede
+// them, scoped to dir, and are never dropped.
 func ForDir(dir string) (*Rules, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, fmt.Errorf("resolve %s: %w", dir, err)
 	}
-	repo, ok := repoRoot(abs)
-	if !ok {
-		return &Rules{}, nil
+	r := &Rules{}
+	if repo, ok := repoRoot(abs); ok {
+		if err := r.inherit(repo, abs); err != nil {
+			return nil, err
+		}
 	}
+	defaults := make([]gitignore.Pattern, 0, len(sensitive)+len(r.patterns))
+	for _, p := range sensitive {
+		defaults = append(defaults, gitignore.ParsePattern(p, r.base))
+	}
+	r.patterns = append(defaults, r.patterns...)
+	return r, nil
+}
+
+// inherit sets base to abs's path within repo and reads the .gitignore files
+// of abs's ancestors in repo, dropping them if they ignore abs.
+func (r *Rules) inherit(repo, abs string) error {
 	rel, err := filepath.Rel(repo, abs)
 	if err != nil {
-		return nil, fmt.Errorf("resolve %s: %w", dir, err)
+		return fmt.Errorf("resolve %s: %w", abs, err)
 	}
-
-	r := &Rules{}
 	if rel != "." {
 		r.base = strings.Split(filepath.ToSlash(rel), "/")
 	}
@@ -58,13 +104,13 @@ func ForDir(dir string) (*Rules, error) {
 	for i := range r.base {
 		ancestor := r.base[:i]
 		if err := r.read(repoFS, path.Join(append(slices.Clone(ancestor), ignoreFile)...), ancestor); err != nil {
-			return nil, err
+			return err
 		}
 	}
 	if gitignore.NewMatcher(r.patterns).Match(r.base, true) {
 		r.patterns = nil
 	}
-	return r, nil
+	return nil
 }
 
 // repoRoot returns the nearest directory at or above abs holding a .git

@@ -142,8 +142,18 @@ A directory upload leaves out what git would ignore: files matched by the
 `.gitignore` files inside it, or by those of its enclosing repository, and any
 `.git` directory. Inherited rules are dropped when they ignore the directory
 itself, so a gitignored build output such as `dist/` still uploads (its own
-`.gitignore` files still apply). A single file is always uploaded. Pass
-`--no-ignore` to `create` or `update` to upload everything.
+`.gitignore` files still apply).
+
+Files that commonly hold credentials or private keys are also left out, even
+where no `.gitignore` names them: `.env` and `.env.*` (except `.example`,
+`.sample` and `.template`), `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.jks`,
+`*.keystore`, `*.kdbx`, `id_rsa*`, `id_dsa*`, `id_ecdsa*`, `id_ed25519*`,
+`.ssh/`, `.gnupg/`, `.aws/`, `credentials`, `credentials.json`, `.netrc`,
+`.npmrc`, `.pypirc`, `.git-credentials`, `.htpasswd` and `*.tfstate[.backup]`.
+A `!` negation in a `.gitignore` re-includes one of these.
+
+A single file is always uploaded. Pass `--no-ignore` to `create` or `update`
+to upload everything.
 
 On success, dollop prints the public URL of the upload:
 

@@ -53,8 +53,10 @@ Rendered .md pages use the "tide" theme by default; choose another with
 
 A directory upload leaves out the files git would ignore: those matched by
 the .gitignore files inside it and by those of its enclosing repository
-(unless they ignore the directory itself), and any .git directory. Use
---no-ignore to upload everything.
+(unless they ignore the directory itself), and any .git directory. Files
+named like credentials or private keys (.env, *.pem, *.key, id_rsa*,
+.aws/, .ssh/, *.tfstate and similar) are left out too. Use --no-ignore to
+upload everything.
 
 A README.md at the top of the upload also gets an index.html that
 redirects to it, unless the upload already has its own index page. The
@@ -70,7 +72,7 @@ printed URL points at the README directly.`,
 			},
 			&cli.BoolFlag{
 				Name:  "no-ignore",
-				Usage: "upload a directory's files that .gitignore excludes, and its .git directories",
+				Usage: "upload a directory's files that .gitignore or the sensitive-file list excludes, and its .git directories",
 			},
 			&cli.StringFlag{
 				Name:  "theme",

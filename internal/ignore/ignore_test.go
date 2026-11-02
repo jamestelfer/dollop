@@ -107,3 +107,49 @@ func TestForDir_OutsideRepository(t *testing.T) {
 
 	assert.False(t, loaded(t, dir).Ignored("app.log", false), "a .gitignore outside any repository is not inherited")
 }
+
+func TestForDir_SensitiveFilesIgnored(t *testing.T) {
+	rules := loaded(t, t.TempDir())
+
+	for _, p := range []string{".env", "config/.env.production", "tls/server.pem", "deploy.key", "id_ed25519", "id_rsa.pub", "credentials", "infra/terraform.tfstate", ".npmrc"} {
+		assert.True(t, rules.Ignored(p, false), p)
+	}
+	for _, p := range []string{".aws", "home/.ssh"} {
+		assert.True(t, rules.Ignored(p, true), p)
+	}
+	for _, p := range []string{".env.example", "README.md", "keys.md", "credentials.md"} {
+		assert.False(t, rules.Ignored(p, false), p)
+	}
+}
+
+func TestForDir_SensitiveFilesIgnoredInIgnoredDirectory(t *testing.T) {
+	repo := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(repo, ".git"), 0o700))
+	writeFile(t, filepath.Join(repo, ".gitignore"), "dist/\n")
+	dir := filepath.Join(repo, "dist")
+	require.NoError(t, os.Mkdir(dir, 0o700))
+
+	rules := loaded(t, dir)
+
+	assert.False(t, rules.Ignored("index.html", false))
+	assert.True(t, rules.Ignored(".env", false))
+}
+
+func TestForDir_GitignoreNegationReincludesSensitiveFile(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, ".gitignore"), "!public.pem\n")
+
+	rules := loaded(t, dir)
+
+	assert.False(t, rules.Ignored("public.pem", false))
+	assert.True(t, rules.Ignored("private.pem", false))
+}
+
+func TestForDir_SensitivePatternsScopedToDirectory(t *testing.T) {
+	repo := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(repo, ".git"), 0o700))
+	dir := filepath.Join(repo, ".aws", "site")
+	require.NoError(t, os.MkdirAll(dir, 0o700))
+
+	assert.False(t, loaded(t, dir).Ignored("index.html", false), "an ancestor's name does not trigger a sensitive pattern")
+}

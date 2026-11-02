@@ -52,8 +52,9 @@ func WithRenderer(r FileRenderer) UploadOption {
 	}
 }
 
-// WithIgnoredFiles uploads the files of a directory that its .gitignore files
-// exclude, and its .git directories, which are otherwise left out.
+// WithIgnoredFiles uploads the files of a directory that ignore.ForDir would
+// leave out: those its .gitignore files exclude, sensitive files, and .git
+// directories.
 func WithIgnoredFiles() UploadOption {
 	return func(o *uploadOptions) {
 		o.includeIgnored = true
@@ -100,7 +101,7 @@ func WithPublishedManifest(m Manifest) UploadOption {
 // about on stderr.
 // A directory is read through an os.Root, so symlinks resolving outside it are
 // skipped with a warning; a single file is read wherever its symlink points.
-// A directory's files that git would ignore are left out (see ignore.ForDir)
+// A directory's ignored and sensitive files are left out (see ignore.ForDir)
 // unless WithIgnoredFiles is given; a single file is always uploaded.
 // Returns an UploadResult reporting the relative paths of the uploaded sources
 // (not including any generated index.html), the entry the public URL should
