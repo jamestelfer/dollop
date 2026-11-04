@@ -145,8 +145,8 @@ itself, so a gitignored build output such as `dist/` still uploads (its own
 `.gitignore` files still apply).
 
 Files that commonly hold credentials or private keys are also left out, even
-where no `.gitignore` names them: `.env` and `.env.*` (except `.example`,
-`.sample` and `.template`), `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.jks`,
+where no `.gitignore` names them: `.env`, `.env.*`, `.envrc` and `.envrc.*`
+(except their `.example`, `.sample` and `.template` variants), `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.jks`,
 `*.keystore`, `*.kdbx`, `id_rsa*`, `id_dsa*`, `id_ecdsa*`, `id_ed25519*`,
 `.ssh/`, `.gnupg/`, `.aws/`, `credentials`, `credentials.json`, `.netrc`,
 `.npmrc`, `.pypirc`, `.git-credentials`, `.htpasswd` and `*.tfstate[.backup]`.

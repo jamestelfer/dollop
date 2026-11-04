@@ -111,13 +111,13 @@ func TestForDir_OutsideRepository(t *testing.T) {
 func TestForDir_SensitiveFilesIgnored(t *testing.T) {
 	rules := loaded(t, t.TempDir())
 
-	for _, p := range []string{".env", "config/.env.production", "tls/server.pem", "deploy.key", "id_ed25519", "id_rsa.pub", "credentials", "infra/terraform.tfstate", ".npmrc"} {
+	for _, p := range []string{".env", "config/.env.production", ".envrc", "app/.envrc.local", "tls/server.pem", "deploy.key", "id_ed25519", "id_rsa.pub", "credentials", "infra/terraform.tfstate", ".npmrc"} {
 		assert.True(t, rules.Ignored(p, false), p)
 	}
 	for _, p := range []string{".aws", "home/.ssh"} {
 		assert.True(t, rules.Ignored(p, true), p)
 	}
-	for _, p := range []string{".env.example", "README.md", "keys.md", "credentials.md"} {
+	for _, p := range []string{".env.example", ".envrc.example", ".envrc.sample", "README.md", "keys.md", "credentials.md"} {
 		assert.False(t, rules.Ignored(p, false), p)
 	}
 }
