@@ -145,8 +145,15 @@ of its parents is dropped and the rest still apply, so uploading a gitignored
 build output such as `dist/` publishes its contents while a repository-wide
 `*.log` or `node_modules/` rule still leaves those out. Git's global excludes
 file (`core.excludesFile`) and `.git/info/exclude` are not read, so a file
-excluded only there is still uploaded. A symlink is left out when the file it
-points to is.
+excluded only there is still uploaded.
+
+Symlinks are handled differently from git, on purpose. Git never follows a
+symlink: it stores the link itself, so ignore rules only need to check the
+link's own path. dollop follows links and uploads what they point to, so a
+link is also left out when its target is ignored or sensitive. Otherwise
+`config -> .env` would publish `.env` under another name. For the same reason
+a `.gitignore` that is itself a symlink is read and applied, where git ignores
+it: the alternative is uploading the files it was meant to exclude.
 
 Files that commonly hold credentials or private keys are also left out, even
 where no `.gitignore` names them: `.env`, `.env.*`, `.envrc` and `.envrc.*`
