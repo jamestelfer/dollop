@@ -54,7 +54,7 @@ Rendered .md pages use the "tide" theme by default; choose another with
 A directory upload leaves out the files git would ignore: those matched by
 the .gitignore files inside it and by those of its enclosing repository
 (except rules that ignore the directory itself or a parent), and any .git
-directory. Files named like credentials or private keys (.env, .envrc,
+directory. Git's global excludes and .git/info/exclude are not read. Files named like credentials or private keys (.env, .envrc,
 *.pem, *.key, id_rsa*, .aws/, .ssh/, *.tfstate and similar) are left out
 too. Each skipped path is listed on stderr; use --no-ignore to upload
 everything.

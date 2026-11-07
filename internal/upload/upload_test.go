@@ -146,6 +146,29 @@ func TestUploadFiles_Directory_ReportsSensitiveSkip(t *testing.T) {
 
 	assert.Contains(t, stderr.String(), "skipping [.env] (sensitive)")
 	assert.Contains(t, stderr.String(), "note: skipped 1 path matched")
+	assert.NotContains(t, uploadedKeys(up), "flash/1/abc/.env")
+}
+
+func TestUploadFiles_Directory_SkipsSymlinkToIgnoredFile(t *testing.T) {
+	dir := gitignoreFixture(t)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), []byte("TOKEN=x"), 0o600))
+	require.NoError(t, os.Symlink(".env", filepath.Join(dir, "config")))
+	require.NoError(t, os.Symlink("build/out.js", filepath.Join(dir, "app.js")))
+	require.NoError(t, os.Symlink("keep.txt", filepath.Join(dir, "alias.txt")))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, &stderr)
+	require.NoError(t, err)
+
+	assert.NotContains(t, res.SourceRelPaths, "config")
+	assert.NotContains(t, res.SourceRelPaths, "app.js")
+	assert.Contains(t, res.SourceRelPaths, "alias.txt")
+	assert.Contains(t, stderr.String(), "skipping [config] (link target: sensitive)")
+	assert.Contains(t, stderr.String(), "skipping [app.js] (link target: gitignored)")
+	for _, c := range up.calls {
+		assert.NotContains(t, string(c.body), "TOKEN")
+	}
 }
 
 func TestUploadFiles_Directory_WithIgnoredFilesUploadsEverything(t *testing.T) {

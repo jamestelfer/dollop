@@ -22,9 +22,8 @@ func loaded(t *testing.T, dir string, dirs ...string) *ignore.Rules {
 	t.Helper()
 	rules, err := ignore.ForDir(dir)
 	require.NoError(t, err)
-	fsys := os.DirFS(dir)
 	for _, d := range append([]string{"."}, dirs...) {
-		require.NoError(t, rules.Load(fsys, d))
+		require.NoError(t, rules.Load(d))
 	}
 	return rules
 }
@@ -32,7 +31,7 @@ func loaded(t *testing.T, dir string, dirs ...string) *ignore.Rules {
 func TestRules_NilIgnoresNothing(t *testing.T) {
 	var rules *ignore.Rules
 	assert.False(t, rules.Ignored(".git", true))
-	assert.NoError(t, rules.Load(os.DirFS(t.TempDir()), "."))
+	assert.NoError(t, rules.Load("."))
 }
 
 func TestRules_LocalPatterns(t *testing.T) {
@@ -181,4 +180,52 @@ func TestForDir_SensitivePatternsScopedToDirectory(t *testing.T) {
 	require.NoError(t, os.MkdirAll(dir, 0o700))
 
 	assert.False(t, loaded(t, dir).Ignored("index.html", false), "an ancestor's name does not trigger a sensitive pattern")
+}
+
+func TestForDir_SymlinkedDirectoryInheritsFromItsRepository(t *testing.T) {
+	base := t.TempDir()
+	repo := filepath.Join(base, "repo")
+	require.NoError(t, os.MkdirAll(filepath.Join(repo, ".git"), 0o700))
+	writeFile(t, filepath.Join(repo, ".gitignore"), "*.log\n")
+	require.NoError(t, os.Mkdir(filepath.Join(repo, "dist"), 0o700))
+	link := filepath.Join(base, "share")
+	require.NoError(t, os.Symlink(filepath.Join(repo, "dist"), link))
+
+	assert.True(t, loaded(t, link).Ignored("app.log", false))
+}
+
+func TestRules_LoadFollowsGitignoreSymlinkOutsideDirectory(t *testing.T) {
+	base := t.TempDir()
+	writeFile(t, filepath.Join(base, "shared-ignore"), "*.log\n")
+	dir := filepath.Join(base, "upload")
+	require.NoError(t, os.Mkdir(dir, 0o700))
+	require.NoError(t, os.Symlink(filepath.Join(base, "shared-ignore"), filepath.Join(dir, ".gitignore")))
+
+	assert.True(t, loaded(t, dir).Ignored("app.log", false))
+}
+
+func TestRules_PathInsideGitDirectoryIgnored(t *testing.T) {
+	rules := loaded(t, t.TempDir())
+	assert.Equal(t, ignore.GitDir, rules.Match(".git/config", false))
+	assert.Equal(t, ignore.GitDir, rules.Match("vendor/.git/hooks/pre-commit", false))
+}
+
+func TestRules_MatchTarget(t *testing.T) {
+	base := t.TempDir()
+	dir := filepath.Join(base, "upload")
+	writeFile(t, filepath.Join(dir, ".gitignore"), "*.log\n")
+	writeFile(t, filepath.Join(dir, ".env"), "TOKEN=1")
+	writeFile(t, filepath.Join(dir, "debug.log"), "trace")
+	writeFile(t, filepath.Join(dir, "notes.txt"), "notes")
+	writeFile(t, filepath.Join(base, "outside.env"), "TOKEN=2")
+	for link, target := range map[string]string{"config": ".env", "trace": "debug.log", "alias": "notes.txt", "escape": "../outside.env"} {
+		require.NoError(t, os.Symlink(target, filepath.Join(dir, link)))
+	}
+	rules := loaded(t, dir)
+
+	for link, want := range map[string]ignore.Reason{"config": ignore.Sensitive, "trace": ignore.Gitignored, "alias": ignore.NotIgnored, "escape": ignore.NotIgnored} {
+		got, err := rules.MatchTarget(link)
+		require.NoError(t, err)
+		assert.Equal(t, want, got, link)
+	}
 }

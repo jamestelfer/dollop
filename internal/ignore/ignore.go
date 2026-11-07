@@ -75,6 +75,8 @@ const (
 // repository (see ForDir) and grows as Load reads the .gitignore files inside
 // the directory. A nil *Rules ignores nothing.
 type Rules struct {
+	// root is the uploaded directory with its symlinks resolved.
+	root string
 	// base is the uploaded directory's path from the repository root, so that
 	// inherited and local patterns share one coordinate system.
 	base     []string
@@ -93,7 +95,12 @@ func ForDir(dir string) (*Rules, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve %s: %w", dir, err)
 	}
-	r := &Rules{}
+	// git resolves symlinks too, so a linked directory inherits from the
+	// repository it actually lives in.
+	if abs, err = filepath.EvalSymlinks(abs); err != nil {
+		return nil, fmt.Errorf("resolve %s: %w", dir, err)
+	}
+	r := &Rules{root: abs}
 	if repo, ok := repoRoot(abs); ok {
 		if err := r.inherit(repo, abs); err != nil {
 			return nil, err
@@ -157,13 +164,15 @@ func repoRoot(abs string) (string, bool) {
 }
 
 // Load adds the patterns of the .gitignore file in dir, a slash-separated
-// path relative to the uploaded directory that fsys is rooted at. Directories
-// must be loaded parent first, as fs.WalkDir visits them.
-func (r *Rules) Load(fsys fs.FS, dir string) error {
+// path relative to the uploaded directory. Directories must be loaded parent
+// first, as fs.WalkDir visits them. The file is read from the real filesystem,
+// so a .gitignore symlinked from outside the upload still applies: only its
+// patterns are used, never its contents uploaded.
+func (r *Rules) Load(dir string) error {
 	if r == nil {
 		return nil
 	}
-	return r.read(fsys, path.Join(dir, ignoreFile), r.under(dir))
+	return r.read(os.DirFS(r.root), path.Join(dir, ignoreFile), r.under(dir))
 }
 
 // Ignored reports whether p, a slash-separated path relative to the uploaded
@@ -178,7 +187,7 @@ func (r *Rules) Match(p string, isDir bool) Reason {
 	if r == nil {
 		return NotIgnored
 	}
-	if isDir && path.Base(p) == gitDir {
+	if isDir && path.Base(p) == gitDir || slices.Contains(strings.Split(path.Dir(p), "/"), gitDir) {
 		return GitDir
 	}
 	components := r.under(p)
@@ -191,6 +200,28 @@ func (r *Rules) Match(p string, isDir bool) Reason {
 		return Gitignored
 	}
 	return Sensitive
+}
+
+// MatchTarget reports why the file a symlink at p resolves to is left out of
+// the upload, so that a link cannot publish an ignored file under another
+// name. A target outside the uploaded directory is NotIgnored: the os.Root
+// the upload reads through refuses it anyway.
+func (r *Rules) MatchTarget(p string) (Reason, error) {
+	if r == nil {
+		return NotIgnored, nil
+	}
+	target, err := filepath.EvalSymlinks(filepath.Join(r.root, filepath.FromSlash(p)))
+	if err != nil {
+		return NotIgnored, fmt.Errorf("resolve %s: %w", p, err)
+	}
+	rel, err := filepath.Rel(r.root, target)
+	if err != nil {
+		return NotIgnored, fmt.Errorf("resolve %s: %w", p, err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return NotIgnored, nil
+	}
+	return r.Match(filepath.ToSlash(rel), false), nil
 }
 
 // under returns the components of p, relative to the uploaded directory, as

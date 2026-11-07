@@ -143,7 +143,10 @@ A directory upload leaves out what git would ignore: files matched by the
 `.git` directory. An inherited rule that ignores the directory itself or one
 of its parents is dropped and the rest still apply, so uploading a gitignored
 build output such as `dist/` publishes its contents while a repository-wide
-`*.log` or `node_modules/` rule still leaves those out.
+`*.log` or `node_modules/` rule still leaves those out. Git's global excludes
+file (`core.excludesFile`) and `.git/info/exclude` are not read, so a file
+excluded only there is still uploaded. A symlink is left out when the file it
+points to is.
 
 Files that commonly hold credentials or private keys are also left out, even
 where no `.gitignore` names them: `.env`, `.env.*`, `.envrc` and `.envrc.*`
