@@ -138,6 +138,43 @@ dollop create --keep    <path>   # permanent (mutually exclusive with --days)
 recursively; the key structure mirrors the source tree under the generated
 prefix.
 
+A directory upload leaves out what git would ignore: files matched by the
+`.gitignore` files inside it, or by those of its enclosing repository, and any
+`.git` directory. An inherited rule that ignores the directory itself or one
+of its parents is dropped and the rest still apply, so uploading a gitignored
+build output such as `dist/` publishes its contents while a repository-wide
+`*.log` or `node_modules/` rule still leaves those out. Git's global excludes
+file (`core.excludesFile`) and `.git/info/exclude` are not read, so a file
+excluded only there is still uploaded.
+
+Symlinks are handled differently from git, on purpose. Git never follows a
+symlink: it stores the link itself, so ignore rules only need to check the
+link's own path. dollop follows links and uploads what they point to, so a
+link is also left out when its target is ignored or sensitive. Otherwise
+`config -> .env` would publish `.env` under another name. For the same reason
+a `.gitignore` that is itself a symlink is read and applied, where git ignores
+it: the alternative is uploading the files it was meant to exclude.
+
+Files that commonly hold credentials or private keys are also left out, even
+where no `.gitignore` names them: `.env`, `.env.*`, `.envrc` and `.envrc.*`
+(except their `.example`, `.sample` and `.template` variants), `*.pem`,
+`*.key`, `*.p12`, `*.pfx`, `*.jks`, `*.keystore`, `*.kdbx`, `id_rsa*`, `id_dsa*`, `id_ecdsa*`, `id_ed25519*`,
+`.ssh/`, `.gnupg/`, `.aws/`, `credentials`, `credentials.json`, `.netrc`,
+`.npmrc`, `.pypirc`, `.git-credentials`, `.htpasswd` and `*.tfstate[.backup]`.
+A `!` negation in a `.gitignore` re-includes one of these.
+
+Each skipped path is reported on stderr with the reason, followed by a count:
+
+```
+skipping [node_modules/] (gitignored)
+skipping [.env] (sensitive)
+...
+note: skipped 2 paths matched by .gitignore or sensitive-file rules; use --no-ignore to upload them
+```
+
+A single file is always uploaded. Pass `--no-ignore` to `create` or `update`
+to upload everything.
+
 On success, dollop prints the public URL of the upload:
 
 ```

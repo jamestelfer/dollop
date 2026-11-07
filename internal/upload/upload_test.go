@@ -96,6 +96,106 @@ func TestUploadFiles_Directory(t *testing.T) {
 	assert.Contains(t, stderr.String(), "uploading [sub/data.json]")
 }
 
+// gitignoreFixture returns a directory with a .gitignore, an ignored file, an
+// ignored subdirectory and a .git directory beside a file that is kept.
+func gitignoreFixture(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	for name, content := range map[string]string{
+		".gitignore":     "*.log\nbuild/\n",
+		"keep.txt":       "kept",
+		"debug.log":      "ignored",
+		"build/out.js":   "ignored",
+		".git/HEAD":      "ref: refs/heads/main",
+		"sub/.gitignore": "secret.txt\n",
+		"sub/secret.txt": "ignored",
+		"sub/public.txt": "kept",
+	} {
+		require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o700))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600))
+	}
+	return dir
+}
+
+func TestUploadFiles_Directory_SkipsGitignored(t *testing.T) {
+	dir := gitignoreFixture(t)
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, &stderr)
+	require.NoError(t, err)
+
+	assert.ElementsMatch(t, []string{".gitignore", "keep.txt", "sub/.gitignore", "sub/public.txt"}, res.SourceRelPaths)
+	out := stderr.String()
+	assert.Contains(t, out, "skipping [debug.log] (gitignored)")
+	assert.Contains(t, out, "skipping [build/] (gitignored)")
+	assert.Contains(t, out, "skipping [.git/] (git directory)")
+	assert.Contains(t, out, "skipping [sub/secret.txt] (gitignored)")
+	assert.Contains(t, out, "note: skipped 4 paths matched by .gitignore or sensitive-file rules; use --no-ignore to upload them")
+}
+
+func TestUploadFiles_Directory_ReportsSensitiveSkip(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("<h1>hi</h1>"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), []byte("TOKEN=x"), 0o600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	_, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, &stderr)
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr.String(), "skipping [.env] (sensitive)")
+	assert.Contains(t, stderr.String(), "note: skipped 1 path matched")
+	assert.NotContains(t, uploadedKeys(up), "flash/1/abc/.env")
+}
+
+func TestUploadFiles_Directory_SkipsSymlinkToIgnoredFile(t *testing.T) {
+	dir := gitignoreFixture(t)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), []byte("TOKEN=x"), 0o600))
+	require.NoError(t, os.Symlink(".env", filepath.Join(dir, "config")))
+	require.NoError(t, os.Symlink("build/out.js", filepath.Join(dir, "app.js")))
+	require.NoError(t, os.Symlink("keep.txt", filepath.Join(dir, "alias.txt")))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, &stderr)
+	require.NoError(t, err)
+
+	assert.NotContains(t, res.SourceRelPaths, "config")
+	assert.NotContains(t, res.SourceRelPaths, "app.js")
+	assert.Contains(t, res.SourceRelPaths, "alias.txt")
+	assert.Contains(t, stderr.String(), "skipping [config] (link target: sensitive)")
+	assert.Contains(t, stderr.String(), "skipping [app.js] (link target: gitignored)")
+	for _, c := range up.calls {
+		assert.NotContains(t, string(c.body), "TOKEN")
+	}
+}
+
+func TestUploadFiles_Directory_WithIgnoredFilesUploadsEverything(t *testing.T) {
+	dir := gitignoreFixture(t)
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, &stderr, upload.WithIgnoredFiles())
+	require.NoError(t, err)
+	assert.NotContains(t, stderr.String(), "skip")
+
+	assert.ElementsMatch(t, []string{
+		".gitignore", "keep.txt", "debug.log", "build/out.js", ".git/HEAD",
+		"sub/.gitignore", "sub/secret.txt", "sub/public.txt",
+	}, res.SourceRelPaths)
+}
+
+func TestUploadFiles_SingleFile_UploadedEvenWhenIgnored(t *testing.T) {
+	dir := gitignoreFixture(t)
+
+	up := &fakeUploader{}
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", filepath.Join(dir, "debug.log"), upload.IndexNone, io.Discard)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"debug.log"}, res.SourceRelPaths)
+}
+
 func TestUploadFiles_UploaderError(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "file.bin"), []byte("x"), 0600))

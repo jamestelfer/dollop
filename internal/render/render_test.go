@@ -416,12 +416,12 @@ func TestUsesMermaid_Directory(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "plain.md"), []byte("# Hi"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "note.txt"), []byte("```mermaid\n```"), 0o600))
 
-	uses, err := render.UsesMermaid(dir)
+	uses, err := render.UsesMermaid(dir, false)
 	require.NoError(t, err)
 	assert.False(t, uses, "no mermaid fence in any markdown file")
 
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "diagram.md"), []byte("```mermaid\ngraph TD\n A-->B\n```\n"), 0o600))
-	uses, err = render.UsesMermaid(dir)
+	uses, err = render.UsesMermaid(dir, false)
 	require.NoError(t, err)
 	assert.True(t, uses)
 }
@@ -437,9 +437,27 @@ func TestUsesMermaid_IgnoresSymlinkOutsideDirectory(t *testing.T) {
 	require.NoError(t, os.WriteFile(outside, []byte("```mermaid\ngraph TD\n A-->B\n```\n"), 0o600))
 	require.NoError(t, os.Symlink(outside, filepath.Join(dir, "diagram.md")))
 
-	uses, err := render.UsesMermaid(dir)
+	uses, err := render.UsesMermaid(dir, false)
 	require.NoError(t, err)
 	assert.False(t, uses)
+}
+
+// TestUsesMermaid_SkipsGitignored verifies that an ignored markdown file is
+// not scanned unless ignored files are included, matching what an upload
+// would publish.
+func TestUsesMermaid_SkipsGitignored(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("drafts/\n"), 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "drafts"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "drafts", "diagram.md"), []byte("```mermaid\ngraph TD\n A-->B\n```\n"), 0o600))
+
+	uses, err := render.UsesMermaid(dir, false)
+	require.NoError(t, err)
+	assert.False(t, uses)
+
+	uses, err = render.UsesMermaid(dir, true)
+	require.NoError(t, err)
+	assert.True(t, uses)
 }
 
 // TestUsesMermaid_SingleFile verifies detection for a single markdown file.
@@ -448,7 +466,7 @@ func TestUsesMermaid_SingleFile(t *testing.T) {
 	file := filepath.Join(dir, "doc.md")
 	require.NoError(t, os.WriteFile(file, []byte("~~~mermaid\ngraph TD\n A-->B\n~~~\n"), 0o600))
 
-	uses, err := render.UsesMermaid(file)
+	uses, err := render.UsesMermaid(file, false)
 	require.NoError(t, err)
 	assert.True(t, uses)
 }

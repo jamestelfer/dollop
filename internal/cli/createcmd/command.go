@@ -51,6 +51,14 @@ exclusive.
 Rendered .md pages use the "tide" theme by default; choose another with
 --theme (tide, estuary or lichen).
 
+A directory upload leaves out the files git would ignore: those matched by
+the .gitignore files inside it and by those of its enclosing repository
+(except rules that ignore the directory itself or a parent), and any .git
+directory. Git's global excludes and .git/info/exclude are not read. Files named like credentials or private keys (.env, .envrc,
+*.pem, *.key, id_rsa*, .aws/, .ssh/, *.tfstate and similar) are left out
+too. Each skipped path is listed on stderr; use --no-ignore to upload
+everything.
+
 A README.md at the top of the upload also gets an index.html that
 redirects to it, unless the upload already has its own index page. The
 printed URL points at the README directly.`,
@@ -62,6 +70,10 @@ printed URL points at the README directly.`,
 			&cli.BoolFlag{
 				Name:  "no-render",
 				Usage: "disable automatic rendering of .md files to .html",
+			},
+			&cli.BoolFlag{
+				Name:  "no-ignore",
+				Usage: "upload a directory's files that .gitignore or the sensitive-file list excludes, and its .git directories",
 			},
 			&cli.StringFlag{
 				Name:  "theme",
@@ -105,6 +117,7 @@ printed URL points at the README directly.`,
 				genIndex = upload.IndexGenerate
 			}
 			noRender := cmd.Bool("no-render")
+			noIgnore := cmd.Bool("no-ignore")
 			copyDir := cmd.String("copy-dir")
 			localPath := cmd.Args().Get(0)
 
@@ -144,12 +157,7 @@ printed URL points at the README directly.`,
 				prefix = upload.EphemeralPrefix(days, id)
 			}
 
-			var uploadOpts []upload.UploadOption
-			if !noRender {
-				uploadOpts = append(uploadOpts, upload.WithRenderer(render.NewMarkdownRendererWithStderr(cmd.Root().ErrWriter, render.WithTheme(theme))))
-			}
-
-			result, err := upload.UploadFiles(ctx, activeUploader, bucket, prefix, localPath, genIndex, cmd.Root().ErrWriter, uploadOpts...)
+			result, err := upload.UploadFiles(ctx, activeUploader, bucket, prefix, localPath, genIndex, cmd.Root().ErrWriter, fileOptions(cmd, theme)...)
 			if err != nil {
 				fmt.Fprintf(cmd.Root().ErrWriter, "error: %v\n", err) //nolint:errcheck
 				return cli.Exit("upload failed", 1)
@@ -158,7 +166,7 @@ printed URL points at the README directly.`,
 			// Warn (non-fatal) when the publish renders mermaid but the shared
 			// engine is not published; the upload above already succeeded.
 			if !noRender {
-				if uses, merr := render.UsesMermaid(localPath); merr == nil {
+				if uses, merr := render.UsesMermaid(localPath, noIgnore); merr == nil {
 					deps.WarnIfAbsent(ctx, activeUploader, bucket, render.MermaidVersion, uses, cmd.Root().ErrWriter)
 				}
 			}
@@ -170,4 +178,16 @@ printed URL points at the README directly.`,
 			return nil
 		},
 	}
+}
+
+// fileOptions maps the --no-ignore and --no-render flags onto upload options.
+func fileOptions(cmd *cli.Command, theme render.Theme) []upload.UploadOption {
+	var opts []upload.UploadOption
+	if cmd.Bool("no-ignore") {
+		opts = append(opts, upload.WithIgnoredFiles())
+	}
+	if !cmd.Bool("no-render") {
+		opts = append(opts, upload.WithRenderer(render.NewMarkdownRendererWithStderr(cmd.Root().ErrWriter, render.WithTheme(theme))))
+	}
+	return opts
 }

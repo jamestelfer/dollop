@@ -9,6 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.5
 	github.com/d2lang/d2 v0.9.0
 	github.com/dustinkirkland/golang-petname v0.0.0-20261016130456-fdd95a3d0543
+	github.com/go-git/go-git/v5 v5.19.3
 	github.com/matoous/go-nanoid/v2 v2.1.0
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/stretchr/testify v1.12.1
@@ -45,10 +46,12 @@ require (
 	github.com/d2lang/util-go v0.2.0 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/dlclark/regexp2/v2 v2.10.0 // indirect
+	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
+	github.com/go-git/go-billy/v5 v5.9.2 // indirect
 	github.com/go-text/typesetting v0.3.5 // indirect
 	github.com/godbus/dbus/v5 v5.2.4 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
-	github.com/kr/text v0.2.0 // indirect
+	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/mazznoer/csscolorparser v0.2.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
@@ -58,5 +61,6 @@ require (
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
+	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
