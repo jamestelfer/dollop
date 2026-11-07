@@ -140,17 +140,27 @@ prefix.
 
 A directory upload leaves out what git would ignore: files matched by the
 `.gitignore` files inside it, or by those of its enclosing repository, and any
-`.git` directory. Inherited rules are dropped when they ignore the directory
-itself, so a gitignored build output such as `dist/` still uploads (its own
-`.gitignore` files still apply).
+`.git` directory. An inherited rule that ignores the directory itself or one
+of its parents is dropped and the rest still apply, so uploading a gitignored
+build output such as `dist/` publishes its contents while a repository-wide
+`*.log` or `node_modules/` rule still leaves those out.
 
 Files that commonly hold credentials or private keys are also left out, even
 where no `.gitignore` names them: `.env`, `.env.*`, `.envrc` and `.envrc.*`
-(except their `.example`, `.sample` and `.template` variants), `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.jks`,
-`*.keystore`, `*.kdbx`, `id_rsa*`, `id_dsa*`, `id_ecdsa*`, `id_ed25519*`,
+(except their `.example`, `.sample` and `.template` variants), `*.pem`,
+`*.key`, `*.p12`, `*.pfx`, `*.jks`, `*.keystore`, `*.kdbx`, `id_rsa*`, `id_dsa*`, `id_ecdsa*`, `id_ed25519*`,
 `.ssh/`, `.gnupg/`, `.aws/`, `credentials`, `credentials.json`, `.netrc`,
 `.npmrc`, `.pypirc`, `.git-credentials`, `.htpasswd` and `*.tfstate[.backup]`.
 A `!` negation in a `.gitignore` re-includes one of these.
+
+Each skipped path is reported on stderr with the reason, followed by a count:
+
+```
+skipping [node_modules/] (gitignored)
+skipping [.env] (sensitive)
+...
+note: skipped 2 paths matched by .gitignore or sensitive-file rules; use --no-ignore to upload them
+```
 
 A single file is always uploaded. Pass `--no-ignore` to `create` or `update`
 to upload everything.

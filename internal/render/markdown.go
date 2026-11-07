@@ -290,7 +290,7 @@ func UsesMermaid(localPath string, includeIgnored bool) (bool, error) {
 			return false, err
 		}
 	}
-	paths, err := ListFiles(root.FS(), io.Discard, rules)
+	paths, _, err := ListFiles(root.FS(), io.Discard, rules)
 	if err != nil {
 		return false, fmt.Errorf("scan %s for mermaid: %w", localPath, err)
 	}

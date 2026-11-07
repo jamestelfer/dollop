@@ -12,18 +12,24 @@ import (
 // symlink is listed only when it resolves to a file that fsys can reach;
 // symlinks to directories are omitted, and symlinks that fsys refuses to follow
 // (an os.Root FS rejects targets outside the root) are skipped with a warning
-// on stderr. Paths that rules ignore are left out, and the .gitignore files
-// of the directories walked are loaded into rules; nil rules ignore nothing.
-func ListFiles(fsys fs.FS, stderr io.Writer, rules *ignore.Rules) ([]string, error) {
-	var paths []string
-	err := fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {
+// on stderr. Paths that rules ignore are left out, each reported on stderr
+// and counted in skipped, and the .gitignore files of the directories walked
+// are loaded into rules; nil rules ignore nothing.
+func ListFiles(fsys fs.FS, stderr io.Writer, rules *ignore.Rules) (paths []string, skipped int, err error) {
+	err = fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if p != "." && rules.Ignored(p, d.IsDir()) {
+		if p == "." {
+			return rules.Load(fsys, p)
+		}
+		if reason := rules.Match(p, d.IsDir()); reason != ignore.NotIgnored {
+			skipped++
 			if d.IsDir() {
+				fmt.Fprintf(stderr, "skipping [%s/] (%s)\n", p, reason) //nolint:errcheck
 				return fs.SkipDir
 			}
+			fmt.Fprintf(stderr, "skipping [%s] (%s)\n", p, reason) //nolint:errcheck
 			return nil
 		}
 		if d.IsDir() {
@@ -42,7 +48,7 @@ func ListFiles(fsys fs.FS, stderr io.Writer, rules *ignore.Rules) ([]string, err
 		paths = append(paths, p)
 		return nil
 	})
-	return paths, err
+	return paths, skipped, err
 }
 
 // openSeekable opens p in fsys as an io.ReadSeekCloser, which the S3 SDK needs

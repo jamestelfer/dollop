@@ -60,6 +60,16 @@ var sensitive = []string{
 	"*.tfstate.backup",
 }
 
+// Reason says why a path is left out of an upload; NotIgnored means it is not.
+type Reason string
+
+const (
+	NotIgnored Reason = ""
+	GitDir     Reason = "git directory"
+	Gitignored Reason = "gitignored"
+	Sensitive  Reason = "sensitive"
+)
+
 // Rules holds the gitignore patterns that apply to paths under an uploaded
 // directory. It starts with the patterns inherited from the enclosing
 // repository (see ForDir) and grows as Load reads the .gitignore files inside
@@ -69,13 +79,15 @@ type Rules struct {
 	// inherited and local patterns share one coordinate system.
 	base     []string
 	patterns []gitignore.Pattern
+	// sensitive counts the leading patterns that come from the sensitive list.
+	sensitive int
 }
 
 // ForDir returns the rules dir inherits from the .gitignore files between the
-// root of its enclosing git repository and dir's parent. When those rules
-// ignore dir itself they are dropped: naming an ignored directory, such as a
-// build output, is a request to upload it. The sensitive patterns precede
-// them, scoped to dir, and are never dropped.
+// root of its enclosing git repository and dir's parent. A pattern that
+// ignores dir or one of its ancestors is dropped, and the rest apply: naming
+// an ignored directory, such as a build output, is a request to upload it.
+// The sensitive patterns precede them, scoped to dir, and are never dropped.
 func ForDir(dir string) (*Rules, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
@@ -92,11 +104,12 @@ func ForDir(dir string) (*Rules, error) {
 		defaults = append(defaults, gitignore.ParsePattern(p, r.base))
 	}
 	r.patterns = append(defaults, r.patterns...)
+	r.sensitive = len(sensitive)
 	return r, nil
 }
 
 // inherit sets base to abs's path within repo and reads the .gitignore files
-// of abs's ancestors in repo, dropping them if they ignore abs.
+// of abs's ancestors in repo, keeping only the patterns that cannot ignore abs.
 func (r *Rules) inherit(repo, abs string) error {
 	rel, err := filepath.Rel(repo, abs)
 	if err != nil {
@@ -112,10 +125,20 @@ func (r *Rules) inherit(repo, abs string) error {
 			return err
 		}
 	}
-	if gitignore.NewMatcher(r.patterns).Match(r.base, true) {
-		r.patterns = nil
-	}
+	r.patterns = slices.DeleteFunc(r.patterns, r.excludesBase)
 	return nil
+}
+
+// excludesBase reports whether p excludes the uploaded directory or one of
+// its ancestors. A pattern matching a directory matches everything beneath
+// it, so only such a pattern can ignore the whole upload.
+func (r *Rules) excludesBase(p gitignore.Pattern) bool {
+	for i := 1; i <= len(r.base); i++ {
+		if p.Match(r.base[:i], true) == gitignore.Exclude {
+			return true
+		}
+	}
+	return false
 }
 
 // repoRoot returns the nearest directory at or above abs holding a .git
@@ -144,15 +167,30 @@ func (r *Rules) Load(fsys fs.FS, dir string) error {
 }
 
 // Ignored reports whether p, a slash-separated path relative to the uploaded
-// directory, is ignored. .git directories are always ignored.
+// directory, is left out of the upload.
 func (r *Rules) Ignored(p string, isDir bool) bool {
+	return r.Match(p, isDir) != NotIgnored
+}
+
+// Match reports why p, a slash-separated path relative to the uploaded
+// directory, is left out of the upload. .git directories always are.
+func (r *Rules) Match(p string, isDir bool) Reason {
 	if r == nil {
-		return false
+		return NotIgnored
 	}
 	if isDir && path.Base(p) == gitDir {
-		return true
+		return GitDir
 	}
-	return gitignore.NewMatcher(r.patterns).Match(r.under(p), isDir)
+	components := r.under(p)
+	if !gitignore.NewMatcher(r.patterns).Match(components, isDir) {
+		return NotIgnored
+	}
+	// The sensitive patterns have the lowest priority, so the .gitignore
+	// patterns alone decide whenever they match.
+	if gitignore.NewMatcher(r.patterns[r.sensitive:]).Match(components, isDir) {
+		return Gitignored
+	}
+	return Sensitive
 }
 
 // under returns the components of p, relative to the uploaded directory, as

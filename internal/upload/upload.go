@@ -128,6 +128,7 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 
 	var fsys fs.FS
 	var relPaths []string
+	var skipped int
 	if info.IsDir() {
 		root, err := os.OpenRoot(localPath)
 		if err != nil {
@@ -142,7 +143,7 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 				return nil, fmt.Errorf("read ignore rules: %w", err)
 			}
 		}
-		relPaths, err = render.ListFiles(fsys, stderr, rules)
+		relPaths, skipped, err = render.ListFiles(fsys, stderr, rules)
 		if err != nil {
 			return nil, fmt.Errorf("scan files: %w", err)
 		}
@@ -187,8 +188,22 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 		return nil, err
 	}
 	writtenKeys = append(writtenKeys, manifestKey)
+	reportSkipped(skipped, stderr)
 
 	return &UploadResult{SourceRelPaths: relPathsOf(sources), Entry: plan.entry, WrittenKeys: writtenKeys}, nil
+}
+
+// reportSkipped notes how many paths the ignore rules left out, and how to
+// include them.
+func reportSkipped(n int, stderr io.Writer) {
+	if n == 0 {
+		return
+	}
+	noun := "paths"
+	if n == 1 {
+		noun = "path"
+	}
+	fmt.Fprintf(stderr, "note: skipped %d %s matched by .gitignore or sensitive-file rules; use --no-ignore to upload them\n", n, noun) //nolint:errcheck
 }
 
 // uploadTitle names the upload at localPath for its index page: the base name

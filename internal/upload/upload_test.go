@@ -121,18 +121,41 @@ func TestUploadFiles_Directory_SkipsGitignored(t *testing.T) {
 	dir := gitignoreFixture(t)
 
 	up := &fakeUploader{}
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, io.Discard)
+	var stderr bytes.Buffer
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, &stderr)
 	require.NoError(t, err)
 
 	assert.ElementsMatch(t, []string{".gitignore", "keep.txt", "sub/.gitignore", "sub/public.txt"}, res.SourceRelPaths)
+	out := stderr.String()
+	assert.Contains(t, out, "skipping [debug.log] (gitignored)")
+	assert.Contains(t, out, "skipping [build/] (gitignored)")
+	assert.Contains(t, out, "skipping [.git/] (git directory)")
+	assert.Contains(t, out, "skipping [sub/secret.txt] (gitignored)")
+	assert.Contains(t, out, "note: skipped 4 paths matched by .gitignore or sensitive-file rules; use --no-ignore to upload them")
+}
+
+func TestUploadFiles_Directory_ReportsSensitiveSkip(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("<h1>hi</h1>"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), []byte("TOKEN=x"), 0o600))
+
+	up := &fakeUploader{}
+	var stderr bytes.Buffer
+	_, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, &stderr)
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr.String(), "skipping [.env] (sensitive)")
+	assert.Contains(t, stderr.String(), "note: skipped 1 path matched")
 }
 
 func TestUploadFiles_Directory_WithIgnoredFilesUploadsEverything(t *testing.T) {
 	dir := gitignoreFixture(t)
 
 	up := &fakeUploader{}
-	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, io.Discard, upload.WithIgnoredFiles())
+	var stderr bytes.Buffer
+	res, err := upload.UploadFiles(context.Background(), up, "bucket", "flash/1/abc", dir, upload.IndexNone, &stderr, upload.WithIgnoredFiles())
 	require.NoError(t, err)
+	assert.NotContains(t, stderr.String(), "skip")
 
 	assert.ElementsMatch(t, []string{
 		".gitignore", "keep.txt", "debug.log", "build/out.js", ".git/HEAD",

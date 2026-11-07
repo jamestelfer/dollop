@@ -85,18 +85,47 @@ func TestForDir_RepositoryInWorktree(t *testing.T) {
 	assert.True(t, loaded(t, dir).Ignored("app.log", false))
 }
 
-func TestForDir_IgnoredDirectoryDropsInheritedPatterns(t *testing.T) {
+func TestForDir_IgnoredDirectoryKeepsOtherInheritedPatterns(t *testing.T) {
 	repo := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(repo, ".git"), 0o700))
-	writeFile(t, filepath.Join(repo, ".gitignore"), "dist/\n*.log\n")
+	writeFile(t, filepath.Join(repo, ".gitignore"), "dist/\n*.log\nnode_modules/\n")
 	writeFile(t, filepath.Join(repo, "dist", ".gitignore"), "*.map\n")
 	dir := filepath.Join(repo, "dist")
 
 	rules := loaded(t, dir)
 
 	assert.False(t, rules.Ignored("index.html", false))
-	assert.False(t, rules.Ignored("app.log", false))
-	assert.True(t, rules.Ignored("app.js.map", false), "the directory's own .gitignore still applies")
+	assert.False(t, rules.Ignored("assets/site.css", false), "the pattern ignoring dist does not reach beneath it")
+	assert.True(t, rules.Ignored("app.log", false))
+	assert.True(t, rules.Ignored("node_modules", true))
+	assert.True(t, rules.Ignored("app.js.map", false), "the directory's own .gitignore applies")
+}
+
+func TestForDir_IgnoredAncestorKeepsOtherInheritedPatterns(t *testing.T) {
+	repo := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(repo, ".git"), 0o700))
+	writeFile(t, filepath.Join(repo, ".gitignore"), "/build/\n*.log\n")
+	dir := filepath.Join(repo, "build", "site")
+	require.NoError(t, os.MkdirAll(dir, 0o700))
+
+	rules := loaded(t, dir)
+
+	assert.False(t, rules.Ignored("index.html", false))
+	assert.True(t, rules.Ignored("app.log", false))
+}
+
+func TestRules_MatchReportsReason(t *testing.T) {
+	repo := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(repo, ".git"), 0o700))
+	writeFile(t, filepath.Join(repo, ".gitignore"), "*.log\nsecrets.env\n")
+
+	rules := loaded(t, repo)
+
+	assert.Equal(t, ignore.NotIgnored, rules.Match("index.html", false))
+	assert.Equal(t, ignore.Gitignored, rules.Match("app.log", false))
+	assert.Equal(t, ignore.Sensitive, rules.Match("server.pem", false))
+	assert.Equal(t, ignore.Gitignored, rules.Match("secrets.env", false), "a .gitignore match takes precedence over the sensitive list")
+	assert.Equal(t, ignore.GitDir, rules.Match(".git", true))
 }
 
 func TestForDir_OutsideRepository(t *testing.T) {
