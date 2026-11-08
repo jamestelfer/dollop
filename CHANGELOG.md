@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.22.0](https://github.com/jamestelfer/dollop/compare/v1.21.0...v1.22.0) (2026-11-08)
+
+
+### Features
+
+* skip gitignored and sensitive files when uploading a directory ([#134](https://github.com/jamestelfer/dollop/issues/134)) ([b2c6806](https://github.com/jamestelfer/dollop/commit/b2c6806b2618db524bcd3fa4710a76947eb220b5))
+
+
+### Bug Fixes
+
+* **deps:** update dependency mermaid to v12.3.0 ([#136](https://github.com/jamestelfer/dollop/issues/136)) ([1364bce](https://github.com/jamestelfer/dollop/commit/1364bce9347474750ac8b36c6c9c13f7b6f95dea))
+* **deps:** update github actions ([#133](https://github.com/jamestelfer/dollop/issues/133)) ([10edd65](https://github.com/jamestelfer/dollop/commit/10edd658640ee47d02b3a6c767f5272afe691c68))
+* **deps:** update go dependencies ([#132](https://github.com/jamestelfer/dollop/issues/132)) ([fc532e9](https://github.com/jamestelfer/dollop/commit/fc532e9b216fb8a2f745b9ad1bc1ee96accab00d))
+
 ## [1.21.0](https://github.com/jamestelfer/dollop/compare/v1.20.0...v1.21.0) (2026-10-29)
 
 
