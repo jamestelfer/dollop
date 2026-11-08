@@ -311,6 +311,22 @@ func TestCreate_NoRender_SkipsRendering(t *testing.T) {
 	assert.Contains(t, stdout, "notes.md")
 }
 
+func TestCreate_NoIgnore_UploadsGitignoredFiles(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("*.log\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "debug.log"), []byte("trace"), 0o600))
+
+	up := &fakeUploader{}
+	_, _, code := runCreate(t, up, "create", dir)
+	require.Equal(t, 0, code)
+	assert.NotContains(t, up.calls, "flash/1/testid/debug.log")
+
+	up = &fakeUploader{}
+	_, _, code = runCreate(t, up, "create", "--no-ignore", dir)
+	require.Equal(t, 0, code)
+	assert.Contains(t, up.calls, "flash/1/testid/debug.log")
+}
+
 func TestCreate_CopyDir_WritesFilesToDisk(t *testing.T) {
 	src := t.TempDir()
 	dst := t.TempDir()

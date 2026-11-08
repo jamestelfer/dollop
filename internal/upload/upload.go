@@ -12,6 +12,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/jamestelfer/dollop/internal/ignore"
 	"github.com/jamestelfer/dollop/internal/render"
 )
 
@@ -21,8 +22,9 @@ import (
 type FileRenderer = render.Renderer
 
 type uploadOptions struct {
-	renderer  FileRenderer
-	published publishedPrefix
+	renderer       FileRenderer
+	published      publishedPrefix
+	includeIgnored bool
 }
 
 // UploadOption configures optional behaviour for UploadFiles.
@@ -47,6 +49,15 @@ type UploadResult struct {
 func WithRenderer(r FileRenderer) UploadOption {
 	return func(o *uploadOptions) {
 		o.renderer = r
+	}
+}
+
+// WithIgnoredFiles uploads the files of a directory that ignore.ForDir would
+// leave out: those its .gitignore files exclude, sensitive files, and .git
+// directories.
+func WithIgnoredFiles() UploadOption {
+	return func(o *uploadOptions) {
+		o.includeIgnored = true
 	}
 }
 
@@ -90,6 +101,8 @@ func WithPublishedManifest(m Manifest) UploadOption {
 // about on stderr.
 // A directory is read through an os.Root, so symlinks resolving outside it are
 // skipped with a warning; a single file is read wherever its symlink points.
+// A directory's ignored and sensitive files are left out (see ignore.ForDir)
+// unless WithIgnoredFiles is given; a single file is always uploaded.
 // Returns an UploadResult reporting the relative paths of the uploaded sources
 // (not including any generated index.html), the entry the public URL should
 // point at, and the complete set of keys written.
@@ -115,6 +128,7 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 
 	var fsys fs.FS
 	var relPaths []string
+	var skipped int
 	if info.IsDir() {
 		root, err := os.OpenRoot(localPath)
 		if err != nil {
@@ -123,7 +137,13 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 		// Sources open lazily during uploadPlan, so the root must outlive it.
 		defer root.Close() //nolint:errcheck
 		fsys = root.FS()
-		relPaths, err = render.ListFiles(fsys, stderr)
+		var rules *ignore.Rules
+		if !o.includeIgnored {
+			if rules, err = ignore.ForDir(localPath); err != nil {
+				return nil, fmt.Errorf("read ignore rules: %w", err)
+			}
+		}
+		relPaths, skipped, err = render.ListFiles(fsys, stderr, rules)
 		if err != nil {
 			return nil, fmt.Errorf("scan files: %w", err)
 		}
@@ -168,8 +188,22 @@ func UploadFiles(ctx context.Context, up Uploader, bucket, prefix, localPath str
 		return nil, err
 	}
 	writtenKeys = append(writtenKeys, manifestKey)
+	reportSkipped(skipped, stderr)
 
 	return &UploadResult{SourceRelPaths: relPathsOf(sources), Entry: plan.entry, WrittenKeys: writtenKeys}, nil
+}
+
+// reportSkipped notes how many paths the ignore rules left out, and how to
+// include them.
+func reportSkipped(n int, stderr io.Writer) {
+	if n == 0 {
+		return
+	}
+	noun := "paths"
+	if n == 1 {
+		noun = "path"
+	}
+	fmt.Fprintf(stderr, "note: skipped %d %s matched by .gitignore or sensitive-file rules; use --no-ignore to upload them\n", n, noun) //nolint:errcheck
 }
 
 // uploadTitle names the upload at localPath for its index page: the base name

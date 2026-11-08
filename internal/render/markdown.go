@@ -25,6 +25,7 @@ import (
 	"go.abhg.dev/goldmark/anchor"
 
 	"github.com/jamestelfer/dollop/internal/d2render"
+	"github.com/jamestelfer/dollop/internal/ignore"
 )
 
 // NewMarkdownRenderer returns a Renderer that converts .md files to .html,
@@ -265,10 +266,11 @@ func hasMermaidFence(doc ast.Node, _ []byte) bool {
 // directory of files) would render any mermaid diagram. It parses each markdown
 // file's AST and reuses hasMermaidFence, so it agrees exactly with the renderer
 // (a substring scan would miss ~~~ fences and trip on literal sample code).
-// A directory is scanned through an os.Root with ListFiles, so it considers
-// the same files an upload would. Non-markdown files are ignored. It is used by
-// create/update to warn when the shared mermaid engine is not yet published.
-func UsesMermaid(localPath string) (bool, error) {
+// A directory is scanned through an os.Root with ListFiles, honouring its
+// .gitignore files unless includeIgnored, so it considers the same files an
+// upload would. Non-markdown files are ignored. It is used by create/update to
+// warn when the shared mermaid engine is not yet published.
+func UsesMermaid(localPath string, includeIgnored bool) (bool, error) {
 	info, err := os.Stat(localPath)
 	if err != nil {
 		return false, fmt.Errorf("stat %s: %w", localPath, err)
@@ -282,7 +284,13 @@ func UsesMermaid(localPath string) (bool, error) {
 	}
 	defer root.Close() //nolint:errcheck
 
-	paths, err := ListFiles(root.FS(), io.Discard)
+	var rules *ignore.Rules
+	if !includeIgnored {
+		if rules, err = ignore.ForDir(localPath); err != nil {
+			return false, err
+		}
+	}
+	paths, _, err := ListFiles(root.FS(), io.Discard, rules)
 	if err != nil {
 		return false, fmt.Errorf("scan %s for mermaid: %w", localPath, err)
 	}
