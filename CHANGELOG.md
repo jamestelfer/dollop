@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.22.1](https://github.com/jamestelfer/dollop/compare/v1.22.0...v1.22.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **deps:** update dependency go to v1.27.4 ([#140](https://github.com/jamestelfer/dollop/issues/140)) ([01c61f3](https://github.com/jamestelfer/dollop/commit/01c61f35cd8ef489e68bbc292da3c489d0469e6d))
+* **deps:** update dependency goreleaser to v2.20.0 ([#138](https://github.com/jamestelfer/dollop/issues/138)) ([b2c84bd](https://github.com/jamestelfer/dollop/commit/b2c84bd04c8b22f3b89268240f1ecbbfb1879649))
+* **deps:** update go dependencies ([#137](https://github.com/jamestelfer/dollop/issues/137)) ([8f80591](https://github.com/jamestelfer/dollop/commit/8f80591d98fa1756c9dc7e7101dcf255bf51583a))
+* **deps:** update jdx/mise-action action to v5.2.7 ([#139](https://github.com/jamestelfer/dollop/issues/139)) ([6248b9c](https://github.com/jamestelfer/dollop/commit/6248b9c18c50c5f9852fc49ae016f0564b3566b8))
+
 ## [1.22.0](https://github.com/jamestelfer/dollop/compare/v1.21.0...v1.22.0) (2026-11-08)
 
 
